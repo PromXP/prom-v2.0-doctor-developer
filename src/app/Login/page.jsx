@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
+import axios from "axios";
+import { API_URL } from "../libs/global";
+
 import { Raleway, Inter, Poppins } from "next/font/google";
 
 import MainBg from "@/app/Assets/mainbg.png";
@@ -71,8 +74,44 @@ const page = () => {
     setTimeout(() => setshowAlert(false), 4000);
   };
 
-  const handlelogin = () => {
-    router.replace("/Homedashboard");
+  const handlelogin = async (e) => {
+    if (!userUHID) {
+      showWarning("Please enter your UHID / Phone number / Email");
+      return;
+    }
+    if (!userPassword) {
+      showWarning("Please enter your password");
+      return;
+    }
+
+    try {
+      const res = await axios.post(`${API_URL}auth/login`, {
+        identifier: userUHID,
+        password: userPassword,
+        type: "doctor",
+      });
+
+      console.log("Login", res);
+
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("doctor", res.data.user_id);
+      }
+
+      // redirect
+      router.replace("/Homedashboard");
+      setuserUHID("");
+      setuserPassword("");
+    } catch (err) {
+      setuserUHID("");
+      setuserPassword("");
+      if (err.response) {
+        showWarning(err.response.data.detail || "Login failed");
+      } else if (err.request) {
+        showWarning("No response from server");
+      } else {
+        showWarning("Network error");
+      }
+    }
   };
 
   return (
@@ -136,12 +175,16 @@ const page = () => {
                       <input
                         type="text"
                         placeholder="UEID / Email / Phone"
+                        value={userUHID}
+                        onChange={(e) => setuserUHID(e.target.value)}
                         className={`${poppins.className} rounded-md p-3 text-sm border-1 border-[#E0E9E7] text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
                       />
                       <div className="relative w-full">
                         <input
                           type={showPassword ? "text" : "password"}
                           placeholder="Password"
+                          value={userPassword}
+                          onChange={(e) => setuserPassword(e.target.value)}
                           className={`${poppins.className} w-full border-1 border-[#E0E9E7] rounded-md text-sm p-3 text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
                         />
                         {/* Password show/hide icon placeholder on right */}
@@ -275,6 +318,15 @@ const page = () => {
           </div>
         </div>
       </div>
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

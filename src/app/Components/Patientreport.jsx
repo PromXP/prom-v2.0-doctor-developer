@@ -41,7 +41,7 @@ import {
 
 import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
-import ManAvatar from "@/app/Assets/manavatar.png";
+import ManAvatar from "@/app/Assets/man.png";
 import Reportimg from "@/app/Assets/report.png";
 import Heatmap from "@/app/Assets/heatmap.png";
 

@@ -35,7 +35,8 @@ import {
 
 import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
-import ManAvatar from "@/app/Assets/manavatar.png";
+import ManAvatar from "@/app/Assets/man.png";
+import Womanavatar from "@/app/Assets/woman.png";
 import Calendar from "@/app/Assets/calendar.png";
 import Clock from "@/app/Assets/clock.png";
 import BoneLeft from "@/app/Assets/boneleft.png";
