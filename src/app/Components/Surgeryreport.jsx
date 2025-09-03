@@ -576,7 +576,8 @@ const Surgeryreport = () => {
                   >
                     <input
                       id={id}
-                      type="checkbox"
+                      type="radio"
+                      name="anaesthetic"
                       className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                     />
                     <span className="text-xs text-black">{type}</span>
@@ -605,7 +606,8 @@ const Surgeryreport = () => {
                   >
                     <input
                       id={id}
-                      type="checkbox"
+                      type="radio"
+                      name="asagrade"
                       className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                     />
                     <span className="text-xs text-[#272727]">{grade}</span>

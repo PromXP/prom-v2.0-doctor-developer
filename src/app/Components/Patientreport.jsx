@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 
+import axios from "axios";
+import { API_URL } from "../libs/global";
+
 import {
   LineChart,
   Line,
@@ -42,6 +45,7 @@ import {
 import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
 import ManAvatar from "@/app/Assets/man.png";
+import Womanavatar from "@/app/Assets/woman.png";
 import Reportimg from "@/app/Assets/report.png";
 import Heatmap from "@/app/Assets/heatmap.png";
 
@@ -172,7 +176,7 @@ const useBoxPlot = (boxPlots) => {
   );
 };
 
-const Patientreport = ({handlenavigateviewsurgeryreport}) => {
+const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
   const useWindowSize = () => {
     const [size, setSize] = useState({
       width: 0,
@@ -197,68 +201,227 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
 
   const { width, height } = useWindowSize();
 
-  const questionnaireData = {
-    periods: [
-      { key: "pre_op", label: "Pre Op", date: "10 July 2025" },
-      { key: "6w", label: "6W", date: "20 Aug 2025" },
-      { key: "3m", label: "3M", date: "15 Sep 2025" },
-      { key: "6m", label: "6M", date: "01 Nov 2025" },
-      { key: "1y", label: "1Y", date: "10 Jan 2026" },
-      { key: "2y", label: "2Y", date: "30 May 2027" },
-    ],
-    questionnaires: [
-      {
-        name: "Oxford Knee Score (OKS)",
-        scores: {
-          pre_op: "82",
-          "6w": "77",
-          "3m": "58",
-          "6m": "35",
-          "1y": "N/A",
-          "2y": "",
-        },
-      },
-      {
-        name: "Short Form 12  (SF-12)",
-        scores: {}, // No data
-      },
-      {
-        name: "Knee Injury and Ostheoarthritis Outcome Score, Joint Replacement (KOOS, JR)",
-        scores: {
-          pre_op: "50",
-          "6w": "42",
-          "3m": "",
-          "6m": "N/A",
-          "1y": "66",
-          "2y": "30",
-        },
-      },
+  const [patientbasic, setpatientbasic] = useState({});
+  const [selectpatientquest, setselectedpatientques] = useState({});
+  const [patientsquest, setpatientsques] = useState([]);
+  const [surgerydatleft, setsurgeryDateleft] = useState("");
+  const [surgerydatright, setsurgeryDateright] = useState("");
 
-      {
-        name: "Forgotten Joint Score (FJS)",
-        scores: {
-          pre_op: "50",
-          "6w": "42",
-          "3m": "",
-          "6m": "N/A",
-          "1y": "66",
-          "2y": "30",
-        },
-      },
+  let patientReportId = null;
 
-      {
-        name: "Knee Society Score (KSS)",
-        scores: {
-          pre_op: "50",
-          "6w": "42",
-          "3m": "",
-          "6m": "N/A",
-          "1y": "66",
-          "2y": "30",
-        },
-      },
-    ],
-  };
+  if (typeof window !== "undefined") {
+    patientReportId = sessionStorage.getItem("patientreportid");
+  }
+
+  useEffect(() => {
+    if (!patientReportId) {
+      showWarning("No patient report found");
+      return;
+    }
+
+    const fetchPatientReminder = async () => {
+      try {
+        const res = await axios.get(
+          `${API_URL}patients-by-uhid/${patientReportId}`
+        );
+
+        const patient = res.data.patient;
+
+        // calculate age from birthDate
+        const calculateAge = (dob) => {
+          if (!dob) return "NA";
+          const birth = new Date(dob);
+          const today = new Date();
+          let age = today.getFullYear() - birth.getFullYear();
+          const m = today.getMonth() - birth.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+          }
+          return age;
+        };
+
+        // calculate BMI
+        const calculateBMI = (heightStr, weightStr) => {
+          if (!heightStr || !weightStr) return "NA";
+          const heightVal = parseFloat(heightStr.replace("cm", "").trim());
+          const weightVal = parseFloat(weightStr.replace("kg", "").trim());
+          if (isNaN(heightVal) || isNaN(weightVal) || heightVal === 0)
+            return "NA";
+          const heightM = heightVal / 100; // convert cm → m
+          return (weightVal / (heightM * heightM)).toFixed(1); // 1 decimal place
+        };
+
+        const bmi = calculateBMI(
+          patient.Medical?.height,
+          patient.Medical?.weight
+        );
+
+        const TOTAL_PERIODS = 6; // expected periods for each questionnaire
+
+        function checkCompletion(sideData) {
+          if (!sideData || Object.keys(sideData).length === 0) {
+            return "Pending"; // no questionnaires = pending
+          }
+
+          for (const [qName, qData] of Object.entries(sideData)) {
+            const periods = Object.keys(qData || {});
+            if (periods.length < TOTAL_PERIODS) {
+              return "Pending"; // ❌ this questionnaire incomplete
+            }
+          }
+
+          return "Completed"; // ✅ all questionnaires have 6 periods
+        }
+
+        // Usage:
+        const statusLeft = checkCompletion(patient.Medical_Left);
+        const statusRight = checkCompletion(patient.Medical_Right);
+
+        const pickedData = {
+          name: patient.Patient?.name ?? "NA",
+          age: calculateAge(patient.Patient?.birthDate),
+          gender: patient.Patient?.gender ?? "NA",
+          phone: patient.Patient?.phone ?? "NA",
+          email: patient.Patient?.email ?? "NA",
+          uhid: patient.uhid ?? "NA",
+          statusLeft: patient.Patient_Status_Left ?? "NA",
+          statusRight: patient.Patient_Status_Right ?? "NA",
+          leftCompleted: patient.Medical_Left_Completed_Count ?? "NA",
+          leftPending: patient.Medical_Left_Pending_Count ?? "NA",
+          rightCompleted: patient.Medical_Right_Completed_Count ?? "NA",
+          rightPending: patient.Medical_Right_Pending_Count ?? "NA",
+          bmi: bmi, // ✅ store BMI instead of height/weight
+          left_doctor:
+            patient.Practitioners?.left_doctor &&
+            patient.Practitioners.left_doctor !== "NA"
+              ? patient.Practitioners.left_doctor
+              : "Doctor",
+          right_doctor:
+            patient.Practitioners?.right_doctor &&
+            patient.Practitioners.right_doctor !== "NA"
+              ? patient.Practitioners.right_doctor
+              : "Doctor",
+          surgery_left: patient.Medical?.surgery_date_left ?? "NA",
+          surgery_right: patient.Medical?.surgery_date_right ?? "NA",
+          questionnaire_left: patient.Medical_Left ?? {},
+          questionnaire_right: patient.Medical_Right ?? {},
+          questionnaireStatusLeft: checkCompletion(patient.Medical_Left),
+          questionnaireStatusRight: checkCompletion(patient.Medical_Right),
+          vip: patient.VIP_Status ?? false,
+          avatar:
+            patient.Patient?.photo && patient.Patient?.photo !== "NA"
+              ? patient.Patient.photo
+              : patient.Patient?.gender?.toLowerCase() === "male"
+              ? ManAvatar
+              : Womanavatar,
+        };
+
+        const ques = {
+          questionnaire_left: patient.Medical_Left ?? {},
+          questionnaire_right: patient.Medical_Right ?? {},
+        };
+
+        setselectedpatientques(ques);
+
+        setpatientbasic(pickedData);
+
+        console.log("Fetched patient reminder data:", pickedData);
+      } catch (err) {
+        console.error("Error fetching patient reminder:", err);
+      }
+    };
+
+    fetchPatientReminder();
+  }, [patientReportId]);
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      const consolidateQuestionnaires = (patients) => {
+        const consolidated = { left: {}, right: {} };
+
+        const extractScore = (scoreStr) => {
+          if (!scoreStr) return "NA";
+          const match = scoreStr.match(/:\s*(\d+)/);
+          return match ? match[1] : "NA";
+        };
+
+        const processSide = (sideKey, questionnaires) => {
+          Object.entries(questionnaires || {}).forEach(([qName, qData]) => {
+            if (!consolidated[sideKey][qName]) {
+              consolidated[sideKey][qName] = {};
+            }
+
+            Object.entries(qData || {}).forEach(([period, details]) => {
+              if (!consolidated[sideKey][qName][period]) {
+                consolidated[sideKey][qName][period] = [];
+              }
+              consolidated[sideKey][qName][period].push(
+                details?.score ? extractScore(details.score) : "NA"
+              );
+            });
+          });
+        };
+
+        patients.forEach((p) => {
+          processSide("left", p.left_questionnaires);
+          processSide("right", p.right_questionnaires);
+        });
+
+        return consolidated;
+      };
+
+      try {
+        let adminUhid = null;
+
+        if (typeof window !== "undefined") {
+          adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
+        }
+
+        if (!adminUhid) {
+          showWarning("No admin UHID found in session");
+          return;
+        }
+
+        const res = await axios.get(
+          `${API_URL}patients/by-doctor-uhid/${adminUhid}`
+        );
+        // console.log("✅ API Response:", res.data);
+
+        // setPatients1(res.data.patients || []);
+
+        const apiPatients = res.data.patients || [];
+
+        // 🔄 Map API data → static UI format
+        const mapped = apiPatients
+          .filter((p) => p.uhid !== patientReportId) // remove only that patient
+          .map((p) => ({
+            left_questionnaires: p.Medical_Left ?? {},
+            right_questionnaires: p.Medical_Right ?? {},
+          }));
+
+        setpatientsques(consolidateQuestionnaires(mapped));
+        console.log("Other patients scores", consolidateQuestionnaires(mapped));
+      } catch (err) {
+        if (err.response) {
+          showWarning(err.response.data.detail || "Failed to fetch patients");
+        } else {
+          showWarning("Network error");
+        }
+      }
+    };
+
+    fetchPatients();
+  }, []);
+
+  useEffect(() => {
+    if (patientbasic) {
+      setsurgeryDateleft(patientbasic.surgery_left || "");
+      setsurgeryDateright(patientbasic.surgery_right || "");
+    }
+  }, [patientbasic]);
+
+    const [handlequestableswitch, sethandlequestableswitch] = useState("left");
+
 
   function getTextColor(score) {
     if (score === null || score === undefined || isNaN(score)) return "#9CA3AF"; // gray for missing
@@ -272,23 +435,6 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
 
     return `rgb(${r}, ${g}, ${b})`;
   }
-
-  const data = [
-    { name: "-3", oks: 45, sf12: 50, koos: 48, kss: 40, fjs: 42 },
-    {
-      name: "SURGERY",
-      oks: null,
-      sf12: null,
-      koos: null,
-      kss: null,
-      fjs: null,
-    },
-    { name: "+42", oks: 50, sf12: 55, koos: 52, kss: 46, fjs: 44 },
-    { name: "+90", oks: 60, sf12: 62, koos: 59, kss: 55, fjs: 58 },
-    { name: "+180", oks: 70, sf12: 72, koos: 74, kss: 68, fjs: 70 },
-    { name: "+365", oks: 80, sf12: 82, koos: 85, kss: 78, fjs: 82 },
-    { name: "+730", oks: 85, sf12: 88, koos: 90, kss: 84, fjs: 87 },
-  ];
 
   const [selectedQuestionnaires, setSelectedQuestionnaires] = useState([
     "oks",
@@ -307,18 +453,496 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
     );
   }
 
-  // 1) Base SF-12 dataset (X labels + values)
-  const sf12Data = [
-    { x: 0, name: "-3", pScore: 45, mScore: 50 },
-    { x: 1, name: "SURGERY", pScore: null, mScore: null }, // marker only
-    { x: 2, name: "+42", pScore: 50, mScore: 55 },
-    { x: 3, name: "+90", pScore: 58, mScore: 60 },
-    { x: 4, name: "+180", pScore: 70, mScore: 72 },
-    { x: 5, name: "+365", pScore: 78, mScore: 80 },
-    { x: 6, name: "+730", pScore: 82, mScore: 85 },
+  const TIMEPOINT_ORDER = ["Pre Op", "6W", "3M", "6M", "1Y", "2Y"];
+
+  function buildBoxPlotData(
+    consolidated,
+    targetPatient,
+    questionnaireKey,
+    side = "left"
+  ) {
+    return TIMEPOINT_ORDER.map((timepoint, idx) => {
+      // Collect group scores from other patients (side-based)
+      const groupScores =
+        consolidated?.[side]?.[questionnaireKey]?.[timepoint] || [];
+
+      // Patient’s own score (side-based)
+      const patientScoreRaw =
+        targetPatient?.[questionnaireKey]?.[timepoint]?.score || "";
+      const match = patientScoreRaw.match(/:\s*(\d+)/);
+      const patientScore = match ? Number(match[1]) : undefined;
+
+      return {
+        name: timepoint,
+        boxData: groupScores.map(Number).filter((s) => !isNaN(s)),
+        dotValue: patientScore,
+      };
+    });
+  }
+
+  // Left side OKS
+  const oksBoxPlotDataLeft = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_left,
+    "OKS",
+    "left"
+  );
+
+  // Right side OKS
+  const oksBoxPlotDataRight = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_right,
+    "OKS",
+    "right"
+  );
+
+  const oksBoxPlotData =
+    handlequestableswitch === "left" ? oksBoxPlotDataLeft : oksBoxPlotDataRight;
+
+  const oksDatabox = useBoxPlot(
+    oksBoxPlotData.map((item, index) => {
+      const stats = computeBoxStats(item.boxData, item.dotValue);
+
+      if (
+        stats.Patient === undefined ||
+        isNaN(stats.Patient) ||
+        stats.Patient > 48
+      ) {
+        stats.Patient = undefined;
+      }
+
+      return {
+        name: item.name,
+        x: index * 10,
+        ...stats,
+      };
+    })
+  );
+
+  // Left side OKS
+  const sf12BoxPlotDataLeft = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_left,
+    "SF12",
+    "left"
+  );
+
+  // Right side OKS
+  const sf12BoxPlotDataRight = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_right,
+    "SF12",
+    "right"
+  );
+
+  const sf12BoxPlotData =
+    handlequestableswitch === "left"
+      ? sf12BoxPlotDataLeft
+      : sf12BoxPlotDataRight;
+
+  const s12Databox = useBoxPlot(
+    sf12BoxPlotData.map((item, index) => {
+      const stats = computeBoxStats(item.boxData, item.dotValue);
+
+      if (stats.Patient === undefined || isNaN(stats.Patient)) {
+        stats.Patient = undefined;
+      }
+
+      return {
+        name: item.name,
+        x: index * 10,
+        ...stats,
+      };
+    })
+  );
+
+  // Left side OKS
+  const kssBoxPlotDataLeft = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_left,
+    "KSS",
+    "left"
+  );
+
+  // Right side OKS
+  const kssBoxPlotDataRight = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_right,
+    "KSS",
+    "right"
+  );
+
+  const kssBoxPlotData =
+    handlequestableswitch === "left" ? kssBoxPlotDataLeft : kssBoxPlotDataRight;
+
+  const kssDatabox = useBoxPlot(
+    kssBoxPlotData.map((item, index) => {
+      const stats = computeBoxStats(item.boxData, item.dotValue);
+
+      if (stats.Patient === undefined || isNaN(stats.Patient)) {
+        stats.Patient = undefined;
+      }
+
+      return {
+        name: item.name,
+        x: index * 10,
+        ...stats,
+      };
+    })
+  );
+
+  // Left side OKS
+  const koosjrBoxPlotDataLeft = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_left,
+    "KOOS_JR",
+    "left"
+  );
+
+  // Right side OKS
+  const koosjrBoxPlotDataRight = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_right,
+    "KOOS_JR",
+    "right"
+  );
+
+  const koosjrBoxPlotData =
+    handlequestableswitch === "left"
+      ? koosjrBoxPlotDataLeft
+      : koosjrBoxPlotDataRight;
+
+  const koosjrDatabox = useBoxPlot(
+    koosjrBoxPlotData.map((item, index) => {
+      const stats = computeBoxStats(item.boxData, item.dotValue);
+
+      if (stats.Patient === undefined || isNaN(stats.Patient)) {
+        stats.Patient = undefined;
+      }
+
+      return {
+        name: item.name,
+        x: index * 10,
+        ...stats,
+      };
+    })
+  );
+
+  const fjsBoxPlotDataLeft = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_left,
+    "FJS",
+    "left"
+  );
+
+  // Right side OKS
+  const fjsBoxPlotDataRight = buildBoxPlotData(
+    patientsquest,
+    patientbasic?.questionnaire_right,
+    "FJS",
+    "right"
+  );
+
+  const fjsBoxPlotData =
+    handlequestableswitch === "left" ? fjsBoxPlotDataLeft : fjsBoxPlotDataRight;
+
+  const fjsDatabox = useBoxPlot(
+    fjsBoxPlotData.map((item, index) => {
+      const stats = computeBoxStats(item.boxData, item.dotValue);
+
+      if (stats.Patient === undefined || isNaN(stats.Patient)) {
+        stats.Patient = undefined;
+      }
+
+      return {
+        name: item.name,
+        x: index * 10,
+        ...stats,
+      };
+    })
+  );
+
+  const [showAlert, setshowAlert] = useState(false);
+  const [alermessage, setAlertMessage] = useState("");
+
+  const showWarning = (message) => {
+    setAlertMessage(message);
+    setshowAlert(true);
+    setTimeout(() => setshowAlert(false), 4000);
+  };
+
+
+  const QUESTIONNAIRE_NAMES = {
+    OKS: "Oxford Knee Score (OKS)",
+    SF12: "Short Form - 12 (SF-12)",
+    KOOS_JR:
+      "Knee Injury and Osteoarthritis Outcome Score, Joint Replacement (KOOS, JR)",
+    KSS: "Knee Society Score (KSS)",
+    FJS: "Forgotten Joint Score (FJS)",
+  };
+
+  const transformApiDataToStaticWithDates = (apiData, surgeryDateLeft) => {
+    if (!apiData) return { periods: [], questionnaires: [] };
+
+    const periodOffsets = [
+      { key: "pre_op", label: "Pre Op", offset: -1 },
+      { key: "6w", label: "6W", offset: 42 },
+      { key: "3m", label: "3M", offset: 90 },
+      { key: "6m", label: "6M", offset: 180 },
+      { key: "1y", label: "1Y", offset: 365 },
+      { key: "2y", label: "2Y", offset: 730 },
+    ];
+
+    const periods = periodOffsets.map((p) => ({
+      key: p.key,
+      label: p.label,
+    }));
+
+    const questionnaires = Object.entries(apiData).map(([qKey, qPeriods]) => {
+      const scores = {};
+      const notesMap = {};
+
+      periodOffsets.forEach((p) => {
+        const periodData = qPeriods?.[p.label];
+
+        if (!qPeriods?.[p.label]) {
+          // Period itself not present
+          scores[p.key] = "-";
+          notesMap[p.key] = "-";
+        } else if (periodData && !periodData.score) {
+          // Period exists but score missing
+          scores[p.key] = "NA";
+
+          // Notes
+          const [first, second, third, fourth] = periodData.other_notes || [];
+          const filtered = [];
+          if (first === "No") filtered.push(first);
+          if (third === "No") filtered.push(third);
+          notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
+        } else {
+          // Period exists and score exists
+          const match = periodData.score.match(/:\s*(\d+)/);
+          scores[p.key] = match ? match[1] : "NA";
+
+          const [first, second, third, fourth] = periodData.other_notes || [];
+          const filtered = [];
+          if (first === "No") filtered.push(first);
+          if (third === "No") filtered.push(third);
+          notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
+        }
+      });
+
+      const fullName = QUESTIONNAIRE_NAMES[qKey] || qKey;
+
+      return { name: fullName, scores, notesMap };
+    });
+
+    return { periods, questionnaires };
+  };
+
+  // Usage
+  const staticLeft = surgerydatleft
+    ? transformApiDataToStaticWithDates(
+        patientbasic?.questionnaire_left,
+        surgerydatleft
+      )
+    : { periods: [], questionnaires: [] };
+
+  const staticRight = surgerydatright
+    ? transformApiDataToStaticWithDates(
+        patientbasic?.questionnaire_right,
+        surgerydatright
+      )
+    : { periods: [], questionnaires: [] };
+
+  const questionnaireData =
+    handlequestableswitch === "left" ? staticLeft : staticRight;
+
+  const extractQuestionnaireScores = (apiData, periodOffsets) => {
+    if (!apiData) return [];
+
+    return Object.entries(apiData).map(([qKey, qPeriods]) => {
+      const scores = {};
+      const notesMap = {};
+
+      periodOffsets.forEach((p) => {
+        const periodData = qPeriods?.[p.label];
+
+        if (!qPeriods?.[p.label]) {
+          // Period itself not present
+          scores[p.key] = "-";
+          notesMap[p.key] = "-";
+        } else if (periodData && !periodData.score) {
+          // Period exists but score missing
+          scores[p.key] = "NA";
+
+          // Notes extraction
+          const [first, , third] = periodData.other_notes || [];
+          const filtered = [];
+          if (first === "No") filtered.push(first);
+          if (third === "No") filtered.push(third);
+          notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
+        } else {
+          // Period exists and score exists
+          const match = periodData.score.match(/:\s*(\d+)/);
+          scores[p.key] = match ? match[1] : "NA";
+
+          const [first, , third] = periodData.other_notes || [];
+          const filtered = [];
+          if (first === "No") filtered.push(first);
+          if (third === "No") filtered.push(third);
+          notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
+        }
+      });
+
+      const fullName = QUESTIONNAIRE_NAMES[qKey] || qKey;
+      return { name: fullName, scores, notesMap };
+    });
+  };
+
+  // ✅ Usage for left and right
+  const periodOffsets = [
+    { key: "pre_op", label: "Pre Op" },
+    { key: "6w", label: "6W" },
+    { key: "3m", label: "3M" },
+    { key: "6m", label: "6M" },
+    { key: "1y", label: "1Y" },
+    { key: "2y", label: "2Y" },
   ];
 
+  // ✅ Safe extraction with optional chaining + fallback
+  const leftScores = extractQuestionnaireScores(
+    patientbasic?.questionnaire_left || {},
+    periodOffsets
+  );
+
+  const rightScores = extractQuestionnaireScores(
+    patientbasic?.questionnaire_right || {},
+    periodOffsets
+  );
+
+  // Map each period key to chart label and days
+  const periodLabelMap = {
+    pre_op: "-3",
+    surgery: "SURGERY",
+    "6w": "+42",
+    "3m": "+90",
+    "6m": "+180",
+    "1y": "+365",
+    "2y": "+730",
+  };
+
+  const toNumberOrNull = (val) => {
+    if (!val || val === "-" || val === "NA") return null;
+    const num = Number(val);
+    return isNaN(num) ? null : num;
+  };
+
+  // Convert your array of questionnaire scores into chart-ready data
+  const buildChartData = (scores) => {
+    return periodOffsets.map((p) => {
+      const oks =
+        scores.find((q) => q.name.includes("Oxford Knee Score"))?.scores?.[
+          p.key
+        ] || null;
+      const sf12 =
+        scores.find((q) => q.name.includes("SF-12"))?.scores?.[p.key] || null;
+      const koos =
+        scores.find((q) => q.name.includes("KOOS"))?.scores?.[p.key] || null;
+      const kss =
+        scores.find((q) => q.name.includes("Knee Society Score"))?.scores?.[
+          p.key
+        ] || null;
+      const fjs =
+        scores.find((q) => q.name.includes("Forgotten Joint Score"))?.scores?.[
+          p.key
+        ] || null;
+
+      return {
+        name: p.label, // your "-3", "SURGERY", "+42", etc.
+        oks: oks ? Number(oks) : null,
+        sf12: sf12 ? Number(sf12) : null,
+        koos: koos ? Number(koos) : null,
+        kss: kss ? Number(kss) : null,
+        fjs: fjs ? Number(fjs) : null,
+      };
+    });
+  };
+
+  // then use like this
+  const chartData =
+    handlequestableswitch === "left"
+      ? buildChartData(leftScores)
+      : buildChartData(rightScores);
+
+  const periodOffsetssf12 = [
+    { key: "pre_op", label: "-3" },
+    { key: "surgery", label: "SURGERY" },
+    { key: "6w", label: "+42" },
+    { key: "3m", label: "+90" },
+    { key: "6m", label: "+180" },
+    { key: "1y", label: "+365" },
+    { key: "2y", label: "+730" },
+  ];
+
+  const extractSf12Scores = (sf12Data, periodOffsets) => {
+    if (!sf12Data || Object.keys(sf12Data).length === 0) return [];
+
+    const map = {
+      "Pre Op": "-3",
+      "6W": "+42",
+      "3M": "+90",
+      "6M": "+180",
+      "1Y": "+365",
+      "2Y": "+730",
+    };
+
+    const result = Object.entries(sf12Data).map(([period, details], index) => {
+      if (!details?.score) {
+        return {
+          x: index,
+          name: map[period] || period,
+          pScore: null,
+          mScore: null,
+        };
+      }
+
+      // Example: "Scores (6W): 53, 23, 30 (Recorded at ...)"
+      const match = details.score.match(
+        /Scores.*?:\s*([\d]+),\s*([\d]+),\s*([\d]+)/
+      );
+
+      const pScore = match ? Number(match[2]) : null; // 2nd
+      const mScore = match ? Number(match[3]) : null; // 3rd
+
+      return {
+        x: index,
+        name: map[period] || period,
+        pScore,
+        mScore,
+      };
+    });
+
+    // Insert SURGERY marker between Pre Op (-3) and 6W (+42)
+    result.splice(1, 0, { x: 1, name: "SURGERY", pScore: null, mScore: null });
+
+    // Recalculate x index
+    return result.map((r, i) => ({ ...r, x: i }));
+  };
+
+  // ✅ Now call with SF12 directly
+  const leftSf12 = extractSf12Scores(
+    patientbasic?.questionnaire_left?.SF12,
+    periodOffsetssf12
+  );
+  const rightSf12 = extractSf12Scores(
+    patientbasic?.questionnaire_right?.SF12,
+    periodOffsetssf12
+  );
+
   // 2) X-axis label source
+  const sf12Data = handlequestableswitch === "left" ? leftSf12 : rightSf12;
+
   const transformedData = sf12Data.map(({ name }) => ({ name }));
 
   // 3) Index for the surgery reference line
@@ -340,46 +964,6 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
       y: d.mScore,
       error: [10, 10],
     }));
-
-  const TIMEPOINT_ORDER = ["Pre-Op", "6W", "3M", "6M", "1Y", "2Y"];
-
-  const sampleBoxPlotData = TIMEPOINT_ORDER.map((timepoint, index) => {
-    // Randomly generate 10–15 sample patient scores for this timepoint
-    const scores = Array.from({ length: 12 }, () =>
-      Math.floor(Math.random() * 48)
-    );
-
-    // Pick a "patient" value (single dot)
-    const patientValue = Math.floor(Math.random() * 48);
-
-    return {
-      name: timepoint,
-      boxData: scores,
-      dotValue: patientValue,
-    };
-  });
-
-  // Now transform it using your computeBoxStats + useBoxPlot logic
-  const databox = useBoxPlot(
-    sampleBoxPlotData.map((item, index) => {
-      const stats = computeBoxStats(item.boxData, item.dotValue);
-
-      // Ensure valid dot
-      if (
-        stats.Patient === undefined ||
-        isNaN(stats.Patient) ||
-        stats.Patient > 48
-      ) {
-        stats.Patient = undefined;
-      }
-
-      return {
-        name: item.name,
-        x: index * 10,
-        ...stats,
-      };
-    })
-  );
 
   return (
     <div
@@ -427,9 +1011,11 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
             } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
           >
             <Image
-              src={ManAvatar}
+              src={patientbasic?.avatar || ManAvatar}
               alt="Patient"
               className={`w-[60px] h-[60px]`}
+              width={60}
+              height={60}
             />
             <div
               className={`w-full flex ${
@@ -442,12 +1028,13 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 <p
                   className={`${raleway.className} font-semibold text-lg text-black`}
                 >
-                  Patient Name
+                  {patientbasic?.name ?? "Patient Name"}
                 </p>
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  Age, Gender
+                  {patientbasic?.age ?? "Age"},{" "}
+                  {patientbasic?.gender ?? "Gender"}
                 </p>
               </div>
               <div
@@ -458,12 +1045,13 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 <p
                   className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
                 >
-                  L: Pre Op R: Pre Op
+                  L: {patientbasic.statusLeft ?? "NA"} R:{" "}
+                  {patientbasic.statusRight ?? "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
                 >
-                  Patient ID
+                  {patientbasic.uhid ?? "Patient ID"}
                 </p>
               </div>
             </div>
@@ -544,25 +1132,63 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               `}
             >
               <button
-                className={`${raleway.className} text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold bg-[#2B333E] text-white cursor-pointer`}
+                className={`${
+                  raleway.className
+                } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
+                  !surgerydatleft || surgerydatleft === "NA"
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer"
+                }
+                  ${
+                    handlequestableswitch === "left"
+                      ? "bg-[#2B333E] text-white"
+                      : "bg-[#CAD9D6] text-black"
+                  }
+                  `}
+                onClick={
+                  !surgerydatleft || surgerydatleft === "NA"
+                    ? undefined
+                    : () => {
+                        sethandlequestableswitch("left");
+                      }
+                }
               >
                 Left
               </button>
               <button
-                className={`${raleway.className} text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold bg-[#CAD9D6] text-black cursor-pointer`}
+                className={`${
+                  raleway.className
+                } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
+                  !surgerydatright || surgerydatright === "NA"
+                    ? "cursor-not-allowed opacity-50"
+                    : "cursor-pointer"
+                }
+                  ${
+                    handlequestableswitch === "right"
+                      ? "bg-[#2B333E] text-white"
+                      : "bg-[#CAD9D6] text-black"
+                  }`}
+                onClick={
+                  !surgerydatright || surgerydatright === "NA"
+                    ? undefined
+                    : () => {
+                        sethandlequestableswitch("right");
+                      }
+                }
               >
                 Right
               </button>
             </div>
             <Image src={Heatmap} alt="heatmap" />
           </div>
+
           <div className="bg-white rounded-2xl px-2 py-1 flex flex-col gap-4  h-full w-full">
             <div className="w-full overflow-x-auto h-full overflow-y-auto">
               <table className="min-w-full table-fixed border-separate border-spacing-y-1">
                 <thead className="text-[#475467] text-[16px] font-medium text-center">
                   <tr className="rounded-2xl">
                     <th
-                      className={`${inter.className} font-bold text-white text-[15px] px-2 py-1 bg-gray-900 rounded-tl-[8px] text-center whitespace-nowrap w-2/5`}
+                      className={`${inter.className} font-bold text-white text-sm px-2 py-1 bg-gray-900 rounded-tl-2xl text-center whitespace-nowrap w-3/5`}
                     >
                       <div className="flex flex-row justify-center items-center gap-4">
                         <p>Questionnaire</p>
@@ -572,25 +1198,18 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                       <th
                         key={period.key}
                         className={`px-4 py-3  bg-gray-900 text-center whitespace-nowrap ${
-                          inter.className
-                        } font-bold text-white text-[15px] ${
                           idx === questionnaireData.periods.length - 1
-                            ? "rounded-tr-[8px]"
+                            ? "rounded-tr-2xl"
                             : ""
                         }`}
                       >
                         <div className="flex flex-row items-center gap-1 w-full">
-                          <div className={`w-full flex flex-col`}>
+                          <div className={`w-fit flex flex-col`}>
                             <span
-                              className={`${inter.className} text-center text-[15px]  text-white font-bold`}
+                              className={`${inter.className} text-[15px]  text-white font-bold`}
                             >
                               {period.label}
                             </span>
-                            {/* <span
-                              className={`${inter.className} text-[10px]  text-white font-semibold`}
-                            >
-                              {period.date}
-                            </span> */}
                           </div>
 
                           {/* <div
@@ -608,7 +1227,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                   {questionnaireData.questionnaires.map((q, index) => (
                     <tr key={index} className="">
                       <td
-                        className={`${raleway.className} text-[13px] font-semibold px-4 py-2 text-[#1F2937]`}
+                        className={`${raleway.className} font-semibold px-4 py-2 text-[#1F2937]`}
                       >
                         {q.name}
                       </td>
@@ -621,8 +1240,19 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                           return (
                             <td
                               key={period.key}
-                              className={`${inter.className} text-[13px] px-4 py-2 font-bold text-center align-middle`}
+                              className={`px-4 py-2 font-bold text-center align-middle ${
+                                q.notesMap[period.key] &&
+                                q.notesMap[period.key] !== "NA"
+                                  ? "cursor-pointer"
+                                  : ""
+                              }`}
                               style={{ color }}
+                              title={
+                                q.notesMap[period.key] &&
+                                q.notesMap[period.key] !== "NA"
+                                  ? q.notesMap[period.key]
+                                  : undefined
+                              } // Hover text
                             >
                               {score || "—"}
                             </td>
@@ -662,7 +1292,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
           </p>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
-              data={data}
+              data={chartData}
               margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
             >
               <CartesianGrid strokeDasharray="8 10" vertical={false} />
@@ -717,8 +1347,6 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 content={({ active, payload, label }) => {
                   if (label === "SURGERY" || !active || !payload?.length)
                     return null;
-
-                  // console.log("PROM Payload" + payload);
 
                   return (
                     <div className="bg-white p-2 border rounded shadow text-black">
@@ -1072,7 +1700,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
           </p>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
-              data={databox.filter(
+              data={oksDatabox.filter(
                 (item) =>
                   item.min !== undefined &&
                   item._median !== undefined &&
@@ -1087,7 +1715,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 content={({ active, label }) => {
                   if (!active) return null;
 
-                  const item = databox.find((d) => d.name === label);
+                  const item = oksDatabox.find((d) => d.name === label);
                   if (!item) return null;
 
                   const renameMap = {
@@ -1185,7 +1813,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Median Line */}
               <Scatter
-                data={databox.filter((item) => item._median !== undefined)} // Ensure valid data
+                data={oksDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
                 )}
@@ -1193,7 +1821,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Min Line */}
               <Scatter
-                data={databox.filter((item) => item._min !== undefined)} // Ensure valid data
+                data={oksDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_min" stroke="#2A333A" />
                 )}
@@ -1201,7 +1829,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Max Line */}
               <Scatter
-                data={databox.filter((item) => item._max !== undefined)} // Ensure valid data
+                data={oksDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar
                     {...props}
@@ -1214,7 +1842,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               <ZAxis type="number" dataKey="size" range={[0, 250]} />
               <Scatter
-                data={databox.filter(
+                data={oksDatabox.filter(
                   (item) =>
                     item.Patient !== undefined &&
                     item.Patient !== null &&
@@ -1326,7 +1954,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
           </p>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
-              data={databox.filter(
+              data={s12Databox.filter(
                 (item) =>
                   item.min !== undefined &&
                   item._median !== undefined &&
@@ -1341,7 +1969,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 content={({ active, label }) => {
                   if (!active) return null;
 
-                  const item = databox.find((d) => d.name === label);
+                  const item = s12Databox.find((d) => d.name === label);
                   if (!item) return null;
 
                   const renameMap = {
@@ -1439,7 +2067,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Median Line */}
               <Scatter
-                data={databox.filter((item) => item._median !== undefined)} // Ensure valid data
+                data={s12Databox.filter((item) => item._median !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
                 )}
@@ -1447,7 +2075,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Min Line */}
               <Scatter
-                data={databox.filter((item) => item._min !== undefined)} // Ensure valid data
+                data={s12Databox.filter((item) => item._min !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_min" stroke="#6888A1" />
                 )}
@@ -1455,7 +2083,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Max Line */}
               <Scatter
-                data={databox.filter((item) => item._max !== undefined)} // Ensure valid data
+                data={s12Databox.filter((item) => item._max !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar
                     {...props}
@@ -1468,7 +2096,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               <ZAxis type="number" dataKey="size" range={[0, 250]} />
               <Scatter
-                data={databox.filter(
+                data={s12Databox.filter(
                   (item) =>
                     item.Patient !== undefined &&
                     item.Patient !== null &&
@@ -1586,7 +2214,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
           </p>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
-              data={databox.filter(
+              data={kssDatabox.filter(
                 (item) =>
                   item.min !== undefined &&
                   item._median !== undefined &&
@@ -1601,7 +2229,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 content={({ active, label }) => {
                   if (!active) return null;
 
-                  const item = databox.find((d) => d.name === label);
+                  const item = kssDatabox.find((d) => d.name === label);
                   if (!item) return null;
 
                   const renameMap = {
@@ -1699,7 +2327,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Median Line */}
               <Scatter
-                data={databox.filter((item) => item._median !== undefined)} // Ensure valid data
+                data={kssDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
                 )}
@@ -1707,7 +2335,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Min Line */}
               <Scatter
-                data={databox.filter((item) => item._min !== undefined)} // Ensure valid data
+                data={kssDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_min" stroke="#9EB5B5" />
                 )}
@@ -1715,7 +2343,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Max Line */}
               <Scatter
-                data={databox.filter((item) => item._max !== undefined)} // Ensure valid data
+                data={kssDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar
                     {...props}
@@ -1728,7 +2356,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               <ZAxis type="number" dataKey="size" range={[0, 250]} />
               <Scatter
-                data={databox.filter(
+                data={kssDatabox.filter(
                   (item) =>
                     item.Patient !== undefined &&
                     item.Patient !== null &&
@@ -1840,7 +2468,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
           </p>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
-              data={databox.filter(
+              data={koosjrDatabox.filter(
                 (item) =>
                   item.min !== undefined &&
                   item._median !== undefined &&
@@ -1855,7 +2483,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 content={({ active, label }) => {
                   if (!active) return null;
 
-                  const item = databox.find((d) => d.name === label);
+                  const item = koosjrDatabox.find((d) => d.name === label);
                   if (!item) return null;
 
                   const renameMap = {
@@ -1953,7 +2581,9 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Median Line */}
               <Scatter
-                data={databox.filter((item) => item._median !== undefined)} // Ensure valid data
+                data={koosjrDatabox.filter(
+                  (item) => item._median !== undefined
+                )} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
                 )}
@@ -1961,7 +2591,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Min Line */}
               <Scatter
-                data={databox.filter((item) => item._min !== undefined)} // Ensure valid data
+                data={koosjrDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_min" stroke="#D88C8A" />
                 )}
@@ -1969,7 +2599,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Max Line */}
               <Scatter
-                data={databox.filter((item) => item._max !== undefined)} // Ensure valid data
+                data={koosjrDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar
                     {...props}
@@ -1982,7 +2612,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               <ZAxis type="number" dataKey="size" range={[0, 250]} />
               <Scatter
-                data={databox.filter(
+                data={koosjrDatabox.filter(
                   (item) =>
                     item.Patient !== undefined &&
                     item.Patient !== null &&
@@ -2031,7 +2661,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 }}
                 axisLine={false}
                 tickLine={{ stroke: "#615E83" }}
-                domain={[0, 48]}
+                domain={[0, 28]}
               />
 
               <Legend
@@ -2100,7 +2730,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
           </p>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
-              data={databox.filter(
+              data={fjsDatabox.filter(
                 (item) =>
                   item.min !== undefined &&
                   item._median !== undefined &&
@@ -2115,7 +2745,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
                 content={({ active, label }) => {
                   if (!active) return null;
 
-                  const item = databox.find((d) => d.name === label);
+                  const item = fjsDatabox.find((d) => d.name === label);
                   if (!item) return null;
 
                   const renameMap = {
@@ -2213,7 +2843,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Median Line */}
               <Scatter
-                data={databox.filter((item) => item._median !== undefined)} // Ensure valid data
+                data={fjsDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
                 )}
@@ -2221,7 +2851,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Min Line */}
               <Scatter
-                data={databox.filter((item) => item._min !== undefined)} // Ensure valid data
+                data={fjsDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar {...props} dataKey="_min" stroke="#9EA6B5" />
                 )}
@@ -2229,7 +2859,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               {/* Max Line */}
               <Scatter
-                data={databox.filter((item) => item._max !== undefined)} // Ensure valid data
+                data={fjsDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
                 shape={(props) => (
                   <HorizonBar
                     {...props}
@@ -2242,7 +2872,7 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
               />
               <ZAxis type="number" dataKey="size" range={[0, 250]} />
               <Scatter
-                data={databox.filter(
+                data={fjsDatabox.filter(
                   (item) =>
                     item.Patient !== undefined &&
                     item.Patient !== null &&
@@ -2363,6 +2993,16 @@ const Patientreport = ({handlenavigateviewsurgeryreport}) => {
       }
     `}
       </style>
+
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

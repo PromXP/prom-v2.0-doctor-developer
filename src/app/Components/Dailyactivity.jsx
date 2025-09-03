@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import ReactDOM from "react-dom";
 import Image from "next/image";
 
 import axios from "axios";
 import { API_URL } from "../libs/global";
 
-import { Raleway, Inter, Poppins } from "next/font/google";
+import { Raleway, Inter, Poppins, Outfit } from "next/font/google";
 import {
   LineChart,
   Line,
@@ -40,6 +41,10 @@ import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
 import ManAvatar from "@/app/Assets/man.png";
 import Womanavatar from "@/app/Assets/woman.png";
+import CloseIcon from "@/app/Assets/closeiconwindow.png";
+import ExpandIcon from "@/app/Assets/expand.png";
+import ShrinkIcon from "@/app/Assets/shrink.png";
+import UploadProfile from "@/app/Assets/uploadprofilepic.png";
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -57,6 +62,12 @@ const poppins = Poppins({
   subsets: ["latin"],
   weight: ["400", "600", "700"], // add weights as needed
   variable: "--font-inter", // optional CSS variable name
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"], // add weights as needed
+  variable: "--font-outfit", // optional CSS variable name
 });
 
 const Dailyactivity = ({
@@ -93,65 +104,6 @@ const Dailyactivity = ({
     { x: 2, line1: 50, line2: 50 },
     { x: 3, line1: 75, line2: 25 },
     { x: 4, line1: 100, line2: 0 },
-  ];
-
-  const patients = [
-    {
-      id: 1,
-      name: "John Doe",
-      age: 45,
-      gender: "Male",
-      left: "Pre Op",
-      right: "Pre Op",
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      age: 52,
-      gender: "Female",
-      left: "6W",
-      right: "3M",
-    },
-    {
-      id: 3,
-      name: "Alex Johnson",
-      age: 38,
-      gender: "Male",
-      left: "Pre Op",
-      right: "1Y",
-    },
-    {
-      id: 4,
-      name: "Emily Brown",
-      age: 41,
-      gender: "Female",
-      left: "3M",
-      right: "6M",
-    },
-    {
-      id: 5,
-      name: "Chris Evans",
-      age: 56,
-      gender: "Male",
-      left: "6W",
-      right: "3M",
-    },
-    {
-      id: 6,
-      name: "Sophia Miller",
-      age: 33,
-      gender: "Female",
-      left: "Pre Op",
-      right: "Pre Op",
-    },
-    {
-      id: 7,
-      name: "Daniel Wilson",
-      age: 48,
-      gender: "Male",
-      left: "1Y",
-      right: "2Y",
-    },
   ];
 
   const [patientdata, setPatientdata] = useState([]);
@@ -264,6 +216,7 @@ const Dailyactivity = ({
             doctor_left: p.Practitioners?.left_doctor,
             doctor_right: p.Practitioners?.right_doctor,
             doctor: res.data?.doctor_uhid ?? "NA",
+            vip: p.VIP_Status ?? false,
 
             // ✅ New: overall scores (only if doctor exists)
             overall_scores: {
@@ -272,14 +225,16 @@ const Dailyactivity = ({
             },
 
             avatar:
-              p.Patient?.gender?.toLowerCase() === "male"
+              p.Patient?.photo && p.Patient?.photo !== "NA"
+                ? p.Patient.photo
+                : p.Patient?.gender?.toLowerCase() === "male"
                 ? ManAvatar
                 : Womanavatar,
           };
         });
 
-        
         setPatientdata(mapped);
+        console.log("Mapped doctor", apiPatients);
       } catch (err) {
         console.error("❌ Error fetching patients:", err);
         if (err.response) {
@@ -438,38 +393,71 @@ const Dailyactivity = ({
     return null;
   };
 
-  const [preOpCount, setPreOpCount] = useState(0);
-  const [postOpCount, setPostOpCount] = useState(0);
+  const [preLeft, setPreLeft] = useState(0);
+  const [preRight, setPreRight] = useState(0);
+  const [postLeft, setPostLeft] = useState(0);
+  const [postRight, setPostRight] = useState(0);
 
   useEffect(() => {
     if (!patientdata || patientdata.length === 0) return;
 
     let pre = 0;
     let post = 0;
-    let pre_left=0;
-    let post_left=0;
-    let pre_right=0;
-    let post_right=0;
+    let pre_left = 0;
+    let post_left = 0;
+    let pre_right = 0;
+    let post_right = 0;
     console.log("🔄 Mapped Patients:", patientdata);
 
     patientdata.forEach((p) => {
       // ✅ Left side condition
       if (p.doctor_left === p.doctor && p.period) {
-        if (p.period === "Pre Op") 
-          pre_left++;
+        if (p.period === "Pre Op") pre_left++;
         else post_left++;
       }
 
       // ✅ Right side condition
       if (p.doctor_right === p.doctor && p.period_right) {
         if (p.period_right === "Pre Op") pre_right++;
-        else  post_right++;
+        else post_right++;
       }
     });
 
-    setPreOpCount(pre_left+pre_right);
-    setPostOpCount(post_left+post_right);
+    setPreLeft(pre_left);
+    setPreRight(pre_right);
+    setPostLeft(post_left);
+    setPostRight(post_right);
   }, [patientdata]); // recalc when patients or doctor changes
+
+  const [profpat, setshowprofpat] = useState([]);
+  const [showprof, setshowprof] = useState(false);
+  const [expand, setexpand] = useState(false);
+
+  const periods = ["1M", "3M", "6M", "1Y", "2Y", "3Y", "4Y", "5Y", "10Y"];
+
+  const handlevipstatus = async (uhid, vip) => {
+    console.log("Status", vip);
+    let vip1 = "";
+    if (String(vip) === "true") {
+      vip1 = "false";
+    } else {
+      vip1 = "true";
+    }
+    const payload = { vip_status: vip1 };
+    console.log("Status payload", payload + " " + vip1);
+    try {
+      // ✅ API call
+      const response = await axios.put(
+        `${API_URL}patients/update/${uhid}`,
+        payload
+      );
+
+      showWarning("Patient status update successfull");
+    } catch (error) {
+      console.error("Error updating status:", error);
+      showWarning("Failed to update status");
+    }
+  };
 
   return (
     <div
@@ -479,7 +467,7 @@ const Dailyactivity = ({
     >
       <div
         className={`w-full flex ${
-          width >= 700 ? "flex-row" : "flex-col gap-4"
+          width >= 700 ? "flex-row justify-between" : "flex-col gap-4"
         }`}
       >
         <p
@@ -492,19 +480,8 @@ const Dailyactivity = ({
         <div
           className={`flex flex-row ${
             width >= 700 ? "w-3/5" : "w-full"
-          } justify-between gap-12`}
+          } justify-end gap-12`}
         >
-          <div
-            className={`${
-              width >= 1100 ? "w-2/3" : "w-full"
-            }  flex flex-row gap-2 items-center bg-white border-[2px] border-gray-200 rounded-md px-2 py-1`}
-          >
-            <Image src={Search} alt="Search" className={`w-4 h-4`} />
-            <input
-              placeholder="Search ..."
-              className={`${raleway.className} font-normal text-black w-full px-2 py-1`}
-            />
-          </div>
           {width >= 1100 && (
             <div
               className={`w-1/3 flex flex-row justify-between items-center gap-8`}
@@ -535,6 +512,7 @@ const Dailyactivity = ({
           >
             Selected Patient
           </p>
+
           <div
             className={`w-full flex flex-col gap-5 border-[#EBEBEB] border-[1.3px] rounded-[10px] py-6 px-4`}
           >
@@ -549,13 +527,40 @@ const Dailyactivity = ({
                       : "flex-row items-start"
                   }`}
                 >
-                  <Image
-                    src={ManAvatar}
-                    alt="Avatar"
-                    className={`rounded-full cursor-pointer ${
-                      width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
-                    }`}
-                  />
+                  {selectedPatient?.avatar ? (
+                    <Image
+                      src={selectedPatient.avatar}
+                      alt="Avatar"
+                      className={`rounded-full cursor-pointer ${
+                        width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
+                      }`}
+                      width={60}
+                      height={60}
+                      onDoubleClick={() =>
+                        handlevipstatus(
+                          selectedPatient.uhid,
+                          String(selectedPatient.vip)
+                        )
+                      }
+                    />
+                  ) : (
+                    <Image
+                      src={ManAvatar} // 👈 default fallback if no avatar
+                      alt="Default Avatar"
+                      className={`rounded-full cursor-pointer ${
+                        width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
+                      }`}
+                      width={60}
+                      height={60}
+                      onDoubleClick={() =>
+                        handlevipstatus(
+                          selectedPatient.uhid,
+                          selectedPatient.vip
+                        )
+                      }
+                    />
+                  )}
+
                   <div
                     className={`w-full flex ${
                       width >= 1350
@@ -823,6 +828,7 @@ const Dailyactivity = ({
                 )}
               </div>
             </div>
+
             <div
               className={`w-full flex ${
                 width >= 1300
@@ -845,7 +851,8 @@ const Dailyactivity = ({
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
                 } font-medium text-[15px] rounded-[10px] cursor-pointer`}
-                onClick={handlenavigatesurgeryreport}
+                // onClick={handlenavigatesurgeryreport}
+                onClick={() => setshowprof(true)}
               >
                 Surgery
               </p>
@@ -855,7 +862,12 @@ const Dailyactivity = ({
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
                 } font-medium text-[15px] rounded-[10px] cursor-pointer`}
-                onClick={handlenavigatereport}
+                onClick={() => {
+                  handlenavigatereport();
+                  if (typeof window !== "undefined") {
+                    sessionStorage.setItem("patientreportid", selectedPatient.uhid);
+                  }
+                }}
               >
                 View Report
               </p>
@@ -892,29 +904,44 @@ const Dailyactivity = ({
                 width >= 700 ? "w-3/5 justify-end" : "w-full justify-center"
               } flex flex-row gap-6 `}
             >
-              <div className={`w-fit flex flex-col items-center gap-1`}>
+              <div className="w-fit flex flex-col items-center gap-1 relative group">
                 <p
                   className={`${inter.className} font-bold text-2xl text-white py-1.5 px-4 bg-[#2A343D] rounded-[10px]`}
                 >
-                  {preOpCount??"NA"}
+                  {preLeft + preRight ?? "NA"}
                 </p>
                 <p
                   className={`${raleway.className} font-medium text-[10px] text-[#2B2B2B]`}
                 >
                   Pre Op
                 </p>
+
+                {/* Tooltip */}
+                <div
+                  className={`${poppins.className} absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-sm font-medium rounded-md px-2 py-1 whitespace-nowrap`}
+                >
+                  Left: {preLeft} - Right: {preRight}
+                </div>
               </div>
-              <div className={`w-fit flex flex-col items-center gap-1`}>
+
+              <div className="w-fit flex flex-col items-center gap-1 relative group">
                 <p
                   className={`${inter.className} font-bold text-2xl text-white py-1.5 px-4 bg-[#2A343D] rounded-[10px]`}
                 >
-                  {postOpCount??"NA"}
+                  {postLeft + postRight ?? "NA"}
                 </p>
                 <p
                   className={`${raleway.className} font-medium text-[10px] text-[#2B2B2B]`}
                 >
                   Post Op
                 </p>
+
+                {/* Tooltip */}
+                <div
+                  className={`${poppins.className} absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-sm font-medium rounded-md px-2 py-1 whitespace-nowrap`}
+                >
+                  Left: {postLeft} - Right: {postRight}
+                </div>
               </div>
             </div>
           </div>
@@ -991,9 +1018,14 @@ const Dailyactivity = ({
                 {/* Top Row */}
                 <div className="w-full flex flex-row gap-6 items-center">
                   <Image
-                    src={ManAvatar}
+                    src={patient.avatar}
                     alt="Avatar"
                     className={`rounded-full w-[35px] h-[35px]`}
+                    width={35}
+                    height={35}
+                    onDoubleClick={() =>
+                      handlevipstatus(patient.uhid, patient.vip)
+                    }
                   />
                   <div className="flex flex-col gap-1">
                     <p
@@ -1085,6 +1117,184 @@ const Dailyactivity = ({
           </div>
         </div>
       )}
+
+      {showprof &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`
+                        min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto
+                        ${width < 950 ? "gap-4 w-full" : "w-1/2"}
+                        ${expand ? "w-full" : "p-4"}
+                      `}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } ${expand ? "max-h-[100vh]" : "max-h-[92vh] rounded-2xl"}`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-12 ${
+                      width < 760 ? "py-0" : "py-4 px-8"
+                    }`}
+                  >
+                    <div className="flex flex-row justify-between items-center w-full">
+                      <p
+                        className={`${inter.className} text-2xl font-semibold text-black`}
+                      >
+                        POST OP ROM
+                      </p>
+                      <div
+                        className={`flex flex-row gap-4 items-center justify-center`}
+                      >
+                        {expand ? (
+                          <Image
+                            src={ShrinkIcon}
+                            onClick={() => {
+                              setexpand(false);
+                            }}
+                            alt="Expand"
+                            className={`w-6 h-6 cursor-pointer`}
+                          />
+                        ) : (
+                          <Image
+                            src={ExpandIcon}
+                            onClick={() => {
+                              setexpand(true);
+                            }}
+                            alt="Expand"
+                            className={`w-12 h-6 cursor-pointer`}
+                          />
+                        )}
+                        <Image
+                          src={CloseIcon}
+                          alt="Close"
+                          className={`w-fit h-6 cursor-pointer`}
+                          onClick={() => {
+                            setshowprof(false);
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-12 ${
+                        width >= 1200 ? "flex-row" : "flex-col"
+                      }`}
+                    >
+                      <div
+                        className={`flex gap-4 ${
+                          width >= 1200 ? "w-1/3" : "w-full"
+                        } ${width < 700 ? "flex-col" : "flex-row"}`}
+                      >
+                        <div
+                          className={`flex flex-col gap-2 ${
+                            width < 700 ? "w-full" : "w-full"
+                          }`}
+                        >
+                          <p
+                            className={` ${outfit.className} font-bold uppercase text-base text-black/80`}
+                          >
+                            PERIOD
+                          </p>
+
+                          <select
+                            className={`${outfit.className} cursor-pointer border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                            defaultValue=""
+                          >
+                            <option value="" disabled>
+                              Select Period
+                            </option>
+                            {periods.map((period) => (
+                              <option key={period} value={period}>
+                                {period}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex flex-col gap-2 ${
+                          width >= 1200 ? "w-1/3" : "w-full"
+                        }`}
+                      >
+                        <p
+                          className={` ${outfit.className} font-bold uppercase text-base text-black/80`}
+                        >
+                          Flexion
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="Enter flexion"
+                          className={`${outfit.className} border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        />
+                      </div>
+
+                      <div
+                        className={`flex flex-col gap-2 ${
+                          width >= 1200 ? "w-1/3" : "w-full"
+                        }`}
+                      >
+                        <p
+                          className={` ${outfit.className} font-bold uppercase text-base text-black/80`}
+                        >
+                          Extension
+                        </p>
+                        <input
+                          type="text"
+                          placeholder="Enter extension"
+                          className={`${outfit.className} border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                        />
+                      </div>
+                    </div>
+
+                    <p
+                      className={`mx-auto ${
+                        width >= 400 ? "w-1/5" : "w-1/2"
+                      } text-center bg-[#2A343D] px-4 py-1 text-white ${
+                        inter.className
+                      } font-medium text-lg cursor-pointer`}
+                      // onClick={handlenavigatesurgeryreport}
+                      // onClick={() => setshowprof(true)}
+                    >
+                      SUBMIT
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <style>
+              {`
+                    .inline-scroll::-webkit-scrollbar {
+                      width: 12px;
+                    }
+                    .inline-scroll::-webkit-scrollbar-track {
+                      background: transparent;
+                    }
+                    .inline-scroll::-webkit-scrollbar-thumb {
+                      background-color: #076C40;
+                      border-radius: 8px;
+                    }
+              
+                    .inline-scroll {
+                      scrollbar-color: #076C40 transparent;
+                    }
+                  `}
+            </style>
+          </div>,
+          document.body // portal target
+        )}
     </div>
   );
 };

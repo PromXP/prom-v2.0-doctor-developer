@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import ReactDOM from "react-dom";
 import Image from "next/image";
 
-import { Raleway, Inter, Poppins } from "next/font/google";
+import axios from "axios";
+import { API_URL } from "../libs/global";
+
+import { Raleway, Inter, Poppins, Outfit } from "next/font/google";
 import {
   ChevronRightIcon,
   ArrowUpRightIcon,
@@ -23,7 +27,12 @@ import {
 import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
 import ManAvatar from "@/app/Assets/man.png";
+import Womanavatar from "@/app/Assets/woman.png";
 import Reportimg from "@/app/Assets/report.png";
+import CloseIcon from "@/app/Assets/closeiconwindow.png";
+import ExpandIcon from "@/app/Assets/expand.png";
+import ShrinkIcon from "@/app/Assets/shrink.png";
+import UploadProfile from "@/app/Assets/uploadprofilepic.png";
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -43,7 +52,13 @@ const poppins = Poppins({
   variable: "--font-inter", // optional CSS variable name
 });
 
-const Patientlist = ({handlenavigatereport}) => {
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"], // add weights as needed
+  variable: "--font-outfit", // optional CSS variable name
+});
+
+const Patientlist = ({ handlenavigatereport }) => {
   const useWindowSize = () => {
     const [size, setSize] = useState({
       width: 0,
@@ -71,15 +86,6 @@ const Patientlist = ({handlenavigatereport}) => {
   const [shownotassigned, setshownotassigned] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const patients = Array.from({ length: 50 }, (_, i) => ({
-    name: `Patient ${i + 1}`,
-    age: 20 + (i % 30), // age between 20–49
-    gender: i % 2 === 0 ? "Male" : "Female",
-    uhid: `UHID${1000 + i}`,
-    period: ["Pre Op", "6W", "3M", "6M", "1Y", "2Y"][i % 6],
-    status: i % 3 === 0 ? "COMPLETED" : "PENDING",
-    avatar: i % 2 === 0 ? ManAvatar : ManAvatar,
-  }));
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -110,20 +116,9 @@ const Patientlist = ({handlenavigatereport}) => {
     setDropdownOpen(false);
   };
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-
-  const totalPages = Math.ceil(patients.length / rowsPerPage);
-
-  // Slice the data
-  const paginatedPatients = patients.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  );
-
   const generatePageOptions = (total) => {
     const options = [];
-    const commonSteps = [5, 10, 25, 50];
+    const commonSteps = [50, 100, 150, 200];
 
     for (let step of commonSteps) {
       if (step < total) {
@@ -138,9 +133,320 @@ const Patientlist = ({handlenavigatereport}) => {
     return options;
   };
 
+  const [patientdata, setPatientdata] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+
+  const [showAlert, setshowAlert] = useState(false);
+  const [alermessage, setAlertMessage] = useState("");
+
+  const showWarning = (message) => {
+    setAlertMessage(message);
+    setshowAlert(true);
+    setTimeout(() => setshowAlert(false), 4000);
+  };
+
+  const extractScore = (scoreStr) => {
+    if (!scoreStr || typeof scoreStr !== "string") return null;
+    const match = scoreStr.match(/:\s*(\d+)/); // capture first number
+    return match ? parseFloat(match[1]) : null;
+  };
+
+  const calculateOverallScores = (sideData) => {
+    if (!sideData || sideData === "NA") return {};
+
+    const questionnaires = {};
+
+    for (const [qName, periods] of Object.entries(sideData)) {
+      for (const [period, qData] of Object.entries(periods || {})) {
+        const numScore = extractScore(qData?.score);
+        if (numScore !== null) {
+          if (!questionnaires[qName]) {
+            questionnaires[qName] = { total: 0, count: 0 };
+          }
+          questionnaires[qName].total += numScore;
+          questionnaires[qName].count += 1;
+        }
+      }
+    }
+
+    // Convert totals → averages
+    const overall = {};
+    for (const [qName, { total, count }] of Object.entries(questionnaires)) {
+      overall[qName] = count > 0 ? (total / count).toFixed(2) : "NA";
+    }
+
+    return overall;
+  };
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        let adminUhid = null;
+
+        if (typeof window !== "undefined") {
+          adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
+        }
+
+        if (!adminUhid) {
+          showWarning("No admin UHID found in session");
+          return;
+        }
+
+        const res = await axios.get(
+          `${API_URL}patients/by-doctor-uhid/${adminUhid}`
+        );
+        // console.log("✅ API Response:", res.data);
+
+        // setPatients1(res.data.patients || []);
+
+        const apiPatients = res.data.patients || [];
+
+        // 🔄 Map API data → static UI format
+        const mapped = apiPatients.map((p, i) => {
+          // ✅ Only calculate if doctor is assigned
+          const leftOverallScores = p.Practitioners?.left_doctor
+            ? calculateOverallScores(p.Medical_Left)
+            : {};
+
+          const rightOverallScores = p.Practitioners?.right_doctor
+            ? calculateOverallScores(p.Medical_Right)
+            : {};
+
+          return {
+            name: p.Patient?.name || "Unknown",
+            age: p.Patient?.birthDate
+              ? new Date().getFullYear() -
+                new Date(p.Patient.birthDate).getFullYear()
+              : "NA",
+            gender:
+              p.Patient?.gender?.toLowerCase() === "male" ? "Male" : "Female",
+            uhid: p.uhid,
+            dob: p.Patient?.birthDate ?? "NA",
+            period: p.Patient_Status_Left || "NA",
+            period_right: p.Patient_Status_Right || "NA",
+            status: i % 3 === 0 ? "COMPLETED" : "PENDING",
+            left_compliance: p.Medical_Left_Completion ?? 0,
+            right_compliance: p.Medical_Right_Completion ?? 0,
+            activation_status: p.Activation_Status ?? "True",
+            left_questionnaires: p.Medical_Left ?? "NA",
+            right_questionnaires: p.Medical_Right ?? "NA",
+            patient_initial_status: p.patient_current_status ?? "NA",
+            surgery_left: p.Medical?.surgery_date_left ?? "NA",
+            surgery_right: p.Medical?.surgery_date_right ?? "NA",
+            phone: p.Patient?.phone ?? "NA",
+            alterphone: p.Patient?.alterphone ?? "NA",
+            email: p.Patient?.email ?? "NA",
+            address: p.Patient?.address ?? "NA",
+            id_proofs: p.Medical?.id_proofs ?? "NA",
+            doctor_left: p.Practitioners?.left_doctor,
+            doctor_right: p.Practitioners?.right_doctor,
+            doctor: res.data?.doctor_uhid ?? "NA",
+
+            // ✅ New: overall scores (only if doctor exists)
+            overall_scores: {
+              left: leftOverallScores,
+              right: rightOverallScores,
+            },
+            avatar:
+              p.Patient?.photo && p.Patient?.photo !== "NA"
+                ? p.Patient.photo
+                : p.Patient?.gender?.toLowerCase() === "male"
+                ? ManAvatar
+                : Womanavatar,
+          };
+        });
+
+        setPatientdata(mapped);
+        console.log("Patient dat", mapped);
+      } catch (err) {
+        console.error("❌ Error fetching patients:", err);
+        if (err.response) {
+          showWarning(err.response.data.detail || "Failed to fetch patients");
+        } else {
+          showWarning("Network error");
+        }
+      }
+    };
+
+    fetchPatients();
+  }, []);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(50);
+
+  const searchedPatients = patientdata.filter((patient) => {
+    if (!searchTerm) return true; // no search applied
+    const term = searchTerm.toLowerCase();
+    return (
+      patient.name.toLowerCase().includes(term) ||
+      patient.uhid.toLowerCase().includes(term)
+    );
+  });
+
+  const getOverallScore = (patient, side) => {
+    if (!patient.overall_scores) return 0;
+
+    const scores =
+      side === "left"
+        ? patient.overall_scores.left
+        : patient.overall_scores.right;
+
+    console.log("Score data", scores + " " + side);
+
+    if (!scores) return 0;
+
+    return Object.values(scores).reduce((sum, val) => {
+      const num = parseFloat(val);
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
+  };
+
+  const filteredPatients = patientdata.filter((patient) => {
+    // 1️⃣ Side filter
+    if (side) {
+      const surgeryDate =
+        side === "left" ? patient.surgery_left : patient.surgery_right;
+
+      // ❌ filter out if surgery date is missing or "NA"
+      if (!surgeryDate || surgeryDate === "NA") return false;
+    }
+
+    if (operativePeriod && operativePeriod !== "all") {
+      if (
+        operativePeriod === "pre-op" &&
+        ((side === "left" && patient.period?.toLowerCase() !== "pre op") ||
+          (side === "right" &&
+            patient.period_right?.toLowerCase() !== "pre op"))
+      ) {
+        return false;
+      }
+
+      if (operativePeriod === "post-op") {
+        if (operativePeriod && operativePeriod !== "all") {
+          const periodValue =
+            side === "left" ? patient.period : patient.period_right;
+
+          if (
+            operativePeriod === "pre-op" &&
+            periodValue?.toLowerCase() !== "pre op"
+          ) {
+            return false;
+          }
+
+          if (operativePeriod === "post-op") {
+            // If sub-period is selected
+            if (subOperativePeriod && subOperativePeriod !== "all") {
+              // Normalize both sides (remove spaces, lowercase)
+              if (
+                periodValue?.replace(/\s+/g, "").toLowerCase() !==
+                subOperativePeriod.replace(/\s+/g, "").toLowerCase()
+              ) {
+                return false;
+              }
+            } else {
+              // post-op includes all periods except pre-op
+              if (periodValue?.toLowerCase() === "pre op") return false;
+            }
+          }
+        }
+      }
+    }
+
+    return true;
+  });
+
+  const sortedPatients = [...filteredPatients].sort((a, b) => {
+    const aScore = getOverallScore(a, side);
+    const bScore = getOverallScore(b, side);
+
+    if (sortOrder === "low_to_high") {
+      return aScore - bScore;
+    } else {
+      return bScore - aScore;
+    }
+  });
+
+  // Use searchedPatients if searchTerm exists, otherwise filteredPatients
+  const displayedPatients = searchTerm ? searchedPatients : sortedPatients;
+
+  const totalPages = Math.ceil(displayedPatients.length / rowsPerPage);
+
+  // Slice the data
+  const paginatedPatients = displayedPatients.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
+
+  // Utility: get heatmap color for score (0–100)
+  const getHeatmapColor = (score) => {
+    const r = score < 50 ? 255 : Math.floor(255 - (score - 50) * 5.1); // red fades after 50
+    const g = score > 50 ? 255 : Math.floor(score * 5.1); // green grows after 50
+    const b = 0;
+    return `rgb(${r}, ${g}, ${b})`;
+  };
+
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const [profpat, setshowprofpat] = useState([]);
+  const [showprof, setshowprof] = useState(false);
+  const [expand, setexpand] = useState(false);
+
+  const [selectedIDs, setSelectedIDs] = useState({});
+
+  useEffect(() => {
+    if (profpat?.id_proofs) {
+      const existing = {};
+      const inputs = {};
+      Object.keys(profpat.id_proofs).forEach((key) => {
+        existing[key] = profpat.id_proofs[key].number;
+        inputs[key] = profpat.id_proofs[key].number;
+      });
+      setSelectedIDs(existing);
+    }
+  }, [profpat]);
+
+  const handlevipstatus = async (uhid, vip) => {
+    console.log("Status", vip);
+    let vip1 = "";
+    if (String(vip) === "true") {
+      vip1 = "false";
+    } else {
+      vip1 = "true";
+    }
+    const payload = { vip_status: vip1 };
+    console.log("Status payload", payload + " " + vip1);
+    try {
+      // ✅ API call
+      const response = await axios.put(
+        `${API_URL}patients/update/${uhid}`,
+        payload
+      );
+
+      showWarning("Patient status update successfull");
+    } catch (error) {
+      console.error("Error updating status:", error);
+      showWarning("Failed to update status");
+    }
+  };
+
   return (
     <div
-      className={`w-full ${width>=1200?"overflow-y-hidden":"overflow-y-auto"} h-full flex flex-col pt-8 pb-12 inline-scroll ${
+      className={`w-full ${
+        width >= 1200 ? "overflow-y-hidden" : "overflow-y-auto"
+      } h-full flex flex-col pt-8 pb-12 inline-scroll ${
         width >= 1000 ? "px-12" : "px-8"
       } rounded-4xl inline-scroll`}
     >
@@ -198,7 +504,7 @@ const Patientlist = ({handlenavigatereport}) => {
           }`}
         >
           {/* Dropdown SVG Button */}
-          <div className={`${raleway.className} relative`}>
+          <div ref={dropdownRef} className={`${raleway.className} relative`}>
             <div
               className="bg-white rounded-lg px-3 py-2 cursor-pointer shadow-lg  border-[#EBEBEB] border-2"
               onClick={() => setDropdownOpen((prev) => !prev)}
@@ -218,10 +524,7 @@ const Patientlist = ({handlenavigatereport}) => {
             </div>
 
             {dropdownOpen && (
-              <div
-                className="absolute left-0 max-h-[500px] overflow-y-auto mt-2 w-56 bg-white border rounded shadow-md z-10 p-4 text-base text-gray-700 inline-scroll"
-                
-              >
+              <div className="absolute left-0 max-h-[500px] overflow-y-auto mt-2 w-56 bg-white border rounded shadow-md z-10 p-4 text-base text-gray-700 inline-scroll">
                 {/* Side */}
                 <div className="mb-4">
                   <p className="font-semibold mb-1">Side</p>
@@ -275,7 +578,7 @@ const Patientlist = ({handlenavigatereport}) => {
                       {period === "post-op" &&
                         operativePeriod === "post-op" && (
                           <div className="ml-6 mt-2 flex flex-wrap gap-4">
-                            {["all", "6 w", "3 m", "6 m", "1 y", "2 y"].map(
+                            {["all", "6w", "3m", "6m", "1y", "2y"].map(
                               (sub) => (
                                 <label
                                   key={sub}
@@ -297,44 +600,6 @@ const Patientlist = ({handlenavigatereport}) => {
                         )}
                     </div>
                   ))}
-                </div>
-
-                {/* Completion Status */}
-                <div className="mb-4">
-                  <p className="font-semibold mb-1">Completion Status</p>
-                  {["all", "not_assigned", "pending", "completed"].map(
-                    (status) => (
-                      <label
-                        key={status}
-                        className="inline-flex items-center mr-4 cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          className="form-radio"
-                          name="completionStatus"
-                          value={status}
-                          checked={completionStatus === status}
-                          onChange={() => setCompletionStatus(status)}
-                        />
-                        <span className="ml-2">
-                          {status
-                            .replace("_", " ")
-                            .replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </span>
-                      </label>
-                    )
-                  )}
-                </div>
-
-                {/* Calendar Date Picker */}
-                <div className="mb-4">
-                  <p className="font-semibold mb-1 ">Select Date</p>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                  />
                 </div>
 
                 {/* Sort */}
@@ -380,7 +645,8 @@ const Patientlist = ({handlenavigatereport}) => {
           </div>
 
           <p
-            className={`${raleway.className} text-[#2B2B2B] font-semibold text-sm w-1/2`}
+            className={`${raleway.className} text-[#2B2B2B] font-semibold text-sm w-1/2 cursor-pointer`}
+            onClick={handleClearAll}
           >
             Clear All
           </p>
@@ -390,7 +656,7 @@ const Patientlist = ({handlenavigatereport}) => {
       <div
         className={`w-full flex flex-col gap-2 ${
           width >= 1000 ? "h-[89%]" : "h-[98%] pb-4"
-        } ${width<640?"mt-8":""}`}
+        } ${width < 640 ? "mt-8" : ""}`}
       >
         <div
           className={`${poppins.className} h-[5%] flex flex-row items-center justify-end gap-4 px-4 text-[13px] font-medium text-gray-600`}
@@ -405,7 +671,7 @@ const Patientlist = ({handlenavigatereport}) => {
               setCurrentPage(1); // Reset to first page
             }}
           >
-            {generatePageOptions(patients.length).map((count) => (
+            {generatePageOptions(paginatedPatients.length).map((count) => (
               <option key={count} value={count}>
                 {count}
               </option>
@@ -507,6 +773,13 @@ const Patientlist = ({handlenavigatereport}) => {
                     className={`rounded-full cursor-pointer ${
                       width < 530 ? "w-11 h-11" : "w-10 h-10"
                     }`}
+                    onClick={() => {
+                      setshowprof(true);
+                      setshowprofpat(patient);
+                    }}
+                    onDoubleClick={() =>
+                      handlevipstatus(patient.uhid, String(patient.vip))
+                    }
                   />
                   <div
                     className={`w-full flex items-center ${
@@ -578,53 +851,33 @@ const Patientlist = ({handlenavigatereport}) => {
                     width < 750 ? "w-3/4 text-center" : "w-1/4 text-center"
                   }`}
                 >
-                  {shownotassigned ? (
-                    <div className="w-full flex flex-col items-end relative group">
-                      <Image
-                        src={Error}
-                        alt="Not assigned"
-                        className={`w-6 h-6`}
-                      />
-                      <div className="relative w-full h-1.5 overflow-hidden bg-white cursor-pointer">
-                        {/* Filled Progress */}
-                        <div
-                          className="h-full bg-[#E5E5E5]"
-                          style={{
-                            width: "100%",
-                            backgroundImage: "url('/stripes.svg')",
-                            backgroundRepeat: "repeat",
-                            backgroundSize: "20px 20px",
-                          }}
-                        ></div>
-                      </div>
+                  <div className="w-full flex flex-col items-center relative group">
+                    {/* Hover Percentage Text */}
+                    <div className="absolute -top-7 left-0 transform translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out text-sm font-semibold text-black border-2 border-black px-3 rounded-lg">
+                      {`${getOverallScore(patient, side) ?? 0}%`}
                     </div>
-                  ) : (
-                    <div className="w-full flex flex-col items-center relative group">
-                      {/* Hover Percentage Text */}
-                      <div className="absolute -top-7 left-0 transform translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out text-sm font-semibold text-black border-2 border-black px-3 rounded-lg">
-                        75%
-                      </div>
 
-                      {/* Progress Bar Container */}
+                    {/* Progress Bar Container */}
+                    <div
+                      className="relative w-full h-1.5 overflow-hidden bg-[#E5E5E5] cursor-pointer"
+                      onClick={() => {
+                        setisOpencompliance(true);
+                      }}
+                    >
                       <div
-                        className="relative w-full h-1.5 overflow-hidden bg-[#E5E5E5] cursor-pointer"
-                        onClick={() => {
-                          setisOpencompliance(true);
+                        className="h-full rounded"
+                        style={{
+                          width: `${Number(
+                            getOverallScore(patient, side) ?? 0
+                          )}%`,
+                          background: getHeatmapColor(
+                            Number(getOverallScore(patient, side) ?? 0)
+                          ),
+                          backgroundSize: "200% 100%",
                         }}
-                      >
-                        {/* Filled Progress */}
-                        <div
-                          className="h-full bg-yellow-400"
-                          style={{
-                            width: "75%",
-                            backgroundImage: "url('/stripes.svg')",
-                            backgroundRepeat: "repeat",
-                            backgroundSize: "20px 20px",
-                          }}
-                        ></div>
-                      </div>
+                      ></div>
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 <div
@@ -641,7 +894,15 @@ const Patientlist = ({handlenavigatereport}) => {
                       src={Reportimg}
                       className={`w-8 h-8 mx-auto cursor-pointer`}
                       alt="Report"
-                      onClick={handlenavigatereport}
+                      onClick={() => {
+                        handlenavigatereport();
+                        if (typeof window !== "undefined") {
+                          sessionStorage.setItem(
+                            "patientreportid",
+                            patient.uhid
+                          );
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -669,6 +930,329 @@ const Patientlist = ({handlenavigatereport}) => {
       }
     `}
       </style>
+
+      {showprof &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`
+            min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto
+            ${width < 950 ? "gap-4 w-full" : "w-5/6"}
+            ${expand ? "w-full" : "p-4"}
+          `}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } ${expand ? "max-h-[100vh]" : "max-h-[92vh] rounded-2xl"}`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-12 ${
+                      width < 760 ? "py-0" : "py-4 px-8"
+                    }`}
+                  >
+                    <div className="flex flex-row justify-between items-center w-full">
+                      <p
+                        className={`${inter.className} text-2xl font-semibold text-black`}
+                      >
+                        Patient Profile
+                      </p>
+                      <div
+                        className={`flex flex-row gap-4 items-center justify-center`}
+                      >
+                        {expand ? (
+                          <Image
+                            src={ShrinkIcon}
+                            onClick={() => {
+                              setexpand(false);
+                            }}
+                            alt="Expand"
+                            className={`w-6 h-6 cursor-pointer`}
+                          />
+                        ) : (
+                          <Image
+                            src={ExpandIcon}
+                            onClick={() => {
+                              setexpand(true);
+                            }}
+                            alt="Expand"
+                            className={`w-12 h-6 cursor-pointer`}
+                          />
+                        )}
+                        <Image
+                          src={CloseIcon}
+                          alt="Close"
+                          className={`w-fit h-6 cursor-pointer`}
+                          onClick={() => {
+                            setshowprof(false);
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-12 ${
+                        width >= 1200 ? "flex-row" : "flex-col"
+                      }`}
+                    >
+                      <div
+                        className={`flex gap-4 ${
+                          width >= 1200 ? "w-1/2" : "w-full"
+                        } ${width < 700 ? "flex-col" : "flex-row"}`}
+                      >
+                        <div
+                          className={`flex flex-col gap-2 ${
+                            width < 700 ? "w-full" : "w-1/2"
+                          }`}
+                        >
+                          <p
+                            className={` ${outfit.className} font-bold uppercase text-base text-black/80`}
+                          >
+                            Name
+                          </p>
+                          <p
+                            className={`w-full text-black
+                          font-medium
+                          text-lg
+                          ${inter.className}`}
+                          >
+                            {profpat?.name}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex flex-col gap-2 ${
+                          width >= 1200 ? "w-1/2" : "w-full"
+                        }`}
+                      >
+                        <p
+                          className={` ${outfit.className} font-bold uppercase text-base text-black/80`}
+                        >
+                          UHID
+                        </p>
+                        <p
+                          className={`w-full text-black
+                          font-medium
+                          text-lg
+                          ${inter.className}`}
+                        >
+                          {profpat?.uhid}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`flex gap-12 ${
+                        width >= 1200 ? "flex-row" : "flex-col"
+                      }`}
+                    >
+                      <div
+                        className={`flex flex-col gap-8 ${
+                          width >= 1200 ? "w-1/2" : "w-full"
+                        }`}
+                      >
+                        <div
+                          className={`w-full flex  gap-8 ${
+                            width < 700 ? "flex-col" : "flex-row"
+                          }`}
+                        >
+                          {/* Gender Dropdown */}
+                          <div
+                            className={`flex flex-col gap-2 ${
+                              width < 700 ? "w-full" : "w-1/3"
+                            }`}
+                          >
+                            <p
+                              className={`${outfit.className} font-bold uppercase text-base text-black/80`}
+                            >
+                              Gender
+                            </p>
+                            <p
+                              className={`w-full text-black
+                          font-medium
+                          text-lg
+                          ${inter.className}`}
+                            >
+                              {profpat?.gender}
+                            </p>
+                          </div>
+
+                          {/* Date of Birth Input */}
+                          <div
+                            className={`flex flex-col gap-2.5 ${
+                              width < 700 ? "w-full" : "w-1/3"
+                            }`}
+                          >
+                            <p
+                              className={`${outfit.className} font-bold uppercase text-base text-black/80`}
+                            >
+                              Date of Birth
+                            </p>
+                            <p
+                              className={`w-full text-black
+                          font-medium
+                          text-lg
+                          ${inter.className}`}
+                            >
+                              {profpat?.dob}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className={`w-full flex flex-col gap-2`}>
+                          <p
+                            className={`${outfit.className} font-bold uppercase text-base text-black/80`}
+                          >
+                            Phone Number
+                          </p>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-black/90">
+                              {profpat?.phone || "NA"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className={`flex flex-col gap-2 justify-between ${
+                          width >= 1200 ? "w-1/2" : "w-full"
+                        }`}
+                      >
+                        <div
+                          className={`w-full flex  gap-2 ${
+                            width < 700 ? "flex-col" : "flex-row"
+                          }`}
+                        >
+                          <div
+                            className={`flex flex-col gap-2 ${
+                              width < 700 ? "w-full" : "w-4/7"
+                            }`}
+                          >
+                            <p
+                              className={`${outfit.className} font-bold uppercase text-base text-black/80`}
+                            >
+                              Address
+                            </p>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-black/90">
+                                {profpat?.address || "Not provided"}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div
+                            className={`flex items-center justify-center ${
+                              width < 700 ? "w-full" : "w-3/7"
+                            }`}
+                          >
+                            <Image
+                              src={profpat?.avatar}
+                              alt="Profile"
+                              className={`w-full h-full`}
+                              width={60}
+                              height={60}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`flex gap-12 ${
+                        width >= 1200 ? "flex-row" : "flex-col"
+                      }`}
+                    >
+                      <div className={`w-full flex flex-col gap-2`}>
+                        <p
+                          className={`${outfit.className} font-bold uppercase text-base text-black/80`}
+                        >
+                          Email
+                        </p>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-black/90">
+                            {profpat?.email || "NA"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className={`w-full flex flex-col gap-2`}>
+                        <p
+                          className={`${outfit.className} font-bold uppercase text-base text-black/80`}
+                        >
+                          Alternate Phone Number
+                        </p>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-black/90">
+                            {profpat?.alterphone || "NA"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="w-full flex flex-col">
+                      <p
+                        className={`${outfit.className} font-bold text-base text-black/80`}
+                      >
+                        ID PROOF
+                      </p>
+                      <div className="flex flex-wrap justify-between w-full">
+                        {Object.keys(selectedIDs).map((id) => (
+                          <div key={id} className="flex flex-col gap-2 mt-2">
+                            <label
+                              className={`${outfit.className} text-base font-semibold uppercase text-black/80`}
+                            >
+                              {id} Number
+                            </label>
+
+                            <div className="flex items-center gap-2">
+                              <span className="text-black/90">
+                                {selectedIDs[id]}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <style>
+              {`
+        .inline-scroll::-webkit-scrollbar {
+          width: 12px;
+        }
+        .inline-scroll::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .inline-scroll::-webkit-scrollbar-thumb {
+          background-color: #076C40;
+          border-radius: 8px;
+        }
+  
+        .inline-scroll {
+          scrollbar-color: #076C40 transparent;
+        }
+      `}
+            </style>
+          </div>,
+          document.body // portal target
+        )}
     </div>
   );
 };
