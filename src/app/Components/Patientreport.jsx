@@ -1069,7 +1069,14 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
               <div className={`bg-black rounded-lg w-3/7 py-1 px-3 flex`}>
                 <p
                   className={`${inter.className} font-semibold text-sm text-white text-center w-full cursor-pointer`}
-                  onClick={handlenavigateviewsurgeryreport}
+                  onClick={()=>{handlenavigateviewsurgeryreport();
+                    if (typeof window !== "undefined") {
+                    sessionStorage.setItem(
+                      "selectedUHID",
+                      patientbasic.uhid
+                    );
+                  }
+                  }}
                 >
                   View Surgery
                 </p>

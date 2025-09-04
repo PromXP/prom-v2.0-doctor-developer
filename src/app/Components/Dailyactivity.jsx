@@ -851,8 +851,16 @@ const Dailyactivity = ({
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
                 } font-medium text-[15px] rounded-[10px] cursor-pointer`}
-                // onClick={handlenavigatesurgeryreport}
-                onClick={() => setshowprof(true)}
+                onClick={() => {
+                  handlenavigatesurgeryreport();
+                  if (typeof window !== "undefined") {
+                    sessionStorage.setItem(
+                      "selectedUHID",
+                      selectedPatient.uhid
+                    );
+                  }
+                }}
+                // onClick={() => setshowprof(true)}
               >
                 Surgery
               </p>
@@ -865,7 +873,10 @@ const Dailyactivity = ({
                 onClick={() => {
                   handlenavigatereport();
                   if (typeof window !== "undefined") {
-                    sessionStorage.setItem("patientreportid", selectedPatient.uhid);
+                    sessionStorage.setItem(
+                      "patientreportid",
+                      selectedPatient.uhid
+                    );
                   }
                 }}
               >

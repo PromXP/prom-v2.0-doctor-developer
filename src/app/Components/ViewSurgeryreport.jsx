@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-
+import axios from "axios";
+import { API_URL } from "../libs/global";
 import { Raleway, Inter, Poppins } from "next/font/google";
 import {
   LineChart,
@@ -496,11 +497,452 @@ const implantTableCancelEdit = (category, row) => {
 };
 
 
+const [uhid, setUhid] = useState(null);
+const [patientData, setPatientData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+    const fetchPatientData = async (uhid) => {
+  try {
+    console.log("Fetching patient data for UHID:", uhid);
+    const response = await axios.get(`${API_URL}patients-by-uhid/${uhid}`);
+    console.log("API Full Response:", response);
+    console.log("API Response Data:", response.data);
+
+    if (response.data && response.data.patient) {
+      const patient = response.data.patient;
+      console.log("Patient Found:", patient);
+
+      // ✅ Extract surgery dates
+      const surgeryLeft = patient?.Medical?.surgery_date_left;
+      const surgeryRight = patient?.Medical?.surgery_date_right;
+
+      // ✅ Determine side
+      let side = "left";
+      if (surgeryLeft && !surgeryRight) {
+        side = "left";
+      } else if (!surgeryLeft && surgeryRight) {
+        side = "right";
+      } else if (surgeryLeft && surgeryRight) {
+        side = "left"; // Default to left if both exist
+      }
+
+      // ✅ Optionally pick op_date
+      const op_date = surgeryLeft || surgeryRight || "";
+
+      // ✅ Update state
+      setPatientData(patient);
+      // setSurgeryData((prev) => ({
+      //   ...prev,
+      //   uhid,
+      //   side,
+      //   patient_records: prev.patient_records.map((record, index) =>
+      //     index === 0
+      //       ? {
+      //           ...record,
+      //           patuhid: uhid,
+      //           side,
+      //           op_date, // ✅ If you want operation date set too
+      //         }
+      //       : record
+      //   ),
+      // }));
+    } else {
+      console.warn("No patient data found in response");
+    }
+  } catch (error) {
+    console.error("Error fetching patient data:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+const fetchSurgeryReport = async (storedUHID) => {
+  try {
+    const lowercaseUHID = storedUHID.toLowerCase();
+    const response = await axios.get(
+      `${API_URL}getsurgerybypatient/${lowercaseUHID}`
+    );
+
+    const components30 = response.data.patients[0].entry[30].resource.component;
+    const components29 = response.data.patients[0].entry[29].resource.component;
+
+    console.log("surgery report entry 30", response.data.patients[0].entry[30]);
+    console.log("surgery report entry 29", response.data.patients[0].entry[29]);
+
+    // ✅ Helper functions for both entries
+    const getValue30 = (key) =>
+      components30.find((c) => c.code.text === key)?.valueString || "";
+    const getValue29 = (key) =>
+      components29.find((c) => c.code.text === key)?.valueString || "";
+
+    // ✅ Extract values from entry 30
+    const hospitalName = getValue30("hospital_name");
+    const anaestheticType = getValue30("anaesthetic_type");
+    const asaGrade = getValue30("asa_grade");
+    const consultant = getValue30("consultant_incharge");
+    const surgeon = getValue30("operating_surgeon");
+    const firstAssistant = getValue30("first_assistant");
+    const secondAssistant = getValue30("second_assistant");
+    const procedure = getValue30("mag_proc");
+    const sideValue = getValue30("side"); 
+    const deformityValue = getValue30("surgery_indication"); 
+    const techAssist = getValue30("tech_assist"); 
+    const alignment = getValue30("align_phil"); 
+    const torqueUsed = getValue30("torq_used"); 
+    const operationTime = getValue30("op_time"); 
+    const operationDate = getValue30("op_date"); 
+
+    // ✅ Extract ACL from entry 29
+    const aclStatus = getValue29("acl"); // e.g., "Torn"
+
+    const pclConditionValue = getValue29("pcl"); // e.g., "Excised"
+setPclCondition(pclConditionValue);
+setTempPclCondition(pclConditionValue);
+
+const finalCheckValue = getValue29("final_check"); // e.g., "Negligible V-V Laxity in extenstion"
+setSelectedFinalCheck([finalCheckValue]);
+setTempSelectedFinalCheck([finalCheckValue]);
+
+const pfjResurfacing = getValue29("pfj_resurfacing"); // e.g., "Y"
+setPFJResurf(pfjResurfacing);
+setTempPFJResurf(pfjResurfacing);
+
+const trachelaResectionValue = getValue29("trachela_resection"); // e.g., "10.0 mm"
+setTrachelaResection(trachelaResectionValue);
+setTempTrachelaResection(trachelaResectionValue);
+
+const patellaValue = getValue29("patella"); // e.g., "UnWorn"
+setPatella(patellaValue);
+setTempPatella(patellaValue);
+
+const preResurfacingValue = getValue29("preresurfacing"); // e.g., "10.0"
+setPreResurfacingThickness(preResurfacingValue);
+setTempPreResurfacingThickness(preResurfacingValue);
+
+const postResurfacingValue = getValue29("postresurfacing"); // e.g., "8.0"
+setPostResurfacingThickness(postResurfacingValue);
+setTempPostResurfacingThickness(postResurfacingValue);
+
+    // ✅ Update states for entry 30 values
+    setSelectedProcedure(procedure);
+    setTempProcedure(procedure);
+
+    setSelectedHospital(hospitalName);
+    setTempHospital(hospitalName);
+
+    setSelectedType(anaestheticType);
+    setTempType(anaestheticType);
+
+    setSelectedASA(asaGrade);
+    setTempASA(asaGrade);
+
+    setSelectedConsultant(consultant);
+    setTempConsultant(consultant);
+
+    setSelectedSurgeon(surgeon);
+    setTempSurgeon(surgeon);
+
+    setSelectedAssistant(firstAssistant);
+    setTempAssistant(firstAssistant);
+
+    setSelectedSecondAssistant(secondAssistant);
+    setTempSecondAssistant(secondAssistant);
+
+    setSelectedTech(techAssist);
+    setTempTech(techAssist);
+
+    setSelectedAlignment(alignment);
+    setTempAlignment(alignment);
+
+    setSelectedTorque(torqueUsed);
+    setTempTorque(torqueUsed);
+
+    setTimeValue(operationTime);
+    setTempTimeValue(operationTime);
+
+    setTimedate(operationDate);
+
+    // ✅ Update ACL (torqued options)
+    setSelectedTorqued(aclStatus);
+    setTempTorqued(aclStatus);
+
+    // ✅ Handle sides
+    let sidesArray = [];
+    if (sideValue.toLowerCase().includes("left")) sidesArray.push("LEFT KNEE");
+    if (sideValue.toLowerCase().includes("right")) sidesArray.push("RIGHT KNEE");
+
+    setSelectedSides(sidesArray);
+    setTempSides(sidesArray);
+
+    // ✅ Handle deformities
+    let deformityArray = deformityValue
+      .split(",")
+      .map((d) => d.trim())
+      .filter((d) => d && d !== "NA");
+    setSelectedDeformity(deformityArray);
+    setTempDeformity(deformityArray);
+
+    console.log("Hospital Name:", hospitalName);
+    console.log("ACL Status:", aclStatus);
+
+    const components16 = response.data.patients[0].entry[16].resource.component;
+const getValue16 = (key) =>
+  components16.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for distal medial section
+const distalMedialStatus = getValue16("status"); // e.g., "Worn"
+setDistalMedialUnwornWorn(distalMedialStatus);
+setTempDistalMedialUnwornWorn(distalMedialStatus);
+
+const distalMedialInitial = getValue16("initial_thickness"); // e.g., "9.0 mm"
+setDistalMedialInitialThickness(distalMedialInitial);
+setTempDistalMedialInitialThickness(distalMedialInitial);
+
+const distalMedialRecutValue = getValue16("recutvalue"); // e.g., "9.5 mm"
+setDistalMedialRecutMM(distalMedialRecutValue);
+setTempDistalMedialRecutMM(distalMedialRecutValue);
+
+const distalMedialRecutYNValue = getValue16("recut"); // e.g., "Y"
+setDistalMedialRecutYN(distalMedialRecutYNValue);
+setTempDistalMedialRecutYN(distalMedialRecutYNValue);
+
+const distalMedialWasherValue = getValue16("washer"); // e.g., "N"
+setDistalMedialWasher(distalMedialWasherValue);
+setTempDistalMedialWasher(distalMedialWasherValue);
+
+const distalMedialWasherMMValue = getValue16("washervalue"); // e.g., "8.5 mm"
+setDistalMedialWasherMM(distalMedialWasherMMValue);
+setTempDistalMedialWasherMM(distalMedialWasherMMValue);
+
+const distalMedialFinal = getValue16("final_thickness"); // e.g., "8.5 mm"
+setDistalMedialFinalThickness(distalMedialFinal);
+setTempDistalMedialFinalThickness(distalMedialFinal);
+
+const components17 = response.data.patients[0].entry[17].resource.component;
+const getValue17 = (key) =>
+  components17.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for distal lateral section
+const distalLateralStatus = getValue17("status"); // e.g., "Worn"
+setDistalLateralUnwornWorn(distalLateralStatus);
+setTempDistalLateralUnwornWorn(distalLateralStatus);
+
+const distalLateralInitial = getValue17("initial_thickness"); // e.g., "9.0 mm"
+setDistalLateralInitialThickness(distalLateralInitial);
+setTempDistalLateralInitialThickness(distalLateralInitial);
+
+const distalLateralRecutValue = getValue17("recutvalue"); // e.g., "9.5 mm"
+setDistalLateralRecutMM(distalLateralRecutValue);
+setTempDistalLateralRecutMM(distalLateralRecutValue);
+
+const distalLateralRecutYNValue = getValue17("recut"); // e.g., "N"
+setDistalLateralRecutYN(distalLateralRecutYNValue);
+setTempDistalLateralRecutYN(distalLateralRecutYNValue);
+
+const distalLateralWasherYNValue = getValue17("washer"); // e.g., "N"
+setDistalLateralWasherYN(distalLateralWasherYNValue);
+setTempDistalLateralWasherYN(distalLateralWasherYNValue);
+
+const distalLateralWasherMMValue = getValue17("washervalue"); // e.g., "9.0 mm"
+setDistalLateralWasherMM(distalLateralWasherMMValue);
+setTempDistalLateralWasherMM(distalLateralWasherMMValue);
+
+const distalLateralFinal = getValue17("final_thickness"); // e.g., "8.0 mm"
+setDistalLateralFinalThickness(distalLateralFinal);
+setTempDistalLateralFinalThickness(distalLateralFinal);
+
+const components18 = response.data.patients[0].entry[18].resource.component;
+const getValue18 = (key) =>
+  components18.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for posterial medial section
+const postMedWear = getValue18("wear"); // e.g., "Worn"
+setPostMedUnwornWorn(postMedWear);
+setTempPostMedUnwornWorn(postMedWear);
+
+const postMedInitial = getValue18("initial_thickness"); // e.g., "8.0 mm"
+setPostMedInitialThickness(postMedInitial);
+setTempPostMedInitialThickness(postMedInitial);
+
+const postMedRecutYNValue = getValue18("recut"); // e.g., "Y"
+setPostMedRecutYN(postMedRecutYNValue);
+setTempPostMedRecutYN(postMedRecutYNValue);
+
+const postMedRecutValue = getValue18("recutvalue"); // e.g., "8.5 mm"
+setPostMedRecutMM(postMedRecutValue);
+setTempPostMedRecutMM(postMedRecutValue);
+
+const postMedFinal = getValue18("final_thickness"); // e.g., "9.0 mm"
+setPostMedFinalThickness(postMedFinal);
+setTempPostMedFinalThickness(postMedFinal);
+
+const components19 = response.data.patients[0].entry[19].resource.component;
+const getValue19 = (key) =>
+  components19.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for posterial lateral section
+const postLatStatus = getValue19("status"); // e.g., "Unworn"
+setPostLatUnwornWorn(postLatStatus);
+setTempPostLatUnwornWorn(postLatStatus);
+
+const postLatInitial = getValue19("initial_thickness"); // e.g., "9.0 mm"
+setPostLatInitialThickness(postLatInitial);
+setTempPostLatInitialThickness(postLatInitial);
+
+const postLatRecutYNValue = getValue19("recut"); // e.g., "N"
+setPostLatRecutYN(postLatRecutYNValue);
+setTempPostLatRecutYN(postLatRecutYNValue);
+
+const postLatRecutValue = getValue19("recutvalue"); // e.g., "8.5 mm"
+setPostLatRecutMM(postLatRecutValue);
+setTempPostLatRecutMM(postLatRecutValue);
+
+const postLatFinal = getValue19("final_thickness"); // e.g., "9.0 mm"
+setPostLatFinalThickness(postLatFinal);
+setTempPostLatFinalThickness(postLatFinal);
+
+const components20 = response.data.patients[0].entry[20].resource.component;
+const getValue20 = (key) =>
+  components20.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for tibial_resection_left section
+const tibialLeftStatus = getValue20("status"); // e.g., "UnWorn"
+setTibialLeftWorn(tibialLeftStatus);
+setTempTibialLeftWorn(tibialLeftStatus);
+
+const tibialLeftValue = getValue20("value"); // e.g., "8.5 mm"
+setTibialLeftMM(tibialLeftValue);
+setTempTibialLeftMM(tibialLeftValue);
+
+const components21 = response.data.patients[0].entry[21].resource.component;
+const getValue21 = (key) =>
+  components21.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for tibial_resection_right section
+const tibialRightStatus = getValue21("status"); // e.g., "Worn"
+setTibialRightWorn(tibialRightStatus);
+setTempTibialRightWorn(tibialRightStatus);
+
+const tibialRightValue = getValue21("value"); // e.g., "8.5 mm"
+setTibialRightMM(tibialRightValue);
+setTempTibialRightMM(tibialRightValue);
+
+const components22 = response.data.patients[0].entry[22].resource.component;
+const getValue22 = (key) =>
+  components22.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for tibialvvrecut section
+const tibialVVStatus = getValue22("status"); // e.g., "Y"
+setTibialVVRecutYN(tibialVVStatus);
+setTempTibialVVRecutYN(tibialVVStatus);
+
+const tibialVVValue = getValue22("value"); // e.g., "10.0 mm"
+setTibialVVRecutMM(tibialVVValue);
+setTempTibialVVRecutMM(tibialVVValue);
+
+const components23 = response.data.patients[0].entry[23].resource.component;
+const getValue23 = (key) =>
+  components23.find((c) => c.code.text === key)?.valueString || "";
+
+// ✅ Extract and set values for tibial_slope section
+const tibialSlopeStatus = getValue23("status"); // e.g., "Y"
+setTibialSlopeRecutYN(tibialSlopeStatus);
+setTempTibialSlopeRecutYN(tibialSlopeStatus);
+
+const tibialSlopeValue = getValue23("value"); // e.g., "10.0 mm"
+setTibialSlopeRecutMM(tibialSlopeValue);
+setTempTibialSlopeRecutMM(tibialSlopeValue);
+
+// ✅ Fill tableData from entry[23] to entry[27] and log entries
+let thicknessTable = [...tableData]; // use existing state as base
+
+for (let i = 0; i < 5; i++) {
+  const entryIndex = 24 + i;
+  const currentEntry = response.data.patients[0].entry[entryIndex];
+
+  console.log(`Surgery report entry ${entryIndex}:`, currentEntry);
+
+  if (!currentEntry || !currentEntry.resource?.component) continue;
+
+  const components = currentEntry.resource.component;
+
+  const thickness = components.find((c) => c.code.text === "thickness")?.valueString || thicknessTable[i].insertThickness;
+  const numTicks = components.find((c) => c.code.text === "numOfTicks")?.valueString || "";
+  const extOrient = components.find((c) => c.code.text === "extensionExtOrient")?.valueString || "";
+  const flex90Orient = components.find((c) => c.code.text === "flexionIntOrient")?.valueString || "";
+  const liftOff = components.find((c) => c.code.text === "liftOff")?.valueString || "";
+
+  thicknessTable[i] = {
+    ...thicknessTable[i],
+    insertThickness: thickness,
+    numTicks,
+    extOrient,
+    flex90Orient,
+    liftOff,
+  };
+}
+
+setTableData(thicknessTable);
+
+// Assuming response.data.patients[0].entry[12-15] exist
+const entriesMap = {
+  FEMUR: 12,
+  TIBIA: 13,
+  INSERT: 14,
+  PATELLA: 15,
+};
+
+Object.entries(entriesMap).forEach(([category, index]) => {
+  const components = response.data.patients[0].entry[index]?.resource?.component || [];
+  const getValue = (key) => components.find((c) => c.code.text === key)?.valueString || "";
+
+  const manufacturer = getValue("MANUFACTURER");
+  const model = getValue("MODEL");
+  const size = getValue("SIZE");
+
+  // ✅ Set main state
+  setImplantTableSelections((prev) => ({
+    ...prev,
+    [category]: { MANUFACTURER: manufacturer, MODEL: model, SIZE: size },
+  }));
+
+  // ✅ Set temp state
+  setImplantTableTempSelections((prev) => ({
+    ...prev,
+    [category]: { MANUFACTURER: manufacturer, MODEL: model, SIZE: size },
+  }));
+});
+
+  } catch (error) {
+    console.error("Error fetching surgery report:", error);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+  useEffect(() => {
+    const storedUHID = sessionStorage.getItem("selectedUHID");
+
+    if (storedUHID) {
+      // ✅ Update uhid state
+      setUhid(storedUHID);
+
+      // ✅ Fetch Patient Data using original UHID
+      fetchPatientData(storedUHID);
+
+      // ✅ Call the separated function
+      fetchSurgeryReport(storedUHID);
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
   const [showsurgeryreport, setshowsurgeryreport] = useState(true);
 
-  const [isEditingHospital, setIsEditingHospital] = useState(false);
-  const [selectedHospital, setSelectedHospital] = useState("Parvathy Hospital"); // stored value
-  const [tempHospital, setTempHospital] = useState(selectedHospital); // temporary editing value
+const [isEditingHospital, setIsEditingHospital] = useState(false);
+const [selectedHospital, setSelectedHospital] = useState(""); // ✅ initially empty
+const [tempHospital, setTempHospital] = useState("");
 
   const handleSaveHospital = () => {
     setSelectedHospital(tempHospital); // save temp to main
@@ -513,8 +955,9 @@ const implantTableCancelEdit = (category, row) => {
     setIsEditingHospital(false);
   };
 
+
   const [isEditingAnaesthetic, setIsEditingAnaesthetic] = useState(false);
-  const [selectedType, setSelectedType] = useState("General"); // stored value
+  const [selectedType, setSelectedType] = useState(""); // stored value
   const [tempType, setTempType] = useState(selectedType); // temporary editing value
 
   const types = ["General", "NerveBlock", "Epidural", "Spinal (Intrathecal)"];
@@ -534,7 +977,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
   const [isEditingASA, setIsEditingASA] = useState(false);
-  const [selectedASA, setSelectedASA] = useState("1"); // stored value
+  const [selectedASA, setSelectedASA] = useState(""); // stored value
   const [tempASA, setTempASA] = useState(""); // temporary editing value
 
   const asaGrades = ["1", "2", "3", "4", "5"];
@@ -595,7 +1038,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
    const [isEditingConsultant, setIsEditingConsultant] = useState(false);
-  const [selectedConsultant, setSelectedConsultant] = useState("Dr. Vetri Kumar");
+  const [selectedConsultant, setSelectedConsultant] = useState("");
   const [sameForSurgeon, setSameForSurgeon] = useState(false);
   const [tempConsultant, setTempConsultant] = useState(selectedConsultant);
   const [tempSame, setTempSame] = useState(sameForSurgeon);
@@ -620,7 +1063,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
   const [isEditingSurgeon, setIsEditingSurgeon] = useState(false);
-  const [selectedSurgeon, setSelectedSurgeon] = useState("Dr. Vetri Kumar");
+  const [selectedSurgeon, setSelectedSurgeon] = useState("");
   const [tempSurgeon, setTempSurgeon] = useState(selectedSurgeon);
 
   const handleSaveSurgeon = () => {
@@ -634,7 +1077,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
   const [isEditingAssistant, setIsEditingAssistant] = useState(false);
-  const [selectedAssistant, setSelectedAssistant] = useState("Dr. Vinod Kumar");
+  const [selectedAssistant, setSelectedAssistant] = useState("");
   const [tempAssistant, setTempAssistant] = useState(selectedAssistant);
 
   const handleSaveAssistant = () => {
@@ -648,7 +1091,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
   const [isEditingSecondAssistant, setIsEditingSecondAssistant] = useState(false);
-  const [selectedSecondAssistant, setSelectedSecondAssistant] = useState("Dr. Milan Adhikari");
+  const [selectedSecondAssistant, setSelectedSecondAssistant] = useState("");
   const [tempSecondAssistant, setTempSecondAssistant] = useState(selectedSecondAssistant);
 
   const handleSaveSecondAssistant = () => {
@@ -670,7 +1113,7 @@ const implantTableCancelEdit = (category, row) => {
   ];
 
   const [isEditingProcedure, setIsEditingProcedure] = useState(false);
-  const [selectedProcedure, setSelectedProcedure] = useState("Primary TKA");
+  const [selectedProcedure, setSelectedProcedure] = useState("");
   const [tempProcedure, setTempProcedure] = useState(selectedProcedure);
 
   const handleEditProcedure = () => {
@@ -693,7 +1136,7 @@ const implantTableCancelEdit = (category, row) => {
   const sides = ["LEFT KNEE", "RIGHT KNEE"];
   
   const [isEditingSide, setIsEditingSide] = useState(false);
-  const [selectedSides, setSelectedSides] = useState(["LEFT KNEE"]);
+  const [selectedSides, setSelectedSides] = useState([""]);
   const [tempSides, setTempSides] = useState([...selectedSides]);
 
   const handleEditSide = () => {
@@ -820,7 +1263,7 @@ const implantTableCancelEdit = (category, row) => {
   const [isEditingTime, setIsEditingTime] = useState(false);
   const [timeValue, setTimeValue] = useState(""); // stored value
   const [tempTimeValue, setTempTimeValue] = useState("");
-
+const [timeDate, setTimedate] = useState(""); // stored value
   const handleEditTime = () => {
     setTempTimeValue(timeValue);
     setIsEditingTime(true);
@@ -859,7 +1302,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
   // Values
-  const [distalMedialUnwornWorn, setDistalMedialUnwornWorn] = useState("Unworn"); // stored value
+  const [distalMedialUnwornWorn, setDistalMedialUnwornWorn] = useState(""); // stored value
   const [tempDistalMedialUnwornWorn, setTempDistalMedialUnwornWorn] = useState(distalMedialUnwornWorn); // temporary editing value
   const [isEditingDistalMedialUnwornWorn, setIsEditingDistalMedialUnwornWorn] = useState(false);
 
@@ -889,12 +1332,12 @@ const implantTableCancelEdit = (category, row) => {
   };
 
     // States for Y/N
-    const [distalMedialRecutYN, setDistalMedialRecutYN] = useState("N");
+    const [distalMedialRecutYN, setDistalMedialRecutYN] = useState("");
     const [tempDistalMedialRecutYN, setTempDistalMedialRecutYN] = useState(distalMedialRecutYN);
     const [isEditingDistalMedialRecutYN, setIsEditingDistalMedialRecutYN] = useState(false);
 
     // States for MM
-    const [distalMedialRecutMM, setDistalMedialRecutMM] = useState("0");
+    const [distalMedialRecutMM, setDistalMedialRecutMM] = useState("");
     const [tempDistalMedialRecutMM, setTempDistalMedialRecutMM] = useState(distalMedialRecutMM);
     const [isEditingDistalMedialRecutMM, setIsEditingDistalMedialRecutMM] = useState(false);
 
@@ -920,7 +1363,7 @@ const implantTableCancelEdit = (category, row) => {
     };
 
 
-  const [distalMedialWasher, setDistalMedialWasher] = useState("N"); // N or Y
+  const [distalMedialWasher, setDistalMedialWasher] = useState(""); // N or Y
   const [tempDistalMedialWasher, setTempDistalMedialWasher] = useState(distalMedialWasher);
 
   const [distalMedialWasherMM, setDistalMedialWasherMM] = useState(""); // stored mm value
@@ -955,7 +1398,7 @@ const implantTableCancelEdit = (category, row) => {
   };
 
     // -------- Unworn / Worn --------
-  const [distalLateralUnwornWorn, setDistalLateralUnwornWorn] = useState("Unworn");
+  const [distalLateralUnwornWorn, setDistalLateralUnwornWorn] = useState("");
   const [tempDistalLateralUnwornWorn, setTempDistalLateralUnwornWorn] = useState(distalLateralUnwornWorn);
   const [isEditingDistalLateralUnwornWorn, setIsEditingDistalLateralUnwornWorn] = useState(false);
 
@@ -965,7 +1408,7 @@ const implantTableCancelEdit = (category, row) => {
   const [isEditingDistalLateralInitialThickness, setIsEditingDistalLateralInitialThickness] = useState(false);
 
   // -------- Recut --------
-  const [distalLateralRecutYN, setDistalLateralRecutYN] = useState("N");
+  const [distalLateralRecutYN, setDistalLateralRecutYN] = useState("");
   const [tempDistalLateralRecutYN, setTempDistalLateralRecutYN] = useState(distalLateralRecutYN);
 
   const [distalLateralRecutMM, setDistalLateralRecutMM] = useState("");
@@ -975,7 +1418,7 @@ const implantTableCancelEdit = (category, row) => {
   const [isEditingDistalLateralRecutMM, setIsEditingDistalLateralRecutMM] = useState(false);
 
   // Washer Y/N
-const [distalLateralWasherYN, setDistalLateralWasherYN] = useState("N");
+const [distalLateralWasherYN, setDistalLateralWasherYN] = useState("");
 const [tempDistalLateralWasherYN, setTempDistalLateralWasherYN] = useState(distalLateralWasherYN);
 const [isEditingDistalLateralWasherYN, setIsEditingDistalLateralWasherYN] = useState(false);
 
@@ -1064,7 +1507,7 @@ const cancelDistalLateralWasherMM = () => {
   };
 
 // Unworn / Worn
-const [postMedUnwornWorn, setPostMedUnwornWorn] = useState("Unworn");
+const [postMedUnwornWorn, setPostMedUnwornWorn] = useState("");
 const [tempPostMedUnwornWorn, setTempPostMedUnwornWorn] = useState(postMedUnwornWorn);
 const [isEditingPostMedUnwornWorn, setIsEditingPostMedUnwornWorn] = useState(false);
 
@@ -1074,12 +1517,12 @@ const [tempPostMedInitialThickness, setTempPostMedInitialThickness] = useState(p
 const [isEditingPostMedInitialThickness, setIsEditingPostMedInitialThickness] = useState(false);
 
 // Recut Y/N
-const [postMedRecutYN, setPostMedRecutYN] = useState("N");
+const [postMedRecutYN, setPostMedRecutYN] = useState("");
 const [tempPostMedRecutYN, setTempPostMedRecutYN] = useState(postMedRecutYN);
 const [isEditingPostMedRecutYN, setIsEditingPostMedRecutYN] = useState(false);
 
 // Recut MM
-const [postMedRecutMM, setPostMedRecutMM] = useState("0");
+const [postMedRecutMM, setPostMedRecutMM] = useState("");
 const [tempPostMedRecutMM, setTempPostMedRecutMM] = useState(postMedRecutMM);
 const [isEditingPostMedRecutMM, setIsEditingPostMedRecutMM] = useState(false);
 
@@ -1109,7 +1552,7 @@ const savePostMedFinalThickness = () => { setPostMedFinalThickness(tempPostMedFi
 const cancelPostMedFinalThickness = () => { setTempPostMedFinalThickness(postMedFinalThickness); setIsEditingPostMedFinalThickness(false); }
 
 // Unworn / Worn
-const [postLatUnwornWorn, setPostLatUnwornWorn] = useState("Unworn");
+const [postLatUnwornWorn, setPostLatUnwornWorn] = useState("");
 const [tempPostLatUnwornWorn, setTempPostLatUnwornWorn] = useState(postLatUnwornWorn);
 const [isEditingPostLatUnwornWorn, setIsEditingPostLatUnwornWorn] = useState(false);
 
@@ -1119,12 +1562,12 @@ const [tempPostLatInitialThickness, setTempPostLatInitialThickness] = useState(p
 const [isEditingPostLatInitialThickness, setIsEditingPostLatInitialThickness] = useState(false);
 
 // Recut Y/N
-const [postLatRecutYN, setPostLatRecutYN] = useState("N");
+const [postLatRecutYN, setPostLatRecutYN] = useState("");
 const [tempPostLatRecutYN, setTempPostLatRecutYN] = useState(postLatRecutYN);
 const [isEditingPostLatRecutYN, setIsEditingPostLatRecutYN] = useState(false);
 
 // Recut MM
-const [postLatRecutMM, setPostLatRecutMM] = useState("0");
+const [postLatRecutMM, setPostLatRecutMM] = useState("");
 const [tempPostLatRecutMM, setTempPostLatRecutMM] = useState(postLatRecutMM);
 const [isEditingPostLatRecutMM, setIsEditingPostLatRecutMM] = useState(false);
 
@@ -1155,7 +1598,7 @@ const savePostLatFinalThickness = () => { setPostLatFinalThickness(tempPostLatFi
 const cancelPostLatFinalThickness = () => { setTempPostLatFinalThickness(postLatFinalThickness); setIsEditingPostLatFinalThickness(false); }
 
 // Worn / Unworn
-const [tibialLeftWorn, setTibialLeftWorn] = useState("Worn");
+const [tibialLeftWorn, setTibialLeftWorn] = useState("");
 const [tempTibialLeftWorn, setTempTibialLeftWorn] = useState(tibialLeftWorn);
 const [isEditingTibialLeftWorn, setIsEditingTibialLeftWorn] = useState(false);
 
@@ -1173,7 +1616,7 @@ const saveTibialLeftMM = () => { setTibialLeftMM(tempTibialLeftMM); setIsEditing
 const cancelTibialLeftMM = () => { setTempTibialLeftMM(tibialLeftMM); setIsEditingTibialLeftMM(false); }
 
 // Worn / Unworn
-const [tibialRightWorn, setTibialRightWorn] = useState("Worn");
+const [tibialRightWorn, setTibialRightWorn] = useState("");
 const [tempTibialRightWorn, setTempTibialRightWorn] = useState(tibialRightWorn);
 const [isEditingTibialRightWorn, setIsEditingTibialRightWorn] = useState(false);
 
@@ -1190,7 +1633,7 @@ const cancelTibialRightWorn = () => { setTempTibialRightWorn(tibialRightWorn); s
 const saveTibialRightMM = () => { setTibialRightMM(tempTibialRightMM); setIsEditingTibialRightMM(false); }
 const cancelTibialRightMM = () => { setTempTibialRightMM(tibialRightMM); setIsEditingTibialRightMM(false); }
 
-const [pclCondition, setPclCondition] = useState("Intact");
+const [pclCondition, setPclCondition] = useState("");
 const [tempPclCondition, setTempPclCondition] = useState(pclCondition);
 const [isEditingPclCondition, setIsEditingPclCondition] = useState(false);
 
@@ -1203,7 +1646,7 @@ const cancelPclCondition = () => {
   setIsEditingPclCondition(false);
 };
 
-const [tibialVVRecutYN, setTibialVVRecutYN] = useState("N");
+const [tibialVVRecutYN, setTibialVVRecutYN] = useState("");
 const [tempTibialVVRecutYN, setTempTibialVVRecutYN] = useState(tibialVVRecutYN);
 const [isEditingTibialVVRecutYN, setIsEditingTibialVVRecutYN] = useState(false);
 
@@ -1229,7 +1672,7 @@ const cancelTibialVVRecutMM = () => {
   setIsEditingTibialVVRecutMM(false);
 };
 
-const [tibialSlopeRecutYN, setTibialSlopeRecutYN] = useState("N");
+const [tibialSlopeRecutYN, setTibialSlopeRecutYN] = useState("");
 const [tempTibialSlopeRecutYN, setTempTibialSlopeRecutYN] = useState(tibialSlopeRecutYN);
 const [isEditingTibialSlopeRecutYN, setIsEditingTibialSlopeRecutYN] = useState(false);
 
@@ -1414,9 +1857,30 @@ const cancelPostResurfacing = () => {
   setTempPostResurfacingThickness(postResurfacingThickness);
   setIsEditingPostResurfacing(false);
 };
+  
+    if (loading) return <p>Loading patient data...</p>;
+  
+    if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
 
+    const calculateAge = (birthDate) => {
+    const birth = new Date(birthDate);
+    const today = new Date();
+    let age = today.getFullYear() - birth.getFullYear();
+    const monthDiff = today.getMonth() - birth.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birth.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  };
 
-
+  // Capitalize gender
+  const capitalizeFirstLetter = (string) => {
+    return string.charAt(0).toUpperCase() + string.slice(1);
+  };
+  
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
@@ -1446,12 +1910,18 @@ const cancelPostResurfacing = () => {
                 <p
                   className={`${raleway.className} font-semibold text-lg text-black`}
                 >
-                  Patient Name
+                  {patientData.Patient.name}
                 </p>
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  Age, Gender
+                  {patientData?.Patient?.birthDate
+                    ? `${calculateAge(
+                        patientData.Patient.birthDate
+                      )} yrs, ${capitalizeFirstLetter(
+                        patientData.Patient.gender
+                      )}`
+                    : "N/A"}
                 </p>
               </div>
               <div
@@ -1462,12 +1932,13 @@ const cancelPostResurfacing = () => {
                 <p
                   className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
                 >
-                  L: Pre Op R: Pre Op
+                  L: {patientData.Patient_Status_Left || "NA"} R:{" "}
+                  {patientData.Patient_Status_Right || "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
                 >
-                  Patient ID
+                  {uhid}
                 </p>
               </div>
               <p
@@ -1475,7 +1946,14 @@ const cancelPostResurfacing = () => {
                   inter.className
                 } text-end font-semibold text-[15px] text-[#484848]`}
               >
-                BMI: 27
+                BMI:{" "}
+                {(() => {
+                  const weight = parseFloat(patientData.Medical.weight); // "70.0 kg" → 70
+                  const height = parseFloat(patientData.Medical.height); // "175.0 cm" → 175
+                  if (!weight || !height) return "N/A";
+                  const bmi = weight / (height / 100) ** 2;
+                  return bmi.toFixed(2);
+                })()}
               </p>
             </div>
           </div>
@@ -2243,23 +2721,24 @@ const cancelPostResurfacing = () => {
 
               <div className={`flex flex-col gap-4`}>
                 <label
-                  className={`${inter.className} text-base font-semibold text-[#484848]`}
-                >
-                  2. Operative Date and Duration
-                </label>
-                <div className={`space-x-12 flex flex-row  `}>
-                  <div className="relative w-52">
-                    <p
-                      className={`${poppins.className} font-medium text-black text-sm  px-4 py-2`}
-                    >
-                      20-08-2025
-                    </p>
-                    <Image
-                      src={Calendar}
-                      alt="Calendar"
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
-                    />
-                  </div>
+  className={`${inter.className} text-base font-semibold text-[#484848]`}
+>
+  2. Operative Date and Duration
+</label>
+<div className="space-x-12 flex flex-row">
+  <div className="relative w-52">
+    <p
+      className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}
+    >
+      {timeDate ? timeDate : "Select Date"}
+    </p>
+    <Image
+      src={Calendar}
+      alt="Calendar"
+      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
+    />
+  </div>
+
 
                   <div className="relative w-52 flex items-center gap-2">
                     {!isEditingTime ? (
@@ -2447,7 +2926,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
                           {!isEditingDistalMedialInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialInitialThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialInitialThickness}</span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
                                 onClick={() => setIsEditingDistalMedialInitialThickness(true)}
@@ -2539,7 +3018,7 @@ const cancelPostResurfacing = () => {
                               {!isEditingDistalMedialRecutMM ? (
                                 <>
                                   <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
-                                    {distalMedialRecutMM} mm
+                                    {distalMedialRecutMM} 
                                   </span>
                                   <PencilIcon
                                     className="w-4 h-4 text-gray-600 cursor-pointer"
@@ -2573,7 +3052,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Washer</label>
                           {!isEditingDistalMedialWasher ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialWasher} {distalMedialWasherMM} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialWasher} {distalMedialWasherMM} </span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
                                 onClick={() => setIsEditingDistalMedialWasher(true)}
@@ -2625,7 +3104,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Final Thickness</label>
                           {!isEditingDistalMedialFinalThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialFinalThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialFinalThickness} </span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
                                 onClick={() => setIsEditingDistalMedialFinalThickness(true)}
@@ -2705,7 +3184,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
                           {!isEditingDistalLateralInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralInitialThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralInitialThickness} </span>
                               <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={editDistalLateralInitialThickness}/>
                             </div>
                           ) : (
@@ -2743,7 +3222,7 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingDistalLateralRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralRecutMM} mm</span>
+                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralRecutMM} </span>
                                   <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingDistalLateralRecutMM(true)}/>
                                 </>
                               ) : (
@@ -2794,7 +3273,7 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingDistalLateralWasherMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralWasherMM} mm</span>
+                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralWasherMM} </span>
                                   <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingDistalLateralWasherMM(true)}/>
                                 </>
                               ) : (
@@ -2813,7 +3292,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Final Thickness</label>
                           {!isEditingDistalLateralFinalThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralFinalThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralFinalThickness}</span>
                               <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={editDistalLateralFinalThickness}/>
                             </div>
                           ) : (
@@ -2897,7 +3376,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
                           {!isEditingPostMedInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedInitialThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedInitialThickness} </span>
                               <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedInitialThickness(true)} />
                             </div>
                           ) : (
@@ -2939,7 +3418,7 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingPostMedRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedRecutMM} mm</span>
+                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedRecutMM} </span>
                                   <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedRecutMM(true)}/>
                                 </>
                               ) : (
@@ -2959,7 +3438,7 @@ const cancelPostResurfacing = () => {
                           <div className="flex items-center w-1/2 gap-4">
                           {!isEditingPostMedFinalThickness ? (
                             <>
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedFinalThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedFinalThickness} </span>
                               <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedFinalThickness(true)}/>
                             </>
                           ) : (
@@ -3019,7 +3498,7 @@ const cancelPostResurfacing = () => {
                           <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
                           {!isEditingPostLatInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatInitialThickness} mm</span>
+                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatInitialThickness} </span>
                               <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatInitialThickness(true)} />
                             </div>
                           ) : (
@@ -3061,7 +3540,7 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingPostLatRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatRecutMM} mm</span>
+                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatRecutMM} </span>
                                   <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatRecutMM(true)}/>
                                 </>
                               ) : (
@@ -3081,7 +3560,7 @@ const cancelPostResurfacing = () => {
                           <div className="flex items-center w-1/2 gap-4">
                             {!isEditingPostLatFinalThickness ? (
                               <>
-                                <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatFinalThickness} mm</span>
+                                <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatFinalThickness} </span>
                                 <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatFinalThickness(true)}/>
                               </>
                             ) : (
@@ -3161,14 +3640,14 @@ const cancelPostResurfacing = () => {
                           
                           {!isEditingTibialLeftMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                               <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialLeftMM}</span>
                               <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialLeftMM(true)}/>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-3">
                               <div className={`flex flex-row gap-2`}>
-                                <label className={`${raleway.className} font-semibold text-xs text-[#484848]`}>mm</label>
+                                <label className={`${raleway.className} font-semibold text-xs text-[#484848]`}></label>
                                 <input type="text" value={tempTibialLeftMM} onChange={e=>setTempTibialLeftMM(e.target.value)} className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"/>
                               </div>
                               <div className={`flex flex-row gap-3`}>
@@ -3230,14 +3709,14 @@ const cancelPostResurfacing = () => {
                         <div className={`flex flex-row gap-1 items-center`}>
                           {!isEditingTibialRightMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                               <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialRightMM}</span>
                               <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialRightMM(true)}/>
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-3">
                               <div className={`flex flex-row gap-2`}>
-                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                                 <input type="text" value={tempTibialRightMM} onChange={e=>setTempTibialRightMM(e.target.value)} className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"/>
                               </div>
                               <div className={`flex flex-row gap-3`}>
@@ -3345,14 +3824,14 @@ const cancelPostResurfacing = () => {
                         <div className={`flex items-center gap-2`}>
                           {!isEditingTibialVVRecutMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                               <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialVVRecutMM}</span>
                               <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialVVRecutMM(true)}/>
                             </div>
                           ) : (
                             <div className="flex flex-row gap-2">
                               <div className="flex items-center gap-2">
-                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                                 <input
                                   type="text"
                                   value={tempTibialVVRecutMM}
@@ -3417,14 +3896,14 @@ const cancelPostResurfacing = () => {
                         <div className={`flex items-center gap-2`}>
                           {!isEditingTibialSlopeRecutMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                               <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialSlopeRecutMM}</span>
                               <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialSlopeRecutMM(true)}/>
                             </div>
                           ) : (
                             <div className="flex flex-row gap-2">
                               <div className="flex items-center gap-2">
-                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}>mm</label>
+                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
                                 <input
                                   type="text"
                                   value={tempTibialSlopeRecutMM}
@@ -3716,7 +4195,7 @@ const cancelPostResurfacing = () => {
                     {!isEditingPreResurfacing ? (
                       <div className="flex items-center gap-2">
                         <span className="px-4 py-1 rounded w-40  text-[black] text-sm">
-                          {preResurfacingThickness || "—"}
+                          {preResurfacingThickness || "—"} mm
                         </span>
                         <PencilIcon
                           className="w-5 h-5 text-gray-600 cursor-pointer"
@@ -3752,7 +4231,7 @@ const cancelPostResurfacing = () => {
                     {!isEditingPostResurfacing ? (
                       <div className="flex items-center gap-2">
                         <span className="px-4 py-1 rounded w-40  text-[black] text-sm">
-                          {postResurfacingThickness || "—"}
+                          {postResurfacingThickness || "—"} mm
                         </span>
                         <PencilIcon
                           className="w-5 h-5 text-gray-600 cursor-pointer"
