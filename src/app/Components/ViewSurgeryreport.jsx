@@ -592,6 +592,29 @@ const fetchSurgeryReport = async (storedUHID) => {
     const operationTime = getValue30("op_time"); 
     const operationDate = getValue30("op_date"); 
 
+    // Assuming response.data.patients[0].entry contains entries 2 to 11 for ROM
+const romEntriesMap = timepoints.reduce((acc, tp, idx) => {
+  acc[tp] = 2 + idx; // Preop => entry[2], 1Month => entry[3], ... 10Year => entry[11]
+  return acc;
+}, {});
+
+// Helper function to get component value
+const getComponentValue = (components, key) =>
+  components.find((c) => c.code.text.toLowerCase() === key.toLowerCase())?.valueString || "";
+
+// Populate values
+const updatedValues = { ...values };
+
+Object.entries(romEntriesMap).forEach(([tp, index]) => {
+  const components = response.data.patients[0].entry[index]?.resource?.component || [];
+  const flexion = getComponentValue(components, "flexion");
+  const extension = getComponentValue(components, "extension");
+
+  updatedValues[tp] = { Flexion: flexion, Extension: extension };
+});
+
+setValues(updatedValues);
+
     // ✅ Extract ACL from entry 29
     const aclStatus = getValue29("acl"); // e.g., "Torn"
 
