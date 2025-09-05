@@ -439,510 +439,581 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   // Saved selections
-const [implantTableSelections, setImplantTableSelections] = useState({
-  FEMUR: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-  TIBIA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-  INSERT: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-  PATELLA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-});
+  const [implantTableSelections, setImplantTableSelections] = useState({
+    FEMUR: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+    TIBIA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+    INSERT: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+    PATELLA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+  });
 
-// Temp selections for editing
-const [implantTableTempSelections, setImplantTableTempSelections] = useState({
-  FEMUR: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-  TIBIA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-  INSERT: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-  PATELLA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
-});
+  // Temp selections for editing
+  const [implantTableTempSelections, setImplantTableTempSelections] = useState({
+    FEMUR: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+    TIBIA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+    INSERT: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+    PATELLA: { MANUFACTURER: "", MODEL: "", SIZE: "" },
+  });
 
-// Track editing per cell
-const [implantTableEditingCell, setImplantTableEditingCell] = useState({
-  FEMUR: { MANUFACTURER: false, MODEL: false, SIZE: false },
-  TIBIA: { MANUFACTURER: false, MODEL: false, SIZE: false },
-  INSERT: { MANUFACTURER: false, MODEL: false, SIZE: false },
-  PATELLA: { MANUFACTURER: false, MODEL: false, SIZE: false },
-});
+  // Track editing per cell
+  const [implantTableEditingCell, setImplantTableEditingCell] = useState({
+    FEMUR: { MANUFACTURER: false, MODEL: false, SIZE: false },
+    TIBIA: { MANUFACTURER: false, MODEL: false, SIZE: false },
+    INSERT: { MANUFACTURER: false, MODEL: false, SIZE: false },
+    PATELLA: { MANUFACTURER: false, MODEL: false, SIZE: false },
+  });
 
+  const implantTableStartEdit = (category, row) => {
+    setImplantTableTempSelections((prev) => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [row]: implantTableSelections[category][row],
+      },
+    }));
+    setImplantTableEditingCell((prev) => ({
+      ...prev,
+      [category]: { ...prev[category], [row]: true },
+    }));
+  };
 
-const implantTableStartEdit = (category, row) => {
-  setImplantTableTempSelections((prev) => ({
-    ...prev,
-    [category]: { ...prev[category], [row]: implantTableSelections[category][row] },
-  }));
-  setImplantTableEditingCell((prev) => ({
-    ...prev,
-    [category]: { ...prev[category], [row]: true },
-  }));
-};
+  const implantTableSaveEdit = async (category, row) => {
+    // 1️⃣ Update local state
+    setImplantTableSelections((prev) => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [row]: implantTableTempSelections[category][row],
+      },
+    }));
 
-const implantTableSaveEdit = (category, row) => {
-  setImplantTableSelections((prev) => ({
-    ...prev,
-    [category]: { ...prev[category], [row]: implantTableTempSelections[category][row] },
-  }));
-  setImplantTableEditingCell((prev) => ({
-    ...prev,
-    [category]: { ...prev[category], [row]: false },
-  }));
-};
+    // 2️⃣ Stop editing locally
+    setImplantTableEditingCell((prev) => ({
+      ...prev,
+      [category]: { ...prev[category], [row]: false },
+    }));
 
-const implantTableCancelEdit = (category, row) => {
-  setImplantTableTempSelections((prev) => ({
-    ...prev,
-    [category]: { ...prev[category], [row]: implantTableSelections[category][row] },
-  }));
-  setImplantTableEditingCell((prev) => ({
-    ...prev,
-    [category]: { ...prev[category], [row]: false },
-  }));
-};
+    try {
+      // 3️⃣ Prepare PATCH payload for this individual cell
+      const payload = {
+        uhid: uhid.toLowerCase(), // your current patient UHID
+        field: category, // e.g., "FEMUR"
+        component_values: {
+          [row]: implantTableTempSelections[category][row], // e.g., MANUFACTURER, MODEL, SIZE
+        },
+      };
 
+      // ✅ Log payload before sending
+      console.log(
+        "⚡ PATCH payload for implant cell:",
+        JSON.stringify(payload, null, 2)
+      );
 
-const [uhid, setUhid] = useState(null);
-const [patientData, setPatientData] = useState(null);
+      // 4️⃣ Send PATCH request
+      const response = await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      console.log(`${category} ${row} update response:`, response.data);
+    } catch (error) {
+      console.error(`Failed to save ${category} ${row}:`, error);
+    }
+  };
+
+  const implantTableCancelEdit = (category, row) => {
+    setImplantTableTempSelections((prev) => ({
+      ...prev,
+      [category]: {
+        ...prev[category],
+        [row]: implantTableSelections[category][row],
+      },
+    }));
+    setImplantTableEditingCell((prev) => ({
+      ...prev,
+      [category]: { ...prev[category], [row]: false },
+    }));
+  };
+
+  const [uhid, setUhid] = useState(null);
+  const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-    const fetchPatientData = async (uhid) => {
-  try {
-    console.log("Fetching patient data for UHID:", uhid);
-    const response = await axios.get(`${API_URL}patients-by-uhid/${uhid}`);
-    console.log("API Full Response:", response);
-    console.log("API Response Data:", response.data);
+  const fetchPatientData = async (uhid) => {
+    try {
+      console.log("Fetching patient data for UHID:", uhid);
+      const response = await axios.get(`${API_URL}patients-by-uhid/${uhid}`);
+      console.log("API Full Response:", response);
+      console.log("API Response Data:", response.data);
 
-    if (response.data && response.data.patient) {
-      const patient = response.data.patient;
-      console.log("Patient Found:", patient);
+      if (response.data && response.data.patient) {
+        const patient = response.data.patient;
+        console.log("Patient Found:", patient);
 
-      // ✅ Extract surgery dates
-      const surgeryLeft = patient?.Medical?.surgery_date_left;
-      const surgeryRight = patient?.Medical?.surgery_date_right;
+        // ✅ Extract surgery dates
+        const surgeryLeft = patient?.Medical?.surgery_date_left;
+        const surgeryRight = patient?.Medical?.surgery_date_right;
 
-      // ✅ Determine side
-      let side = "left";
-      if (surgeryLeft && !surgeryRight) {
-        side = "left";
-      } else if (!surgeryLeft && surgeryRight) {
-        side = "right";
-      } else if (surgeryLeft && surgeryRight) {
-        side = "left"; // Default to left if both exist
+        // ✅ Determine side
+        let side = "left";
+        if (surgeryLeft && !surgeryRight) {
+          side = "left";
+        } else if (!surgeryLeft && surgeryRight) {
+          side = "right";
+        } else if (surgeryLeft && surgeryRight) {
+          side = "left"; // Default to left if both exist
+        }
+
+        // ✅ Optionally pick op_date
+        const op_date = surgeryLeft || surgeryRight || "";
+
+        // ✅ Update state
+        setPatientData(patient);
+        // setSurgeryData((prev) => ({
+        //   ...prev,
+        //   uhid,
+        //   side,
+        //   patient_records: prev.patient_records.map((record, index) =>
+        //     index === 0
+        //       ? {
+        //           ...record,
+        //           patuhid: uhid,
+        //           side,
+        //           op_date, // ✅ If you want operation date set too
+        //         }
+        //       : record
+        //   ),
+        // }));
+      } else {
+        console.warn("No patient data found in response");
+      }
+    } catch (error) {
+      console.error("Error fetching patient data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSurgeryReport = async (storedUHID) => {
+    try {
+      const lowercaseUHID = storedUHID.toLowerCase();
+      const response = await axios.get(
+        `${API_URL}getsurgerybypatient/${lowercaseUHID}`
+      );
+
+      const components30 =
+        response.data.patients[0].entry[30].resource.component;
+      const components29 =
+        response.data.patients[0].entry[29].resource.component;
+
+      console.log(
+        "surgery report entry 30",
+        response.data.patients[0].entry[30]
+      );
+      console.log(
+        "surgery report entry 29",
+        response.data.patients[0].entry[29]
+      );
+
+      // ✅ Helper functions for both entries
+      const getValue30 = (key) =>
+        components30.find((c) => c.code.text === key)?.valueString || "";
+      const getValue29 = (key) =>
+        components29.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract values from entry 30
+      const hospitalName = getValue30("hospital_name");
+      const anaestheticType = getValue30("anaesthetic_type");
+      const asaGrade = getValue30("asa_grade");
+      const consultant = getValue30("consultant_incharge");
+      const surgeon = getValue30("operating_surgeon");
+      const firstAssistant = getValue30("first_assistant");
+      const secondAssistant = getValue30("second_assistant");
+      const procedure = getValue30("mag_proc");
+      const sideValue = getValue30("side");
+      const deformityValue = getValue30("surgery_indication");
+      const techAssist = getValue30("tech_assist");
+      const alignment = getValue30("align_phil");
+      const torqueUsed = getValue30("torq_used");
+      const operationTime = getValue30("op_time");
+      const operationDate = getValue30("op_date");
+
+      // Assuming response.data.patients[0].entry contains entries 2 to 11 for ROM
+      const romEntriesMap = timepoints.reduce((acc, tp, idx) => {
+        acc[tp] = 2 + idx; // Preop => entry[2], 1Month => entry[3], ... 10Year => entry[11]
+        return acc;
+      }, {});
+
+      // Helper function to get component value
+      const getComponentValue = (components, key) =>
+        components.find((c) => c.code.text.toLowerCase() === key.toLowerCase())
+          ?.valueString || "";
+
+      // Populate values
+      const updatedValues = { ...values };
+
+      Object.entries(romEntriesMap).forEach(([tp, index]) => {
+        const components =
+          response.data.patients[0].entry[index]?.resource?.component || [];
+        const flexion = getComponentValue(components, "flexion");
+        const extension = getComponentValue(components, "extension");
+
+        updatedValues[tp] = { Flexion: flexion, Extension: extension };
+      });
+
+      setValues(updatedValues);
+
+      // ✅ Extract ACL from entry 29
+      const aclStatus = getValue29("acl"); // e.g., "Torn"
+
+      const pclConditionValue = getValue29("pcl"); // e.g., "Excised"
+      setPclCondition(pclConditionValue);
+      setTempPclCondition(pclConditionValue);
+
+      const finalCheckValue = getValue29("final_check"); // e.g., "Negligible V-V Laxity in extenstion"
+      setSelectedFinalCheck([finalCheckValue]);
+      setTempSelectedFinalCheck([finalCheckValue]);
+
+      const pfjResurfacing = getValue29("pfj_resurfacing"); // e.g., "Y"
+      setPFJResurf(pfjResurfacing);
+      setTempPFJResurf(pfjResurfacing);
+
+      const trachelaResectionValue = getValue29("trachela_resection"); // e.g., "10.0 mm"
+      setTrachelaResection(trachelaResectionValue);
+      setTempTrachelaResection(trachelaResectionValue);
+
+      const patellaValue = getValue29("patella"); // e.g., "UnWorn"
+      setPatella(patellaValue);
+      setTempPatella(patellaValue);
+
+      const preResurfacingValue = getValue29("preresurfacing"); // e.g., "10.0"
+      setPreResurfacingThickness(preResurfacingValue);
+      setTempPreResurfacingThickness(preResurfacingValue);
+
+      const postResurfacingValue = getValue29("postresurfacing"); // e.g., "8.0"
+      setPostResurfacingThickness(postResurfacingValue);
+      setTempPostResurfacingThickness(postResurfacingValue);
+
+      // ✅ Update states for entry 30 values
+      setSelectedProcedure(procedure);
+      setTempProcedure(procedure);
+
+      setSelectedHospital(hospitalName);
+      setTempHospital(hospitalName);
+
+      setSelectedType(anaestheticType);
+      setTempType(anaestheticType);
+
+      setSelectedASA(asaGrade);
+      setTempASA(asaGrade);
+
+      setSelectedConsultant(consultant);
+      setTempConsultant(consultant);
+
+      setSelectedSurgeon(surgeon);
+      setTempSurgeon(surgeon);
+
+      setSelectedAssistant(firstAssistant);
+      setTempAssistant(firstAssistant);
+
+      setSelectedSecondAssistant(secondAssistant);
+      setTempSecondAssistant(secondAssistant);
+
+      setSelectedTech(techAssist);
+      setTempTech(techAssist);
+
+      setSelectedAlignment(alignment);
+      setTempAlignment(alignment);
+
+      setSelectedTorque(torqueUsed);
+      setTempTorque(torqueUsed);
+
+      setTimeValue(operationTime);
+      setTempTimeValue(operationTime);
+
+      setTimedate(operationDate);
+
+      // ✅ Update ACL (torqued options)
+      setSelectedTorqued(aclStatus);
+      setTempTorqued(aclStatus);
+
+      // ✅ Handle sides
+      let sidesArray = [];
+      if (sideValue.toLowerCase().includes("left"))
+        sidesArray.push("LEFT KNEE");
+      if (sideValue.toLowerCase().includes("right"))
+        sidesArray.push("RIGHT KNEE");
+
+      setSelectedSides(sidesArray);
+      setTempSides(sidesArray);
+
+      // ✅ Handle deformities
+      let deformityArray = deformityValue
+        .split(",")
+        .map((d) => d.trim())
+        .filter((d) => d && d !== "NA");
+      setSelectedDeformity(deformityArray);
+      setTempDeformity(deformityArray);
+
+      console.log("Hospital Name:", hospitalName);
+      console.log("ACL Status:", aclStatus);
+
+      const components16 =
+        response.data.patients[0].entry[16].resource.component;
+      const getValue16 = (key) =>
+        components16.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for distal medial section
+      const distalMedialStatus = getValue16("status"); // e.g., "Worn"
+      setDistalMedialUnwornWorn(distalMedialStatus);
+      setTempDistalMedialUnwornWorn(distalMedialStatus);
+
+      const distalMedialInitial = getValue16("initial_thickness"); // e.g., "9.0 mm"
+      setDistalMedialInitialThickness(distalMedialInitial);
+      setTempDistalMedialInitialThickness(distalMedialInitial);
+
+      const distalMedialRecutValue = getValue16("recutvalue"); // e.g., "9.5 mm"
+      setDistalMedialRecutMM(distalMedialRecutValue);
+      setTempDistalMedialRecutMM(distalMedialRecutValue);
+
+      const distalMedialRecutYNValue = getValue16("recut"); // e.g., "Y"
+      setDistalMedialRecutYN(distalMedialRecutYNValue);
+      setTempDistalMedialRecutYN(distalMedialRecutYNValue);
+
+      const distalMedialWasherValue = getValue16("washer"); // e.g., "N"
+      setDistalMedialWasher(distalMedialWasherValue);
+      setTempDistalMedialWasher(distalMedialWasherValue);
+
+      const distalMedialWasherMMValue = getValue16("washervalue"); // e.g., "8.5 mm"
+      setDistalMedialWasherMM(distalMedialWasherMMValue);
+      setTempDistalMedialWasherMM(distalMedialWasherMMValue);
+
+      const distalMedialFinal = getValue16("final_thickness"); // e.g., "8.5 mm"
+      setDistalMedialFinalThickness(distalMedialFinal);
+      setTempDistalMedialFinalThickness(distalMedialFinal);
+
+      const components17 =
+        response.data.patients[0].entry[17].resource.component;
+      const getValue17 = (key) =>
+        components17.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for distal lateral section
+      const distalLateralStatus = getValue17("status"); // e.g., "Worn"
+      setDistalLateralUnwornWorn(distalLateralStatus);
+      setTempDistalLateralUnwornWorn(distalLateralStatus);
+
+      const distalLateralInitial = getValue17("initial_thickness"); // e.g., "9.0 mm"
+      setDistalLateralInitialThickness(distalLateralInitial);
+      setTempDistalLateralInitialThickness(distalLateralInitial);
+
+      const distalLateralRecutValue = getValue17("recutvalue"); // e.g., "9.5 mm"
+      setDistalLateralRecutMM(distalLateralRecutValue);
+      setTempDistalLateralRecutMM(distalLateralRecutValue);
+
+      const distalLateralRecutYNValue = getValue17("recut"); // e.g., "N"
+      setDistalLateralRecutYN(distalLateralRecutYNValue);
+      setTempDistalLateralRecutYN(distalLateralRecutYNValue);
+
+      const distalLateralWasherYNValue = getValue17("washer"); // e.g., "N"
+      setDistalLateralWasherYN(distalLateralWasherYNValue);
+      setTempDistalLateralWasherYN(distalLateralWasherYNValue);
+
+      const distalLateralWasherMMValue = getValue17("washervalue"); // e.g., "9.0 mm"
+      setDistalLateralWasherMM(distalLateralWasherMMValue);
+      setTempDistalLateralWasherMM(distalLateralWasherMMValue);
+
+      const distalLateralFinal = getValue17("final_thickness"); // e.g., "8.0 mm"
+      setDistalLateralFinalThickness(distalLateralFinal);
+      setTempDistalLateralFinalThickness(distalLateralFinal);
+
+      const components18 =
+        response.data.patients[0].entry[18].resource.component;
+      const getValue18 = (key) =>
+        components18.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for posterial medial section
+      const postMedWear = getValue18("wear"); // e.g., "Worn"
+      setPostMedUnwornWorn(postMedWear);
+      setTempPostMedUnwornWorn(postMedWear);
+
+      const postMedInitial = getValue18("initial_thickness"); // e.g., "8.0 mm"
+      setPostMedInitialThickness(postMedInitial);
+      setTempPostMedInitialThickness(postMedInitial);
+
+      const postMedRecutYNValue = getValue18("recut"); // e.g., "Y"
+      setPostMedRecutYN(postMedRecutYNValue);
+      setTempPostMedRecutYN(postMedRecutYNValue);
+
+      const postMedRecutValue = getValue18("recutvalue"); // e.g., "8.5 mm"
+      setPostMedRecutMM(postMedRecutValue);
+      setTempPostMedRecutMM(postMedRecutValue);
+
+      const postMedFinal = getValue18("final_thickness"); // e.g., "9.0 mm"
+      setPostMedFinalThickness(postMedFinal);
+      setTempPostMedFinalThickness(postMedFinal);
+
+      const components19 =
+        response.data.patients[0].entry[19].resource.component;
+      const getValue19 = (key) =>
+        components19.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for posterial lateral section
+      const postLatStatus = getValue19("status"); // e.g., "Unworn"
+      setPostLatUnwornWorn(postLatStatus);
+      setTempPostLatUnwornWorn(postLatStatus);
+
+      const postLatInitial = getValue19("initial_thickness"); // e.g., "9.0 mm"
+      setPostLatInitialThickness(postLatInitial);
+      setTempPostLatInitialThickness(postLatInitial);
+
+      const postLatRecutYNValue = getValue19("recut"); // e.g., "N"
+      setPostLatRecutYN(postLatRecutYNValue);
+      setTempPostLatRecutYN(postLatRecutYNValue);
+
+      const postLatRecutValue = getValue19("recutvalue"); // e.g., "8.5 mm"
+      setPostLatRecutMM(postLatRecutValue);
+      setTempPostLatRecutMM(postLatRecutValue);
+
+      const postLatFinal = getValue19("final_thickness"); // e.g., "9.0 mm"
+      setPostLatFinalThickness(postLatFinal);
+      setTempPostLatFinalThickness(postLatFinal);
+
+      const components20 =
+        response.data.patients[0].entry[20].resource.component;
+      const getValue20 = (key) =>
+        components20.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for tibial_resection_left section
+      const tibialLeftStatus = getValue20("status"); // e.g., "UnWorn"
+      setTibialLeftWorn(tibialLeftStatus);
+      setTempTibialLeftWorn(tibialLeftStatus);
+
+      const tibialLeftValue = getValue20("value"); // e.g., "8.5 mm"
+      setTibialLeftMM(tibialLeftValue);
+      setTempTibialLeftMM(tibialLeftValue);
+
+      const components21 =
+        response.data.patients[0].entry[21].resource.component;
+      const getValue21 = (key) =>
+        components21.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for tibial_resection_right section
+      const tibialRightStatus = getValue21("status"); // e.g., "Worn"
+      setTibialRightWorn(tibialRightStatus);
+      setTempTibialRightWorn(tibialRightStatus);
+
+      const tibialRightValue = getValue21("value"); // e.g., "8.5 mm"
+      setTibialRightMM(tibialRightValue);
+      setTempTibialRightMM(tibialRightValue);
+
+      const components22 =
+        response.data.patients[0].entry[22].resource.component;
+      const getValue22 = (key) =>
+        components22.find((c) => c.code.text === key)?.valueString || "";
+
+      console.log(
+        "surgery report entry 22",
+        response.data.patients[0].entry[22]
+      );
+
+      // ✅ Extract and set values for tibialvvrecut section
+      const tibialVVStatus = getValue22("status"); // e.g., "Y"
+      setTibialVVRecutYN(tibialVVStatus);
+      setTempTibialVVRecutYN(tibialVVStatus);
+
+      const tibialVVValue = getValue22("value"); // e.g., "10.0 mm"
+      setTibialVVRecutMM(tibialVVValue);
+      setTempTibialVVRecutMM(tibialVVValue);
+
+      const components23 =
+        response.data.patients[0].entry[23].resource.component;
+      const getValue23 = (key) =>
+        components23.find((c) => c.code.text === key)?.valueString || "";
+
+      // ✅ Extract and set values for tibial_slope section
+      const tibialSlopeStatus = getValue23("status"); // e.g., "Y"
+      setTibialSlopeRecutYN(tibialSlopeStatus);
+      setTempTibialSlopeRecutYN(tibialSlopeStatus);
+
+      const tibialSlopeValue = getValue23("value"); // e.g., "10.0 mm"
+      setTibialSlopeRecutMM(tibialSlopeValue);
+      setTempTibialSlopeRecutMM(tibialSlopeValue);
+
+      // ✅ Fill tableData from entry[23] to entry[27] and log entries
+      let thicknessTable = [...tableData]; // use existing state as base
+
+      for (let i = 0; i < 5; i++) {
+        const entryIndex = 24 + i;
+        const currentEntry = response.data.patients[0].entry[entryIndex];
+
+        console.log(`Surgery report entry ${entryIndex}:`, currentEntry);
+
+        if (!currentEntry || !currentEntry.resource?.component) continue;
+
+        const components = currentEntry.resource.component;
+
+        const thickness =
+          components.find((c) => c.code.text === "thickness")?.valueString ||
+          thicknessTable[i].insertThickness;
+        const numTicks =
+          components.find((c) => c.code.text === "numOfTicks")?.valueString ||
+          "";
+        const extOrient =
+          components.find((c) => c.code.text === "extensionExtOrient")
+            ?.valueString || "";
+        const flex90Orient =
+          components.find((c) => c.code.text === "flexionIntOrient")
+            ?.valueString || "";
+        const liftOff =
+          components.find((c) => c.code.text === "liftOff")?.valueString || "";
+
+        thicknessTable[i] = {
+          ...thicknessTable[i],
+          insertThickness: thickness,
+          numTicks,
+          extOrient,
+          flex90Orient,
+          liftOff,
+        };
       }
 
-      // ✅ Optionally pick op_date
-      const op_date = surgeryLeft || surgeryRight || "";
+      setTableData(thicknessTable);
 
-      // ✅ Update state
-      setPatientData(patient);
-      // setSurgeryData((prev) => ({
-      //   ...prev,
-      //   uhid,
-      //   side,
-      //   patient_records: prev.patient_records.map((record, index) =>
-      //     index === 0
-      //       ? {
-      //           ...record,
-      //           patuhid: uhid,
-      //           side,
-      //           op_date, // ✅ If you want operation date set too
-      //         }
-      //       : record
-      //   ),
-      // }));
-    } else {
-      console.warn("No patient data found in response");
+      // Assuming response.data.patients[0].entry[12-15] exist
+      const entriesMap = {
+        FEMUR: 12,
+        TIBIA: 13,
+        INSERT: 14,
+        PATELLA: 15,
+      };
+
+      Object.entries(entriesMap).forEach(([category, index]) => {
+        const components =
+          response.data.patients[0].entry[index]?.resource?.component || [];
+        const getValue = (key) =>
+          components.find((c) => c.code.text === key)?.valueString || "";
+
+        const manufacturer = getValue("MANUFACTURER");
+        const model = getValue("MODEL");
+        const size = getValue("SIZE");
+
+        // ✅ Set main state
+        setImplantTableSelections((prev) => ({
+          ...prev,
+          [category]: { MANUFACTURER: manufacturer, MODEL: model, SIZE: size },
+        }));
+
+        // ✅ Set temp state
+        setImplantTableTempSelections((prev) => ({
+          ...prev,
+          [category]: { MANUFACTURER: manufacturer, MODEL: model, SIZE: size },
+        }));
+      });
+    } catch (error) {
+      console.error("Error fetching surgery report:", error);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching patient data:", error);
-  } finally {
-    setLoading(false);
-  }
-};
-
-const fetchSurgeryReport = async (storedUHID) => {
-  try {
-    const lowercaseUHID = storedUHID.toLowerCase();
-    const response = await axios.get(
-      `${API_URL}getsurgerybypatient/${lowercaseUHID}`
-    );
-
-    const components30 = response.data.patients[0].entry[30].resource.component;
-    const components29 = response.data.patients[0].entry[29].resource.component;
-
-    console.log("surgery report entry 30", response.data.patients[0].entry[30]);
-    console.log("surgery report entry 29", response.data.patients[0].entry[29]);
-
-    // ✅ Helper functions for both entries
-    const getValue30 = (key) =>
-      components30.find((c) => c.code.text === key)?.valueString || "";
-    const getValue29 = (key) =>
-      components29.find((c) => c.code.text === key)?.valueString || "";
-
-    // ✅ Extract values from entry 30
-    const hospitalName = getValue30("hospital_name");
-    const anaestheticType = getValue30("anaesthetic_type");
-    const asaGrade = getValue30("asa_grade");
-    const consultant = getValue30("consultant_incharge");
-    const surgeon = getValue30("operating_surgeon");
-    const firstAssistant = getValue30("first_assistant");
-    const secondAssistant = getValue30("second_assistant");
-    const procedure = getValue30("mag_proc");
-    const sideValue = getValue30("side"); 
-    const deformityValue = getValue30("surgery_indication"); 
-    const techAssist = getValue30("tech_assist"); 
-    const alignment = getValue30("align_phil"); 
-    const torqueUsed = getValue30("torq_used"); 
-    const operationTime = getValue30("op_time"); 
-    const operationDate = getValue30("op_date"); 
-
-    // Assuming response.data.patients[0].entry contains entries 2 to 11 for ROM
-const romEntriesMap = timepoints.reduce((acc, tp, idx) => {
-  acc[tp] = 2 + idx; // Preop => entry[2], 1Month => entry[3], ... 10Year => entry[11]
-  return acc;
-}, {});
-
-// Helper function to get component value
-const getComponentValue = (components, key) =>
-  components.find((c) => c.code.text.toLowerCase() === key.toLowerCase())?.valueString || "";
-
-// Populate values
-const updatedValues = { ...values };
-
-Object.entries(romEntriesMap).forEach(([tp, index]) => {
-  const components = response.data.patients[0].entry[index]?.resource?.component || [];
-  const flexion = getComponentValue(components, "flexion");
-  const extension = getComponentValue(components, "extension");
-
-  updatedValues[tp] = { Flexion: flexion, Extension: extension };
-});
-
-setValues(updatedValues);
-
-    // ✅ Extract ACL from entry 29
-    const aclStatus = getValue29("acl"); // e.g., "Torn"
-
-    const pclConditionValue = getValue29("pcl"); // e.g., "Excised"
-setPclCondition(pclConditionValue);
-setTempPclCondition(pclConditionValue);
-
-const finalCheckValue = getValue29("final_check"); // e.g., "Negligible V-V Laxity in extenstion"
-setSelectedFinalCheck([finalCheckValue]);
-setTempSelectedFinalCheck([finalCheckValue]);
-
-const pfjResurfacing = getValue29("pfj_resurfacing"); // e.g., "Y"
-setPFJResurf(pfjResurfacing);
-setTempPFJResurf(pfjResurfacing);
-
-const trachelaResectionValue = getValue29("trachela_resection"); // e.g., "10.0 mm"
-setTrachelaResection(trachelaResectionValue);
-setTempTrachelaResection(trachelaResectionValue);
-
-const patellaValue = getValue29("patella"); // e.g., "UnWorn"
-setPatella(patellaValue);
-setTempPatella(patellaValue);
-
-const preResurfacingValue = getValue29("preresurfacing"); // e.g., "10.0"
-setPreResurfacingThickness(preResurfacingValue);
-setTempPreResurfacingThickness(preResurfacingValue);
-
-const postResurfacingValue = getValue29("postresurfacing"); // e.g., "8.0"
-setPostResurfacingThickness(postResurfacingValue);
-setTempPostResurfacingThickness(postResurfacingValue);
-
-    // ✅ Update states for entry 30 values
-    setSelectedProcedure(procedure);
-    setTempProcedure(procedure);
-
-    setSelectedHospital(hospitalName);
-    setTempHospital(hospitalName);
-
-    setSelectedType(anaestheticType);
-    setTempType(anaestheticType);
-
-    setSelectedASA(asaGrade);
-    setTempASA(asaGrade);
-
-    setSelectedConsultant(consultant);
-    setTempConsultant(consultant);
-
-    setSelectedSurgeon(surgeon);
-    setTempSurgeon(surgeon);
-
-    setSelectedAssistant(firstAssistant);
-    setTempAssistant(firstAssistant);
-
-    setSelectedSecondAssistant(secondAssistant);
-    setTempSecondAssistant(secondAssistant);
-
-    setSelectedTech(techAssist);
-    setTempTech(techAssist);
-
-    setSelectedAlignment(alignment);
-    setTempAlignment(alignment);
-
-    setSelectedTorque(torqueUsed);
-    setTempTorque(torqueUsed);
-
-    setTimeValue(operationTime);
-    setTempTimeValue(operationTime);
-
-    setTimedate(operationDate);
-
-    // ✅ Update ACL (torqued options)
-    setSelectedTorqued(aclStatus);
-    setTempTorqued(aclStatus);
-
-    // ✅ Handle sides
-    let sidesArray = [];
-    if (sideValue.toLowerCase().includes("left")) sidesArray.push("LEFT KNEE");
-    if (sideValue.toLowerCase().includes("right")) sidesArray.push("RIGHT KNEE");
-
-    setSelectedSides(sidesArray);
-    setTempSides(sidesArray);
-
-    // ✅ Handle deformities
-    let deformityArray = deformityValue
-      .split(",")
-      .map((d) => d.trim())
-      .filter((d) => d && d !== "NA");
-    setSelectedDeformity(deformityArray);
-    setTempDeformity(deformityArray);
-
-    console.log("Hospital Name:", hospitalName);
-    console.log("ACL Status:", aclStatus);
-
-    const components16 = response.data.patients[0].entry[16].resource.component;
-const getValue16 = (key) =>
-  components16.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for distal medial section
-const distalMedialStatus = getValue16("status"); // e.g., "Worn"
-setDistalMedialUnwornWorn(distalMedialStatus);
-setTempDistalMedialUnwornWorn(distalMedialStatus);
-
-const distalMedialInitial = getValue16("initial_thickness"); // e.g., "9.0 mm"
-setDistalMedialInitialThickness(distalMedialInitial);
-setTempDistalMedialInitialThickness(distalMedialInitial);
-
-const distalMedialRecutValue = getValue16("recutvalue"); // e.g., "9.5 mm"
-setDistalMedialRecutMM(distalMedialRecutValue);
-setTempDistalMedialRecutMM(distalMedialRecutValue);
-
-const distalMedialRecutYNValue = getValue16("recut"); // e.g., "Y"
-setDistalMedialRecutYN(distalMedialRecutYNValue);
-setTempDistalMedialRecutYN(distalMedialRecutYNValue);
-
-const distalMedialWasherValue = getValue16("washer"); // e.g., "N"
-setDistalMedialWasher(distalMedialWasherValue);
-setTempDistalMedialWasher(distalMedialWasherValue);
-
-const distalMedialWasherMMValue = getValue16("washervalue"); // e.g., "8.5 mm"
-setDistalMedialWasherMM(distalMedialWasherMMValue);
-setTempDistalMedialWasherMM(distalMedialWasherMMValue);
-
-const distalMedialFinal = getValue16("final_thickness"); // e.g., "8.5 mm"
-setDistalMedialFinalThickness(distalMedialFinal);
-setTempDistalMedialFinalThickness(distalMedialFinal);
-
-const components17 = response.data.patients[0].entry[17].resource.component;
-const getValue17 = (key) =>
-  components17.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for distal lateral section
-const distalLateralStatus = getValue17("status"); // e.g., "Worn"
-setDistalLateralUnwornWorn(distalLateralStatus);
-setTempDistalLateralUnwornWorn(distalLateralStatus);
-
-const distalLateralInitial = getValue17("initial_thickness"); // e.g., "9.0 mm"
-setDistalLateralInitialThickness(distalLateralInitial);
-setTempDistalLateralInitialThickness(distalLateralInitial);
-
-const distalLateralRecutValue = getValue17("recutvalue"); // e.g., "9.5 mm"
-setDistalLateralRecutMM(distalLateralRecutValue);
-setTempDistalLateralRecutMM(distalLateralRecutValue);
-
-const distalLateralRecutYNValue = getValue17("recut"); // e.g., "N"
-setDistalLateralRecutYN(distalLateralRecutYNValue);
-setTempDistalLateralRecutYN(distalLateralRecutYNValue);
-
-const distalLateralWasherYNValue = getValue17("washer"); // e.g., "N"
-setDistalLateralWasherYN(distalLateralWasherYNValue);
-setTempDistalLateralWasherYN(distalLateralWasherYNValue);
-
-const distalLateralWasherMMValue = getValue17("washervalue"); // e.g., "9.0 mm"
-setDistalLateralWasherMM(distalLateralWasherMMValue);
-setTempDistalLateralWasherMM(distalLateralWasherMMValue);
-
-const distalLateralFinal = getValue17("final_thickness"); // e.g., "8.0 mm"
-setDistalLateralFinalThickness(distalLateralFinal);
-setTempDistalLateralFinalThickness(distalLateralFinal);
-
-const components18 = response.data.patients[0].entry[18].resource.component;
-const getValue18 = (key) =>
-  components18.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for posterial medial section
-const postMedWear = getValue18("wear"); // e.g., "Worn"
-setPostMedUnwornWorn(postMedWear);
-setTempPostMedUnwornWorn(postMedWear);
-
-const postMedInitial = getValue18("initial_thickness"); // e.g., "8.0 mm"
-setPostMedInitialThickness(postMedInitial);
-setTempPostMedInitialThickness(postMedInitial);
-
-const postMedRecutYNValue = getValue18("recut"); // e.g., "Y"
-setPostMedRecutYN(postMedRecutYNValue);
-setTempPostMedRecutYN(postMedRecutYNValue);
-
-const postMedRecutValue = getValue18("recutvalue"); // e.g., "8.5 mm"
-setPostMedRecutMM(postMedRecutValue);
-setTempPostMedRecutMM(postMedRecutValue);
-
-const postMedFinal = getValue18("final_thickness"); // e.g., "9.0 mm"
-setPostMedFinalThickness(postMedFinal);
-setTempPostMedFinalThickness(postMedFinal);
-
-const components19 = response.data.patients[0].entry[19].resource.component;
-const getValue19 = (key) =>
-  components19.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for posterial lateral section
-const postLatStatus = getValue19("status"); // e.g., "Unworn"
-setPostLatUnwornWorn(postLatStatus);
-setTempPostLatUnwornWorn(postLatStatus);
-
-const postLatInitial = getValue19("initial_thickness"); // e.g., "9.0 mm"
-setPostLatInitialThickness(postLatInitial);
-setTempPostLatInitialThickness(postLatInitial);
-
-const postLatRecutYNValue = getValue19("recut"); // e.g., "N"
-setPostLatRecutYN(postLatRecutYNValue);
-setTempPostLatRecutYN(postLatRecutYNValue);
-
-const postLatRecutValue = getValue19("recutvalue"); // e.g., "8.5 mm"
-setPostLatRecutMM(postLatRecutValue);
-setTempPostLatRecutMM(postLatRecutValue);
-
-const postLatFinal = getValue19("final_thickness"); // e.g., "9.0 mm"
-setPostLatFinalThickness(postLatFinal);
-setTempPostLatFinalThickness(postLatFinal);
-
-const components20 = response.data.patients[0].entry[20].resource.component;
-const getValue20 = (key) =>
-  components20.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for tibial_resection_left section
-const tibialLeftStatus = getValue20("status"); // e.g., "UnWorn"
-setTibialLeftWorn(tibialLeftStatus);
-setTempTibialLeftWorn(tibialLeftStatus);
-
-const tibialLeftValue = getValue20("value"); // e.g., "8.5 mm"
-setTibialLeftMM(tibialLeftValue);
-setTempTibialLeftMM(tibialLeftValue);
-
-const components21 = response.data.patients[0].entry[21].resource.component;
-const getValue21 = (key) =>
-  components21.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for tibial_resection_right section
-const tibialRightStatus = getValue21("status"); // e.g., "Worn"
-setTibialRightWorn(tibialRightStatus);
-setTempTibialRightWorn(tibialRightStatus);
-
-const tibialRightValue = getValue21("value"); // e.g., "8.5 mm"
-setTibialRightMM(tibialRightValue);
-setTempTibialRightMM(tibialRightValue);
-
-const components22 = response.data.patients[0].entry[22].resource.component;
-const getValue22 = (key) =>
-  components22.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for tibialvvrecut section
-const tibialVVStatus = getValue22("status"); // e.g., "Y"
-setTibialVVRecutYN(tibialVVStatus);
-setTempTibialVVRecutYN(tibialVVStatus);
-
-const tibialVVValue = getValue22("value"); // e.g., "10.0 mm"
-setTibialVVRecutMM(tibialVVValue);
-setTempTibialVVRecutMM(tibialVVValue);
-
-const components23 = response.data.patients[0].entry[23].resource.component;
-const getValue23 = (key) =>
-  components23.find((c) => c.code.text === key)?.valueString || "";
-
-// ✅ Extract and set values for tibial_slope section
-const tibialSlopeStatus = getValue23("status"); // e.g., "Y"
-setTibialSlopeRecutYN(tibialSlopeStatus);
-setTempTibialSlopeRecutYN(tibialSlopeStatus);
-
-const tibialSlopeValue = getValue23("value"); // e.g., "10.0 mm"
-setTibialSlopeRecutMM(tibialSlopeValue);
-setTempTibialSlopeRecutMM(tibialSlopeValue);
-
-// ✅ Fill tableData from entry[23] to entry[27] and log entries
-let thicknessTable = [...tableData]; // use existing state as base
-
-for (let i = 0; i < 5; i++) {
-  const entryIndex = 24 + i;
-  const currentEntry = response.data.patients[0].entry[entryIndex];
-
-  console.log(`Surgery report entry ${entryIndex}:`, currentEntry);
-
-  if (!currentEntry || !currentEntry.resource?.component) continue;
-
-  const components = currentEntry.resource.component;
-
-  const thickness = components.find((c) => c.code.text === "thickness")?.valueString || thicknessTable[i].insertThickness;
-  const numTicks = components.find((c) => c.code.text === "numOfTicks")?.valueString || "";
-  const extOrient = components.find((c) => c.code.text === "extensionExtOrient")?.valueString || "";
-  const flex90Orient = components.find((c) => c.code.text === "flexionIntOrient")?.valueString || "";
-  const liftOff = components.find((c) => c.code.text === "liftOff")?.valueString || "";
-
-  thicknessTable[i] = {
-    ...thicknessTable[i],
-    insertThickness: thickness,
-    numTicks,
-    extOrient,
-    flex90Orient,
-    liftOff,
   };
-}
-
-setTableData(thicknessTable);
-
-// Assuming response.data.patients[0].entry[12-15] exist
-const entriesMap = {
-  FEMUR: 12,
-  TIBIA: 13,
-  INSERT: 14,
-  PATELLA: 15,
-};
-
-Object.entries(entriesMap).forEach(([category, index]) => {
-  const components = response.data.patients[0].entry[index]?.resource?.component || [];
-  const getValue = (key) => components.find((c) => c.code.text === key)?.valueString || "";
-
-  const manufacturer = getValue("MANUFACTURER");
-  const model = getValue("MODEL");
-  const size = getValue("SIZE");
-
-  // ✅ Set main state
-  setImplantTableSelections((prev) => ({
-    ...prev,
-    [category]: { MANUFACTURER: manufacturer, MODEL: model, SIZE: size },
-  }));
-
-  // ✅ Set temp state
-  setImplantTableTempSelections((prev) => ({
-    ...prev,
-    [category]: { MANUFACTURER: manufacturer, MODEL: model, SIZE: size },
-  }));
-});
-
-  } catch (error) {
-    console.error("Error fetching surgery report:", error);
-  } finally {
-    setLoading(false);
-  }
-};
-
 
   useEffect(() => {
     const storedUHID = sessionStorage.getItem("selectedUHID");
@@ -963,25 +1034,42 @@ Object.entries(entriesMap).forEach(([category, index]) => {
 
   const [showsurgeryreport, setshowsurgeryreport] = useState(true);
 
-const [isEditingHospital, setIsEditingHospital] = useState(false);
-const [selectedHospital, setSelectedHospital] = useState(""); // ✅ initially empty
-const [tempHospital, setTempHospital] = useState("");
+  const [isEditingHospital, setIsEditingHospital] = useState(false);
+  const [selectedHospital, setSelectedHospital] = useState(""); // ✅ initially empty
+  const [tempHospital, setTempHospital] = useState("");
 
-  const handleSaveHospital = () => {
-    setSelectedHospital(tempHospital); // save temp to main
-    setIsEditingHospital(false);
-    // Optionally save to API here
+  const handleSaveHospital = async () => {
+    try {
+      if (!tempHospital) return;
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID, // patient UHID
+        field: "hospital_name", // field to update
+        value: tempHospital, // new hospital
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2)); // ✅ log JSON
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedHospital(tempHospital);
+      setIsEditingHospital(false);
+    } catch (error) {
+      console.error("Failed to update hospital:", error);
+    }
   };
 
   const handleCancelHospital = () => {
-    setTempHospital(selectedHospital); // revert temp to stored value
+    setTempHospital(selectedHospital);
     setIsEditingHospital(false);
   };
 
-
   const [isEditingAnaesthetic, setIsEditingAnaesthetic] = useState(false);
   const [selectedType, setSelectedType] = useState(""); // stored value
-  const [tempType, setTempType] = useState(selectedType); // temporary editing value
+  const [tempType, setTempType] = useState(""); // temporary editing value
 
   const types = ["General", "NerveBlock", "Epidural", "Spinal (Intrathecal)"];
 
@@ -989,9 +1077,29 @@ const [tempHospital, setTempHospital] = useState("");
     setTempType(type); // update temp value only
   };
 
-  const handleSaveAnaesthetic = () => {
-    setSelectedType(tempType); // save temp to main
-    setIsEditingAnaesthetic(false);
+  const handleSaveAnaesthetic = async () => {
+    try {
+      if (!tempType) return;
+
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID, // patient UHID
+        field: "anaesthetic_type", // field to update in backend
+        value: tempType, // selected type
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedType(tempType);
+      setIsEditingAnaesthetic(false);
+    } catch (error) {
+      console.error("Failed to update anaesthetic type:", error);
+    }
   };
 
   const handleCancelAnaesthetic = () => {
@@ -1005,10 +1113,29 @@ const [tempHospital, setTempHospital] = useState("");
 
   const asaGrades = ["1", "2", "3", "4", "5"];
 
-  const handleSaveASA = () => {
-    setSelectedASA(tempASA); // save temp to main
-    setIsEditingASA(false);
-    // Optionally save to API here
+  const handleSaveASA = async () => {
+    try {
+      if (!tempASA) return;
+
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "asa_grade",
+        value: tempASA,
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedASA(tempASA);
+      setIsEditingASA(false);
+    } catch (error) {
+      console.error("Failed to update ASA grade:", error);
+    }
   };
 
   const handleCancelASA = () => {
@@ -1046,9 +1173,42 @@ const [tempHospital, setTempHospital] = useState("");
     setTempValues(values[tp]); // copy current values for editing
   };
 
-  const handleSave = (tp) => {
+  const handleSave = async (tp) => {
+    // 1️⃣ Update local state
     setValues({ ...values, [tp]: tempValues });
     setEditingTimepoint(null);
+
+    const lowercaseUHID = uhid.toLowerCase(); // make sure uhid is in scope
+
+    try {
+      for (const motion of motions) {
+        const payload = {
+          uhid: lowercaseUHID,
+          period: tp, // e.g., "Preop"
+          field: motion.toLowerCase(), // "flexion" or "extension"
+          value: tempValues[motion], // value for that motion
+        };
+
+        // ✅ Console payload before sending
+        console.log(
+          `⚡ PATCH payload for ${motion}:`,
+          JSON.stringify(payload, null, 2)
+        );
+
+        // 2️⃣ Send PATCH request using API_URL
+        const response = await axios.patch(
+          `${API_URL}patient_surgery_details/update_field`,
+          payload
+        );
+
+        console.log(`ROM update response for ${motion}:`, response.data);
+      }
+    } catch (error) {
+      console.error(`Failed to save ROM for ${tp}:`, error);
+    }
+
+    // 3️⃣ Clear tempValues after saving
+    setTempValues({});
   };
 
   const handleCancel = () => {
@@ -1060,38 +1220,79 @@ const [tempHospital, setTempHospital] = useState("");
     setTempValues({ ...tempValues, [motion]: val });
   };
 
-   const [isEditingConsultant, setIsEditingConsultant] = useState(false);
-  const [selectedConsultant, setSelectedConsultant] = useState("");
-  const [sameForSurgeon, setSameForSurgeon] = useState(false);
-  const [tempConsultant, setTempConsultant] = useState(selectedConsultant);
-  const [tempSame, setTempSame] = useState(sameForSurgeon);
+  const [isEditingConsultant, setIsEditingConsultant] = useState(false);
+  const [selectedConsultant, setSelectedConsultant] = useState(""); // stored value
+  const [tempConsultant, setTempConsultant] = useState(""); // temporary edit
+  const consultants = ["Dr. Vetri Kumar", "Dr. ABC", "Dr. XYZ"];
 
   const handleEditConsultant = () => {
-    setTempConsultant(selectedConsultant);
-    setTempSame(sameForSurgeon);
+    setTempConsultant(selectedConsultant || consultants[0]); // default to first option
     setIsEditingConsultant(true);
   };
 
-  const handleSaveConsultant = () => {
-    setSelectedConsultant(tempConsultant);
-    setSameForSurgeon(tempSame);
-    setIsEditingConsultant(false);
-    // Optionally save to API
+  const handleSaveConsultant = async () => {
+    try {
+      if (!tempConsultant) return;
+
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "consultant_incharge",
+        value: tempConsultant,
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedConsultant(tempConsultant);
+      setIsEditingConsultant(false);
+    } catch (error) {
+      console.error("Failed to update consultant:", error);
+    }
   };
 
   const handleCancelConsultant = () => {
     setTempConsultant(selectedConsultant);
-    setTempSame(sameForSurgeon);
     setIsEditingConsultant(false);
   };
 
   const [isEditingSurgeon, setIsEditingSurgeon] = useState(false);
-  const [selectedSurgeon, setSelectedSurgeon] = useState("");
-  const [tempSurgeon, setTempSurgeon] = useState(selectedSurgeon);
+  const [selectedSurgeon, setSelectedSurgeon] = useState(""); // stored value
+  const [tempSurgeon, setTempSurgeon] = useState(""); // temp edit
+  const surgeons = ["Dr. Vetri Kumar", "Dr. ABC", "Dr. XYZ"];
 
-  const handleSaveSurgeon = () => {
-    setSelectedSurgeon(tempSurgeon);
-    setIsEditingSurgeon(false);
+  const handleEditSurgeon = () => {
+    setTempSurgeon(selectedSurgeon || surgeons[0]); // default first option
+    setIsEditingSurgeon(true);
+  };
+
+  const handleSaveSurgeon = async () => {
+    try {
+      if (!tempSurgeon) return;
+
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "operating_surgeon",
+        value: tempSurgeon,
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedSurgeon(tempSurgeon);
+      setIsEditingSurgeon(false);
+    } catch (error) {
+      console.error("Failed to update surgeon:", error);
+    }
   };
 
   const handleCancelSurgeon = () => {
@@ -1100,12 +1301,38 @@ const [tempHospital, setTempHospital] = useState("");
   };
 
   const [isEditingAssistant, setIsEditingAssistant] = useState(false);
-  const [selectedAssistant, setSelectedAssistant] = useState("");
-  const [tempAssistant, setTempAssistant] = useState(selectedAssistant);
+  const [selectedAssistant, setSelectedAssistant] = useState(""); // stored value
+  const [tempAssistant, setTempAssistant] = useState(""); // temporary edit
+  const assistants = ["Dr. Vinod Kumar", "Dr. ABC", "Dr. XYZ"];
 
-  const handleSaveAssistant = () => {
-    setSelectedAssistant(tempAssistant);
-    setIsEditingAssistant(false);
+  const handleEditAssistant = () => {
+    setTempAssistant(selectedAssistant || assistants[0]); // default to first
+    setIsEditingAssistant(true);
+  };
+
+  const handleSaveAssistant = async () => {
+    try {
+      if (!tempAssistant) return;
+
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "first_assistant",
+        value: tempAssistant,
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedAssistant(tempAssistant);
+      setIsEditingAssistant(false);
+    } catch (error) {
+      console.error("Failed to update assistant:", error);
+    }
   };
 
   const handleCancelAssistant = () => {
@@ -1113,13 +1340,40 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingAssistant(false);
   };
 
-  const [isEditingSecondAssistant, setIsEditingSecondAssistant] = useState(false);
-  const [selectedSecondAssistant, setSelectedSecondAssistant] = useState("");
-  const [tempSecondAssistant, setTempSecondAssistant] = useState(selectedSecondAssistant);
+  const [isEditingSecondAssistant, setIsEditingSecondAssistant] =
+    useState(false);
+  const [selectedSecondAssistant, setSelectedSecondAssistant] = useState(""); // stored value
+  const [tempSecondAssistant, setTempSecondAssistant] = useState(""); // temporary edit
+  const secondAssistants = ["Dr. Milan Adhikari", "Dr. ABC", "Dr. XYZ"];
 
-  const handleSaveSecondAssistant = () => {
-    setSelectedSecondAssistant(tempSecondAssistant);
-    setIsEditingSecondAssistant(false);
+  const handleEditSecondAssistant = () => {
+    setTempSecondAssistant(selectedSecondAssistant || secondAssistants[0]); // default first option
+    setIsEditingSecondAssistant(true);
+  };
+
+  const handleSaveSecondAssistant = async () => {
+    try {
+      if (!tempSecondAssistant) return;
+
+      const lowercaseUHID = uhid.toLowerCase();
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "second_assistant",
+        value: tempSecondAssistant,
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedSecondAssistant(tempSecondAssistant);
+      setIsEditingSecondAssistant(false);
+    } catch (error) {
+      console.error("Failed to update second assistant:", error);
+    }
   };
 
   const handleCancelSecondAssistant = () => {
@@ -1136,7 +1390,9 @@ const [tempHospital, setTempHospital] = useState("");
   ];
 
   const [isEditingProcedure, setIsEditingProcedure] = useState(false);
-  const [selectedProcedure, setSelectedProcedure] = useState("");
+  const [selectedProcedure, setSelectedProcedure] = useState(
+    procedures[0] || ""
+  ); // default to first
   const [tempProcedure, setTempProcedure] = useState(selectedProcedure);
 
   const handleEditProcedure = () => {
@@ -1144,10 +1400,30 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingProcedure(true);
   };
 
-  const handleSaveProcedure = () => {
-    setSelectedProcedure(tempProcedure);
-    setIsEditingProcedure(false);
-    // Optionally, save to API here
+  const handleSaveProcedure = async () => {
+    try {
+      if (!tempProcedure) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // your patient UHID
+
+      const payload = {
+        uhid: lowercaseUHID, // patient UHID
+        field: "mag_proc", // field in your Observation JSON
+        value: tempProcedure, // selected procedure
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedProcedure(tempProcedure);
+      setIsEditingProcedure(false);
+    } catch (error) {
+      console.error("Failed to update procedure:", error);
+    }
   };
 
   const handleCancelProcedure = () => {
@@ -1155,9 +1431,8 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingProcedure(false);
   };
 
-
   const sides = ["LEFT KNEE", "RIGHT KNEE"];
-  
+
   const [isEditingSide, setIsEditingSide] = useState(false);
   const [selectedSides, setSelectedSides] = useState([""]);
   const [tempSides, setTempSides] = useState([...selectedSides]);
@@ -1167,10 +1442,29 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingSide(true);
   };
 
-  const handleSaveSide = () => {
-    setSelectedSides([...tempSides]);
-    setIsEditingSide(false);
-    // Optionally save to API here
+  const handleSaveSide = async () => {
+    try {
+      if (tempSides.length === 0) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // your patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "side", // field in your Observation JSON
+        value: tempSides.join(", "), // send as comma-separated string
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedSides([...tempSides]);
+      setIsEditingSide(false);
+    } catch (error) {
+      console.error("Failed to update side:", error);
+    }
   };
 
   const handleCancelSide = () => {
@@ -1186,8 +1480,13 @@ const [tempHospital, setTempHospital] = useState("");
     }
   };
 
-  const deformities = ["Varus", "Valgus", "Flexion Contraction", "Recurvatum Deformity"];
-  
+  const deformities = [
+    "Varus",
+    "Valgus",
+    "Flexion Contraction",
+    "Recurvatum Deformity",
+  ];
+
   const [isEditingDeformity, setIsEditingDeformity] = useState(false);
   const [selectedDeformity, setSelectedDeformity] = useState([]); // for multi-select
   const [tempDeformity, setTempDeformity] = useState([]);
@@ -1197,10 +1496,29 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingDeformity(true);
   };
 
-  const handleSaveDeformity = () => {
-    setSelectedDeformity([...tempDeformity]);
-    setIsEditingDeformity(false);
-    // Optionally save to API here
+  const handleSaveDeformity = async () => {
+    try {
+      if (tempDeformity.length === 0) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "surgery_indication", // field name in your backend
+        value: tempDeformity.join(", "), // send as comma-separated string
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedDeformity([...tempDeformity]);
+      setIsEditingDeformity(false);
+    } catch (error) {
+      console.error("Failed to update deformity:", error);
+    }
   };
 
   const handleCancelDeformity = () => {
@@ -1216,7 +1534,12 @@ const [tempHospital, setTempHospital] = useState("");
     }
   };
 
-  const techOptions = ["Computer Guide", "Robotic", "PSI", "Conventional Instruments"];
+  const techOptions = [
+    "Computer Guide",
+    "Robotic",
+    "PSI",
+    "Conventional Instruments",
+  ];
 
   const [isEditingTech, setIsEditingTech] = useState(false);
   const [selectedTech, setSelectedTech] = useState(""); // single select
@@ -1227,17 +1550,35 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingTech(true);
   };
 
-  const handleSaveTech = () => {
-    setSelectedTech(tempTech);
-    setIsEditingTech(false);
-    // Optionally save to API
+  const handleSaveTech = async () => {
+    try {
+      if (!tempTech) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "tech_assist", // field name in backend
+        value: tempTech, // selected option
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedTech(tempTech);
+      setIsEditingTech(false);
+    } catch (error) {
+      console.error("Failed to update technological assistance:", error);
+    }
   };
 
   const handleCancelTech = () => {
     setTempTech(selectedTech);
     setIsEditingTech(false);
   };
-
 
   const alignmentOptions = ["MA", "KA", "rKA", "FA", "iKA", "Hybrid"];
 
@@ -1250,10 +1591,29 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingAlignment(true);
   };
 
-  const handleSaveAlignment = () => {
-    setSelectedAlignment(tempAlignment);
-    setIsEditingAlignment(false);
-    // Optionally save to API
+  const handleSaveAlignment = async () => {
+    try {
+      if (!tempAlignment) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "align_phil", // backend field name
+        value: tempAlignment, // selected alignment
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedAlignment(tempAlignment);
+      setIsEditingAlignment(false);
+    } catch (error) {
+      console.error("Failed to update alignment philosophy:", error);
+    }
   };
 
   const handleCancelAlignment = () => {
@@ -1272,10 +1632,29 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingTorque(true);
   };
 
-  const handleSaveTorque = () => {
-    setSelectedTorque(tempTorque);
-    setIsEditingTorque(false);
-    // Optionally save to API
+  const handleSaveTorque = async () => {
+    try {
+      if (!tempTorque) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "torq_used", // backend field name
+        value: tempTorque, // selected option
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedTorque(tempTorque);
+      setIsEditingTorque(false);
+    } catch (error) {
+      console.error("Failed to update Torniquet Used:", error);
+    }
   };
 
   const handleCancelTorque = () => {
@@ -1283,19 +1662,40 @@ const [tempHospital, setTempHospital] = useState("");
     setIsEditingTorque(false);
   };
 
+  const [timeDate, setTimedate] = useState(""); // stored value
+
   const [isEditingTime, setIsEditingTime] = useState(false);
   const [timeValue, setTimeValue] = useState(""); // stored value
   const [tempTimeValue, setTempTimeValue] = useState("");
-const [timeDate, setTimedate] = useState(""); // stored value
+
   const handleEditTime = () => {
     setTempTimeValue(timeValue);
     setIsEditingTime(true);
   };
 
-  const handleSaveTime = () => {
-    setTimeValue(tempTimeValue);
-    setIsEditingTime(false);
-    // Optionally save to API
+  const handleSaveTime = async () => {
+    try {
+      if (!tempTimeValue) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "op_time", // backend field name
+        value: tempTimeValue, // new time value
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setTimeValue(tempTimeValue);
+      setIsEditingTime(false);
+    } catch (error) {
+      console.error("Failed to update Operation Time:", error);
+    }
   };
 
   const handleCancelTime = () => {
@@ -1313,10 +1713,29 @@ const [timeDate, setTimedate] = useState(""); // stored value
     setIsEditingTorqued(true);
   };
 
-  const handleSaveTorqued = () => {
-    setSelectedTorqued(tempTorqued);
-    setIsEditingTorqued(false);
-    // Optionally save to API
+  const handleSaveTorqued = async () => {
+    try {
+      if (!tempTorqued) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: "acl", // backend field name from your JSON ("acl" in bone_resection component)
+        value: tempTorqued, // selected option
+      };
+
+      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+      setSelectedTorqued(tempTorqued);
+      setIsEditingTorqued(false);
+    } catch (error) {
+      console.error("Failed to update Torqued Structure:", error);
+    }
   };
 
   const handleCancelTorqued = () => {
@@ -1324,81 +1743,136 @@ const [timeDate, setTimedate] = useState(""); // stored value
     setIsEditingTorqued(false);
   };
 
+  const saveField = async (fieldName, value) => {
+    try {
+      if (!value) return;
+
+      const lowercaseUHID = uhid.toLowerCase(); // patient UHID
+      const payload = {
+        uhid: lowercaseUHID,
+        field: fieldName,
+        value: value,
+      };
+
+      console.log(
+        `Payload to send for ${fieldName}:`,
+        JSON.stringify(payload, null, 2)
+      );
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+    } catch (error) {
+      console.error(`Failed to update ${fieldName}:`, error);
+    }
+  };
+
   // Values
   const [distalMedialUnwornWorn, setDistalMedialUnwornWorn] = useState(""); // stored value
-  const [tempDistalMedialUnwornWorn, setTempDistalMedialUnwornWorn] = useState(distalMedialUnwornWorn); // temporary editing value
-  const [isEditingDistalMedialUnwornWorn, setIsEditingDistalMedialUnwornWorn] = useState(false);
+  const [tempDistalMedialUnwornWorn, setTempDistalMedialUnwornWorn] = useState(
+    distalMedialUnwornWorn
+  ); // temporary editing value
+  const [isEditingDistalMedialUnwornWorn, setIsEditingDistalMedialUnwornWorn] =
+    useState(false);
 
   // Functions
-  const handleEditDistalMedialUnwornWorn = () => setIsEditingDistalMedialUnwornWorn(true);
-  const handleSaveDistalMedialUnwornWorn = () => {
+  const handleEditDistalMedialUnwornWorn = () =>
+    setIsEditingDistalMedialUnwornWorn(true);
+
+  const handleSaveDistalMedialUnwornWorn = async () => {
     setDistalMedialUnwornWorn(tempDistalMedialUnwornWorn);
     setIsEditingDistalMedialUnwornWorn(false);
+    await saveField("distal_medial,status", tempDistalMedialUnwornWorn);
   };
+
   const handleCancelDistalMedialUnwornWorn = () => {
     setTempDistalMedialUnwornWorn(distalMedialUnwornWorn);
     setIsEditingDistalMedialUnwornWorn(false);
   };
 
-  const [distalMedialInitialThickness, setDistalMedialInitialThickness] = useState(""); // stored value
-  const [tempDistalMedialInitialThickness, setTempDistalMedialInitialThickness] = useState(distalMedialInitialThickness);
-  const [isEditingDistalMedialInitialThickness, setIsEditingDistalMedialInitialThickness] = useState(false);
+  const [distalMedialInitialThickness, setDistalMedialInitialThickness] =
+    useState(""); // stored value
+  const [
+    tempDistalMedialInitialThickness,
+    setTempDistalMedialInitialThickness,
+  ] = useState(distalMedialInitialThickness);
+  const [
+    isEditingDistalMedialInitialThickness,
+    setIsEditingDistalMedialInitialThickness,
+  ] = useState(false);
 
-  const handleEditDistalMedialInitialThickness = () => setIsEditingDistalMedialInitialThickness(true);
-  const handleSaveDistalMedialInitialThickness = () => {
+  const handleEditDistalMedialInitialThickness = () =>
+    setIsEditingDistalMedialInitialThickness(true);
+  const handleSaveDistalMedialInitialThickness = async () => {
     setDistalMedialInitialThickness(tempDistalMedialInitialThickness);
     setIsEditingDistalMedialInitialThickness(false);
+    await saveField(
+      "distal_medial,initial_thickness",
+      tempDistalMedialInitialThickness
+    );
   };
   const handleCancelDistalMedialInitialThickness = () => {
     setTempDistalMedialInitialThickness(distalMedialInitialThickness);
     setIsEditingDistalMedialInitialThickness(false);
   };
 
-    // States for Y/N
-    const [distalMedialRecutYN, setDistalMedialRecutYN] = useState("");
-    const [tempDistalMedialRecutYN, setTempDistalMedialRecutYN] = useState(distalMedialRecutYN);
-    const [isEditingDistalMedialRecutYN, setIsEditingDistalMedialRecutYN] = useState(false);
+  // States for Y/N
+  const [distalMedialRecutYN, setDistalMedialRecutYN] = useState("");
+  const [tempDistalMedialRecutYN, setTempDistalMedialRecutYN] =
+    useState(distalMedialRecutYN);
+  const [isEditingDistalMedialRecutYN, setIsEditingDistalMedialRecutYN] =
+    useState(false);
 
-    // States for MM
-    const [distalMedialRecutMM, setDistalMedialRecutMM] = useState("");
-    const [tempDistalMedialRecutMM, setTempDistalMedialRecutMM] = useState(distalMedialRecutMM);
-    const [isEditingDistalMedialRecutMM, setIsEditingDistalMedialRecutMM] = useState(false);
+  // States for MM
+  const [distalMedialRecutMM, setDistalMedialRecutMM] = useState("");
+  const [tempDistalMedialRecutMM, setTempDistalMedialRecutMM] =
+    useState(distalMedialRecutMM);
+  const [isEditingDistalMedialRecutMM, setIsEditingDistalMedialRecutMM] =
+    useState(false);
 
-    // Functions
-    const saveDistalMedialRecutYN = () => {
-      setDistalMedialRecutYN(tempDistalMedialRecutYN);
-      setIsEditingDistalMedialRecutYN(false);
-    };
+  // Functions
+  const saveDistalMedialRecutYN = async () => {
+    setDistalMedialRecutYN(tempDistalMedialRecutYN);
+    setIsEditingDistalMedialRecutYN(false);
+    await saveField("distal_medial,recut", tempDistalMedialRecutYN);
+  };
 
-    const cancelDistalMedialRecutYN = () => {
-      setTempDistalMedialRecutYN(distalMedialRecutYN);
-      setIsEditingDistalMedialRecutYN(false);
-    };
+  const cancelDistalMedialRecutYN = () => {
+    setTempDistalMedialRecutYN(distalMedialRecutYN);
+    setIsEditingDistalMedialRecutYN(false);
+  };
 
-    const saveDistalMedialRecutMM = () => {
-      setDistalMedialRecutMM(tempDistalMedialRecutMM);
-      setIsEditingDistalMedialRecutMM(false);
-    };
+  const saveDistalMedialRecutMM = async () => {
+    setDistalMedialRecutMM(tempDistalMedialRecutMM);
+    setIsEditingDistalMedialRecutMM(false);
+    await saveField("distal_medial,recutvalue", tempDistalMedialRecutMM);
+  };
 
-    const cancelDistalMedialRecutMM = () => {
-      setTempDistalMedialRecutMM(distalMedialRecutMM);
-      setIsEditingDistalMedialRecutMM(false);
-    };
-
+  const cancelDistalMedialRecutMM = () => {
+    setTempDistalMedialRecutMM(distalMedialRecutMM);
+    setIsEditingDistalMedialRecutMM(false);
+  };
 
   const [distalMedialWasher, setDistalMedialWasher] = useState(""); // N or Y
-  const [tempDistalMedialWasher, setTempDistalMedialWasher] = useState(distalMedialWasher);
+  const [tempDistalMedialWasher, setTempDistalMedialWasher] =
+    useState(distalMedialWasher);
 
   const [distalMedialWasherMM, setDistalMedialWasherMM] = useState(""); // stored mm value
-  const [tempDistalMedialWasherMM, setTempDistalMedialWasherMM] = useState(distalMedialWasherMM);
+  const [tempDistalMedialWasherMM, setTempDistalMedialWasherMM] =
+    useState(distalMedialWasherMM);
 
-  const [isEditingDistalMedialWasher, setIsEditingDistalMedialWasher] = useState(false);
+  const [isEditingDistalMedialWasher, setIsEditingDistalMedialWasher] =
+    useState(false);
 
-  const handleEditDistalMedialWasher = () => setIsEditingDistalMedialWasher(true);
-  const handleSaveDistalMedialWasher = () => {
+  const handleEditDistalMedialWasher = () =>
+    setIsEditingDistalMedialWasher(true);
+  const handleSaveDistalMedialWasher = async () => {
     setDistalMedialWasher(tempDistalMedialWasher);
     setDistalMedialWasherMM(tempDistalMedialWasherMM);
     setIsEditingDistalMedialWasher(false);
+    await saveField("distal_medial,washer", tempDistalMedialWasher);
+    await saveField("distal_medial,washervalue", tempDistalMedialWasherMM);
   };
   const handleCancelDistalMedialWasher = () => {
     setTempDistalMedialWasher(distalMedialWasher);
@@ -1406,61 +1880,118 @@ const [timeDate, setTimedate] = useState(""); // stored value
     setIsEditingDistalMedialWasher(false);
   };
 
-  const [distalMedialFinalThickness, setDistalMedialFinalThickness] = useState("");
-  const [tempDistalMedialFinalThickness, setTempDistalMedialFinalThickness] = useState(distalMedialFinalThickness);
-  const [isEditingDistalMedialFinalThickness, setIsEditingDistalMedialFinalThickness] = useState(false);
+  const [distalMedialFinalThickness, setDistalMedialFinalThickness] =
+    useState("");
+  const [tempDistalMedialFinalThickness, setTempDistalMedialFinalThickness] =
+    useState(distalMedialFinalThickness);
+  const [
+    isEditingDistalMedialFinalThickness,
+    setIsEditingDistalMedialFinalThickness,
+  ] = useState(false);
 
-  const handleEditDistalMedialFinalThickness = () => setIsEditingDistalMedialFinalThickness(true);
-  const handleSaveDistalMedialFinalThickness = () => {
+  const handleEditDistalMedialFinalThickness = () =>
+    setIsEditingDistalMedialFinalThickness(true);
+  const handleSaveDistalMedialFinalThickness = async () => {
     setDistalMedialFinalThickness(tempDistalMedialFinalThickness);
     setIsEditingDistalMedialFinalThickness(false);
+    await saveField(
+      "distal_medial,final_thickness",
+      tempDistalMedialFinalThickness
+    );
   };
   const handleCancelDistalMedialFinalThickness = () => {
     setTempDistalMedialFinalThickness(distalMedialFinalThickness);
     setIsEditingDistalMedialFinalThickness(false);
   };
 
-    // -------- Unworn / Worn --------
+  // -------- Unworn / Worn --------
   const [distalLateralUnwornWorn, setDistalLateralUnwornWorn] = useState("");
-  const [tempDistalLateralUnwornWorn, setTempDistalLateralUnwornWorn] = useState(distalLateralUnwornWorn);
-  const [isEditingDistalLateralUnwornWorn, setIsEditingDistalLateralUnwornWorn] = useState(false);
+  const [tempDistalLateralUnwornWorn, setTempDistalLateralUnwornWorn] =
+    useState(distalLateralUnwornWorn);
+  const [
+    isEditingDistalLateralUnwornWorn,
+    setIsEditingDistalLateralUnwornWorn,
+  ] = useState(false);
 
   // -------- Initial Thickness --------
-  const [distalLateralInitialThickness, setDistalLateralInitialThickness] = useState("");
-  const [tempDistalLateralInitialThickness, setTempDistalLateralInitialThickness] = useState(distalLateralInitialThickness);
-  const [isEditingDistalLateralInitialThickness, setIsEditingDistalLateralInitialThickness] = useState(false);
+  const [distalLateralInitialThickness, setDistalLateralInitialThickness] =
+    useState("");
+  const [
+    tempDistalLateralInitialThickness,
+    setTempDistalLateralInitialThickness,
+  ] = useState(distalLateralInitialThickness);
+  const [
+    isEditingDistalLateralInitialThickness,
+    setIsEditingDistalLateralInitialThickness,
+  ] = useState(false);
 
   // -------- Recut --------
   const [distalLateralRecutYN, setDistalLateralRecutYN] = useState("");
-  const [tempDistalLateralRecutYN, setTempDistalLateralRecutYN] = useState(distalLateralRecutYN);
+  const [tempDistalLateralRecutYN, setTempDistalLateralRecutYN] =
+    useState(distalLateralRecutYN);
 
   const [distalLateralRecutMM, setDistalLateralRecutMM] = useState("");
-  const [tempDistalLateralRecutMM, setTempDistalLateralRecutMM] = useState(distalLateralRecutMM);
+  const [tempDistalLateralRecutMM, setTempDistalLateralRecutMM] =
+    useState(distalLateralRecutMM);
 
-  const [isEditingDistalLateralRecutYN, setIsEditingDistalLateralRecutYN] = useState(false);
-  const [isEditingDistalLateralRecutMM, setIsEditingDistalLateralRecutMM] = useState(false);
+  const [isEditingDistalLateralRecutYN, setIsEditingDistalLateralRecutYN] =
+    useState(false);
+  const [isEditingDistalLateralRecutMM, setIsEditingDistalLateralRecutMM] =
+    useState(false);
 
   // Washer Y/N
-const [distalLateralWasherYN, setDistalLateralWasherYN] = useState("");
-const [tempDistalLateralWasherYN, setTempDistalLateralWasherYN] = useState(distalLateralWasherYN);
-const [isEditingDistalLateralWasherYN, setIsEditingDistalLateralWasherYN] = useState(false);
+  const [distalLateralWasherYN, setDistalLateralWasherYN] = useState("");
+  const [tempDistalLateralWasherYN, setTempDistalLateralWasherYN] = useState(
+    distalLateralWasherYN
+  );
+  const [isEditingDistalLateralWasherYN, setIsEditingDistalLateralWasherYN] =
+    useState(false);
 
-// Washer MM
-const [distalLateralWasherMM, setDistalLateralWasherMM] = useState("");
-const [tempDistalLateralWasherMM, setTempDistalLateralWasherMM] = useState(distalLateralWasherMM);
-const [isEditingDistalLateralWasherMM, setIsEditingDistalLateralWasherMM] = useState(false);
-
+  // Washer MM
+  const [distalLateralWasherMM, setDistalLateralWasherMM] = useState("");
+  const [tempDistalLateralWasherMM, setTempDistalLateralWasherMM] = useState(
+    distalLateralWasherMM
+  );
+  const [isEditingDistalLateralWasherMM, setIsEditingDistalLateralWasherMM] =
+    useState(false);
 
   // -------- Final Thickness --------
-  const [distalLateralFinalThickness, setDistalLateralFinalThickness] = useState("");
-  const [tempDistalLateralFinalThickness, setTempDistalLateralFinalThickness] = useState(distalLateralFinalThickness);
-  const [isEditingDistalLateralFinalThickness, setIsEditingDistalLateralFinalThickness] = useState(false);
+  const [distalLateralFinalThickness, setDistalLateralFinalThickness] =
+    useState("");
+  const [tempDistalLateralFinalThickness, setTempDistalLateralFinalThickness] =
+    useState(distalLateralFinalThickness);
+  const [
+    isEditingDistalLateralFinalThickness,
+    setIsEditingDistalLateralFinalThickness,
+  ] = useState(false);
 
-    // -------- Unworn / Worn --------
-  const editDistalLateralUnwornWorn = () => setIsEditingDistalLateralUnwornWorn(true);
-  const saveDistalLateralUnwornWorn = () => {
+  const saveDistalLateralField = async (fieldName, value) => {
+    try {
+      const payload = {
+        uhid: uhid.toLowerCase(),
+        field: fieldName,
+        value: value,
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(`${fieldName} saved:`, value);
+    } catch (err) {
+      console.error(`Failed to save ${fieldName}:`, err);
+    }
+  };
+
+  // -------- Unworn / Worn --------
+  const editDistalLateralUnwornWorn = () =>
+    setIsEditingDistalLateralUnwornWorn(true);
+  const saveDistalLateralUnwornWorn = async () => {
     setDistalLateralUnwornWorn(tempDistalLateralUnwornWorn);
     setIsEditingDistalLateralUnwornWorn(false);
+    await saveDistalLateralField(
+      "distal_lateral,status",
+      tempDistalLateralUnwornWorn
+    );
   };
   const cancelDistalLateralUnwornWorn = () => {
     setTempDistalLateralUnwornWorn(distalLateralUnwornWorn);
@@ -1468,10 +1999,15 @@ const [isEditingDistalLateralWasherMM, setIsEditingDistalLateralWasherMM] = useS
   };
 
   // -------- Initial Thickness --------
-  const editDistalLateralInitialThickness = () => setIsEditingDistalLateralInitialThickness(true);
-  const saveDistalLateralInitialThickness = () => {
+  const editDistalLateralInitialThickness = () =>
+    setIsEditingDistalLateralInitialThickness(true);
+  const saveDistalLateralInitialThickness = async () => {
     setDistalLateralInitialThickness(tempDistalLateralInitialThickness);
     setIsEditingDistalLateralInitialThickness(false);
+    await saveDistalLateralField(
+      "distal_lateral,initial_thickness",
+      tempDistalLateralInitialThickness
+    );
   };
   const cancelDistalLateralInitialThickness = () => {
     setTempDistalLateralInitialThickness(distalLateralInitialThickness);
@@ -1479,18 +2015,26 @@ const [isEditingDistalLateralWasherMM, setIsEditingDistalLateralWasherMM] = useS
   };
 
   // -------- Recut --------
-  const saveDistalLateralRecutYN = () => {
+  const saveDistalLateralRecutYN = async () => {
     setDistalLateralRecutYN(tempDistalLateralRecutYN);
     setIsEditingDistalLateralRecutYN(false);
+    await saveDistalLateralField(
+      "distal_lateral,recut",
+      tempDistalLateralRecutYN
+    );
   };
   const cancelDistalLateralRecutYN = () => {
     setTempDistalLateralRecutYN(distalLateralRecutYN);
     setIsEditingDistalLateralRecutYN(false);
   };
 
-  const saveDistalLateralRecutMM = () => {
+  const saveDistalLateralRecutMM = async () => {
     setDistalLateralRecutMM(tempDistalLateralRecutMM);
     setIsEditingDistalLateralRecutMM(false);
+    await saveDistalLateralField(
+      "distal_lateral,recutvalue",
+      tempDistalLateralRecutMM
+    );
   };
   const cancelDistalLateralRecutMM = () => {
     setTempDistalLateralRecutMM(distalLateralRecutMM);
@@ -1498,394 +2042,865 @@ const [isEditingDistalLateralWasherMM, setIsEditingDistalLateralWasherMM] = useS
   };
 
   // -------- Washer --------
-// Washer Y/N
-const saveDistalLateralWasherYN = () => {
-  setDistalLateralWasherYN(tempDistalLateralWasherYN);
-  setIsEditingDistalLateralWasherYN(false);
-};
-const cancelDistalLateralWasherYN = () => {
-  setTempDistalLateralWasherYN(distalLateralWasherYN);
-  setIsEditingDistalLateralWasherYN(false);
-};
+  // Washer Y/N
+  const saveDistalLateralWasherYN = async () => {
+    setDistalLateralWasherYN(tempDistalLateralWasherYN);
+    setIsEditingDistalLateralWasherYN(false);
+    await saveDistalLateralField(
+      "distal_lateral,washer",
+      tempDistalLateralWasherYN
+    );
+  };
+  const cancelDistalLateralWasherYN = () => {
+    setTempDistalLateralWasherYN(distalLateralWasherYN);
+    setIsEditingDistalLateralWasherYN(false);
+  };
 
-// Washer MM
-const saveDistalLateralWasherMM = () => {
-  setDistalLateralWasherMM(tempDistalLateralWasherMM);
-  setIsEditingDistalLateralWasherMM(false);
-};
-const cancelDistalLateralWasherMM = () => {
-  setTempDistalLateralWasherMM(distalLateralWasherMM);
-  setIsEditingDistalLateralWasherMM(false);
-};
+  // Washer MM
+  const saveDistalLateralWasherMM = async () => {
+    setDistalLateralWasherMM(tempDistalLateralWasherMM);
+    setIsEditingDistalLateralWasherMM(false);
+    await saveDistalLateralField(
+      "distal_lateral,washervalue",
+      tempDistalLateralWasherMM
+    );
+  };
+  const cancelDistalLateralWasherMM = () => {
+    setTempDistalLateralWasherMM(distalLateralWasherMM);
+    setIsEditingDistalLateralWasherMM(false);
+  };
 
   // -------- Final Thickness --------
-  const editDistalLateralFinalThickness = () => setIsEditingDistalLateralFinalThickness(true);
-  const saveDistalLateralFinalThickness = () => {
+  const editDistalLateralFinalThickness = () =>
+    setIsEditingDistalLateralFinalThickness(true);
+  const saveDistalLateralFinalThickness = async () => {
     setDistalLateralFinalThickness(tempDistalLateralFinalThickness);
     setIsEditingDistalLateralFinalThickness(false);
+    await saveDistalLateralField(
+      "distal_lateral,final_thickness",
+      tempDistalLateralFinalThickness
+    );
   };
   const cancelDistalLateralFinalThickness = () => {
     setTempDistalLateralFinalThickness(distalLateralFinalThickness);
     setIsEditingDistalLateralFinalThickness(false);
   };
 
-// Unworn / Worn
-const [postMedUnwornWorn, setPostMedUnwornWorn] = useState("");
-const [tempPostMedUnwornWorn, setTempPostMedUnwornWorn] = useState(postMedUnwornWorn);
-const [isEditingPostMedUnwornWorn, setIsEditingPostMedUnwornWorn] = useState(false);
-
-// Initial Thickness
-const [postMedInitialThickness, setPostMedInitialThickness] = useState("");
-const [tempPostMedInitialThickness, setTempPostMedInitialThickness] = useState(postMedInitialThickness);
-const [isEditingPostMedInitialThickness, setIsEditingPostMedInitialThickness] = useState(false);
-
-// Recut Y/N
-const [postMedRecutYN, setPostMedRecutYN] = useState("");
-const [tempPostMedRecutYN, setTempPostMedRecutYN] = useState(postMedRecutYN);
-const [isEditingPostMedRecutYN, setIsEditingPostMedRecutYN] = useState(false);
-
-// Recut MM
-const [postMedRecutMM, setPostMedRecutMM] = useState("");
-const [tempPostMedRecutMM, setTempPostMedRecutMM] = useState(postMedRecutMM);
-const [isEditingPostMedRecutMM, setIsEditingPostMedRecutMM] = useState(false);
-
-// Final Thickness
-const [postMedFinalThickness, setPostMedFinalThickness] = useState("");
-const [tempPostMedFinalThickness, setTempPostMedFinalThickness] = useState(postMedFinalThickness);
-const [isEditingPostMedFinalThickness, setIsEditingPostMedFinalThickness] = useState(false);
-
-// Unworn / Worn
-const savePostMedUnwornWorn = () => { setPostMedUnwornWorn(tempPostMedUnwornWorn); setIsEditingPostMedUnwornWorn(false); }
-const cancelPostMedUnwornWorn = () => { setTempPostMedUnwornWorn(postMedUnwornWorn); setIsEditingPostMedUnwornWorn(false); }
-
-// Initial Thickness
-const savePostMedInitialThickness = () => { setPostMedInitialThickness(tempPostMedInitialThickness); setIsEditingPostMedInitialThickness(false); }
-const cancelPostMedInitialThickness = () => { setTempPostMedInitialThickness(postMedInitialThickness); setIsEditingPostMedInitialThickness(false); }
-
-// Recut Y/N
-const savePostMedRecutYN = () => { setPostMedRecutYN(tempPostMedRecutYN); setIsEditingPostMedRecutYN(false); }
-const cancelPostMedRecutYN = () => { setTempPostMedRecutYN(postMedRecutYN); setIsEditingPostMedRecutYN(false); }
-
-// Recut MM
-const savePostMedRecutMM = () => { setPostMedRecutMM(tempPostMedRecutMM); setIsEditingPostMedRecutMM(false); }
-const cancelPostMedRecutMM = () => { setTempPostMedRecutMM(postMedRecutMM); setIsEditingPostMedRecutMM(false); }
-
-// Final Thickness
-const savePostMedFinalThickness = () => { setPostMedFinalThickness(tempPostMedFinalThickness); setIsEditingPostMedFinalThickness(false); }
-const cancelPostMedFinalThickness = () => { setTempPostMedFinalThickness(postMedFinalThickness); setIsEditingPostMedFinalThickness(false); }
-
-// Unworn / Worn
-const [postLatUnwornWorn, setPostLatUnwornWorn] = useState("");
-const [tempPostLatUnwornWorn, setTempPostLatUnwornWorn] = useState(postLatUnwornWorn);
-const [isEditingPostLatUnwornWorn, setIsEditingPostLatUnwornWorn] = useState(false);
-
-// Initial Thickness
-const [postLatInitialThickness, setPostLatInitialThickness] = useState("");
-const [tempPostLatInitialThickness, setTempPostLatInitialThickness] = useState(postLatInitialThickness);
-const [isEditingPostLatInitialThickness, setIsEditingPostLatInitialThickness] = useState(false);
-
-// Recut Y/N
-const [postLatRecutYN, setPostLatRecutYN] = useState("");
-const [tempPostLatRecutYN, setTempPostLatRecutYN] = useState(postLatRecutYN);
-const [isEditingPostLatRecutYN, setIsEditingPostLatRecutYN] = useState(false);
-
-// Recut MM
-const [postLatRecutMM, setPostLatRecutMM] = useState("");
-const [tempPostLatRecutMM, setTempPostLatRecutMM] = useState(postLatRecutMM);
-const [isEditingPostLatRecutMM, setIsEditingPostLatRecutMM] = useState(false);
-
-// Final Thickness
-const [postLatFinalThickness, setPostLatFinalThickness] = useState("");
-const [tempPostLatFinalThickness, setTempPostLatFinalThickness] = useState(postLatFinalThickness);
-const [isEditingPostLatFinalThickness, setIsEditingPostLatFinalThickness] = useState(false);
-
-
-// Unworn / Worn
-const savePostLatUnwornWorn = () => { setPostLatUnwornWorn(tempPostLatUnwornWorn); setIsEditingPostLatUnwornWorn(false); }
-const cancelPostLatUnwornWorn = () => { setTempPostLatUnwornWorn(postLatUnwornWorn); setIsEditingPostLatUnwornWorn(false); }
-
-// Initial Thickness
-const savePostLatInitialThickness = () => { setPostLatInitialThickness(tempPostLatInitialThickness); setIsEditingPostLatInitialThickness(false); }
-const cancelPostLatInitialThickness = () => { setTempPostLatInitialThickness(postLatInitialThickness); setIsEditingPostLatInitialThickness(false); }
-
-// Recut Y/N
-const savePostLatRecutYN = () => { setPostLatRecutYN(tempPostLatRecutYN); setIsEditingPostLatRecutYN(false); }
-const cancelPostLatRecutYN = () => { setTempPostLatRecutYN(postLatRecutYN); setIsEditingPostLatRecutYN(false); }
-
-// Recut MM
-const savePostLatRecutMM = () => { setPostLatRecutMM(tempPostLatRecutMM); setIsEditingPostLatRecutMM(false); }
-const cancelPostLatRecutMM = () => { setTempPostLatRecutMM(postLatRecutMM); setIsEditingPostLatRecutMM(false); }
-
-// Final Thickness
-const savePostLatFinalThickness = () => { setPostLatFinalThickness(tempPostLatFinalThickness); setIsEditingPostLatFinalThickness(false); }
-const cancelPostLatFinalThickness = () => { setTempPostLatFinalThickness(postLatFinalThickness); setIsEditingPostLatFinalThickness(false); }
-
-// Worn / Unworn
-const [tibialLeftWorn, setTibialLeftWorn] = useState("");
-const [tempTibialLeftWorn, setTempTibialLeftWorn] = useState(tibialLeftWorn);
-const [isEditingTibialLeftWorn, setIsEditingTibialLeftWorn] = useState(false);
-
-// Thickness MM
-const [tibialLeftMM, setTibialLeftMM] = useState("");
-const [tempTibialLeftMM, setTempTibialLeftMM] = useState(tibialLeftMM);
-const [isEditingTibialLeftMM, setIsEditingTibialLeftMM] = useState(false);
-
-// Worn / Unworn
-const saveTibialLeftWorn = () => { setTibialLeftWorn(tempTibialLeftWorn); setIsEditingTibialLeftWorn(false); }
-const cancelTibialLeftWorn = () => { setTempTibialLeftWorn(tibialLeftWorn); setIsEditingTibialLeftWorn(false); }
-
-// MM
-const saveTibialLeftMM = () => { setTibialLeftMM(tempTibialLeftMM); setIsEditingTibialLeftMM(false); }
-const cancelTibialLeftMM = () => { setTempTibialLeftMM(tibialLeftMM); setIsEditingTibialLeftMM(false); }
-
-// Worn / Unworn
-const [tibialRightWorn, setTibialRightWorn] = useState("");
-const [tempTibialRightWorn, setTempTibialRightWorn] = useState(tibialRightWorn);
-const [isEditingTibialRightWorn, setIsEditingTibialRightWorn] = useState(false);
-
-// Thickness MM
-const [tibialRightMM, setTibialRightMM] = useState("");
-const [tempTibialRightMM, setTempTibialRightMM] = useState(tibialRightMM);
-const [isEditingTibialRightMM, setIsEditingTibialRightMM] = useState(false);
-
-// Worn / Unworn
-const saveTibialRightWorn = () => { setTibialRightWorn(tempTibialRightWorn); setIsEditingTibialRightWorn(false); }
-const cancelTibialRightWorn = () => { setTempTibialRightWorn(tibialRightWorn); setIsEditingTibialRightWorn(false); }
-
-// MM
-const saveTibialRightMM = () => { setTibialRightMM(tempTibialRightMM); setIsEditingTibialRightMM(false); }
-const cancelTibialRightMM = () => { setTempTibialRightMM(tibialRightMM); setIsEditingTibialRightMM(false); }
-
-const [pclCondition, setPclCondition] = useState("");
-const [tempPclCondition, setTempPclCondition] = useState(pclCondition);
-const [isEditingPclCondition, setIsEditingPclCondition] = useState(false);
-
-const savePclCondition = () => {
-  setPclCondition(tempPclCondition);
-  setIsEditingPclCondition(false);
-};
-const cancelPclCondition = () => {
-  setTempPclCondition(pclCondition);
-  setIsEditingPclCondition(false);
-};
-
-const [tibialVVRecutYN, setTibialVVRecutYN] = useState("");
-const [tempTibialVVRecutYN, setTempTibialVVRecutYN] = useState(tibialVVRecutYN);
-const [isEditingTibialVVRecutYN, setIsEditingTibialVVRecutYN] = useState(false);
-
-const [tibialVVRecutMM, setTibialVVRecutMM] = useState("");
-const [tempTibialVVRecutMM, setTempTibialVVRecutMM] = useState(tibialVVRecutMM);
-const [isEditingTibialVVRecutMM, setIsEditingTibialVVRecutMM] = useState(false);
-
-const saveTibialVVRecutYN = () => {
-  setTibialVVRecutYN(tempTibialVVRecutYN);
-  setIsEditingTibialVVRecutYN(false);
-};
-const cancelTibialVVRecutYN = () => {
-  setTempTibialVVRecutYN(tibialVVRecutYN);
-  setIsEditingTibialVVRecutYN(false);
-};
-
-const saveTibialVVRecutMM = () => {
-  setTibialVVRecutMM(tempTibialVVRecutMM);
-  setIsEditingTibialVVRecutMM(false);
-};
-const cancelTibialVVRecutMM = () => {
-  setTempTibialVVRecutMM(tibialVVRecutMM);
-  setIsEditingTibialVVRecutMM(false);
-};
-
-const [tibialSlopeRecutYN, setTibialSlopeRecutYN] = useState("");
-const [tempTibialSlopeRecutYN, setTempTibialSlopeRecutYN] = useState(tibialSlopeRecutYN);
-const [isEditingTibialSlopeRecutYN, setIsEditingTibialSlopeRecutYN] = useState(false);
-
-const [tibialSlopeRecutMM, setTibialSlopeRecutMM] = useState("");
-const [tempTibialSlopeRecutMM, setTempTibialSlopeRecutMM] = useState(tibialSlopeRecutMM);
-const [isEditingTibialSlopeRecutMM, setIsEditingTibialSlopeRecutMM] = useState(false);
-
-const saveTibialSlopeRecutYN = () => {
-  setTibialSlopeRecutYN(tempTibialSlopeRecutYN);
-  setIsEditingTibialSlopeRecutYN(false);
-};
-const cancelTibialSlopeRecutYN = () => {
-  setTempTibialSlopeRecutYN(tibialSlopeRecutYN);
-  setIsEditingTibialSlopeRecutYN(false);
-};
-
-const saveTibialSlopeRecutMM = () => {
-  setTibialSlopeRecutMM(tempTibialSlopeRecutMM);
-  setIsEditingTibialSlopeRecutMM(false);
-};
-const cancelTibialSlopeRecutMM = () => {
-  setTempTibialSlopeRecutMM(tibialSlopeRecutMM);
-  setIsEditingTibialSlopeRecutMM(false);
-};
-
-const [finalCheckOptions, setFinalCheckOptions] = useState([
-  "Negligible V-V Laxity in extenstion",
-  "2-3 mm of lateral opening with Varus load in 15-30° of flexion"
-]);
-
-const [selectedFinalCheck, setSelectedFinalCheck] = useState([]);
-const [tempSelectedFinalCheck, setTempSelectedFinalCheck] = useState(selectedFinalCheck);
-const [isEditingFinalCheck, setIsEditingFinalCheck] = useState(false);
-
-const toggleTempFinalCheck = (option) => {
-  if (tempSelectedFinalCheck.includes(option)) {
-    setTempSelectedFinalCheck(tempSelectedFinalCheck.filter(item => item !== option));
-  } else {
-    setTempSelectedFinalCheck([...tempSelectedFinalCheck, option]);
-  }
-};
-
-const saveFinalCheck = () => {
-  setSelectedFinalCheck(tempSelectedFinalCheck);
-  setIsEditingFinalCheck(false);
-};
-
-const cancelFinalCheck = () => {
-  setTempSelectedFinalCheck(selectedFinalCheck);
-  setIsEditingFinalCheck(false);
-};
-
-const [tableData, setTableData] = useState(
-  [10,11,12,13,14].map(val => ({
-    insertThickness: val,
-    numTicks: "",
-    extOrient: "",
-    flex90Orient: "",
-    liftOff: "", // "Y" or "N"
-    editing: {
-      numTicks: false,
-      extOrient: false,
-      flex90Orient: false,
-      liftOff: false
+  const savePostMedField = async (fieldName, value) => {
+    try {
+      const payload = {
+        uhid: uhid.toLowerCase(),
+        field: fieldName,
+        value: value,
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(`${fieldName} saved:`, value);
+    } catch (err) {
+      console.error(`Failed to save ${fieldName}:`, err);
     }
-  }))
-);
+  };
 
-const startEdit = (rowIdx, field) => {
-  setTableData(prev => prev.map((r,i) => i===rowIdx ? {
-    ...r,
-    editing: {...r.editing, [field]: true},
-    temp: {...r} // store temp values for editing
-  } : r));
-};
+  // Unworn / Worn
+  const [postMedUnwornWorn, setPostMedUnwornWorn] = useState("");
+  const [tempPostMedUnwornWorn, setTempPostMedUnwornWorn] =
+    useState(postMedUnwornWorn);
+  const [isEditingPostMedUnwornWorn, setIsEditingPostMedUnwornWorn] =
+    useState(false);
 
-const cancelEdit = (rowIdx, field) => {
-  setTableData(prev => prev.map((r,i) => i===rowIdx ? {
-    ...r,
-    editing: {...r.editing, [field]: false},
-    temp: undefined
-  } : r));
-};
+  // Initial Thickness
+  const [postMedInitialThickness, setPostMedInitialThickness] = useState("");
+  const [tempPostMedInitialThickness, setTempPostMedInitialThickness] =
+    useState(postMedInitialThickness);
+  const [
+    isEditingPostMedInitialThickness,
+    setIsEditingPostMedInitialThickness,
+  ] = useState(false);
 
-const saveEdit = (rowIdx, field) => {
-  setTableData(prev => prev.map((r,i) => i===rowIdx ? {
-    ...r,
-    [field]: r.temp[field],
-    editing: {...r.editing, [field]: false},
-    temp: undefined
-  } : r));
-};
+  // Recut Y/N
+  const [postMedRecutYN, setPostMedRecutYN] = useState("");
+  const [tempPostMedRecutYN, setTempPostMedRecutYN] = useState(postMedRecutYN);
+  const [isEditingPostMedRecutYN, setIsEditingPostMedRecutYN] = useState(false);
 
-const updateTemp = (rowIdx, field, value) => {
-  setTableData(prev => prev.map((r,i) => i===rowIdx ? {
-    ...r,
-    temp: {...r.temp, [field]: value}
-  } : r));
-};
+  // Recut MM
+  const [postMedRecutMM, setPostMedRecutMM] = useState("");
+  const [tempPostMedRecutMM, setTempPostMedRecutMM] = useState(postMedRecutMM);
+  const [isEditingPostMedRecutMM, setIsEditingPostMedRecutMM] = useState(false);
 
-// State variables
-const [pfjResurf, setPFJResurf] = useState("");          // Saved value
-const [tempPFJResurf, setTempPFJResurf] = useState("");  // Temporary editing value
-const [isEditingPFJResurf, setIsEditingPFJResurf] = useState(false);
+  // Final Thickness
+  const [postMedFinalThickness, setPostMedFinalThickness] = useState("");
+  const [tempPostMedFinalThickness, setTempPostMedFinalThickness] = useState(
+    postMedFinalThickness
+  );
+  const [isEditingPostMedFinalThickness, setIsEditingPostMedFinalThickness] =
+    useState(false);
 
-// Functions
+  // Unworn / Worn
+  const savePostMedUnwornWorn = async () => {
+    setPostMedUnwornWorn(tempPostMedUnwornWorn);
+    setIsEditingPostMedUnwornWorn(false);
+    await savePostMedField("posterial_medial,wear", tempPostMedUnwornWorn);
+  };
+  const cancelPostMedUnwornWorn = () => {
+    setTempPostMedUnwornWorn(postMedUnwornWorn);
+    setIsEditingPostMedUnwornWorn(false);
+  };
 
-// Save the temporary value as the main value and exit edit mode
-const savePFJResurf = () => {
-  setPFJResurf(tempPFJResurf);
-  setIsEditingPFJResurf(false);
-};
+  // Initial Thickness
+  const savePostMedInitialThickness = async () => {
+    setPostMedInitialThickness(tempPostMedInitialThickness);
+    setIsEditingPostMedInitialThickness(false);
+    await savePostMedField(
+      "posterial_medial,initial_thickness",
+      tempPostMedInitialThickness
+    );
+  };
+  const cancelPostMedInitialThickness = () => {
+    setTempPostMedInitialThickness(postMedInitialThickness);
+    setIsEditingPostMedInitialThickness(false);
+  };
 
-// Cancel editing and revert temporary value
-const cancelPFJResurf = () => {
-  setTempPFJResurf(pfjResurf); // Revert temp value to saved value
-  setIsEditingPFJResurf(false);
-};
+  // Recut Y/N
+  const savePostMedRecutYN = async () => {
+    setPostMedRecutYN(tempPostMedRecutYN);
+    setIsEditingPostMedRecutYN(false);
+    await savePostMedField("posterial_medial,recut", tempPostMedRecutYN);
+  };
+  const cancelPostMedRecutYN = () => {
+    setTempPostMedRecutYN(postMedRecutYN);
+    setIsEditingPostMedRecutYN(false);
+  };
 
-// State variables
-const [trachelaResection, setTrachelaResection] = useState("");       // Saved value
-const [tempTrachelaResection, setTempTrachelaResection] = useState(""); // Temporary value for editing
-const [isEditingTrachelaResection, setIsEditingTrachelaResection] = useState(false);
+  // Recut MM
+  const savePostMedRecutMM = async () => {
+    setPostMedRecutMM(tempPostMedRecutMM);
+    setIsEditingPostMedRecutMM(false);
+    await savePostMedField("posterial_medial,recutvalue", tempPostMedRecutMM);
+  };
+  const cancelPostMedRecutMM = () => {
+    setTempPostMedRecutMM(postMedRecutMM);
+    setIsEditingPostMedRecutMM(false);
+  };
 
-// Functions
+  // Final Thickness
+  const savePostMedFinalThickness = async () => {
+    setPostMedFinalThickness(tempPostMedFinalThickness);
+    setIsEditingPostMedFinalThickness(false);
+    await savePostMedField(
+      "posterial_medial,final_thickness",
+      tempPostMedFinalThickness
+    );
+  };
+  const cancelPostMedFinalThickness = () => {
+    setTempPostMedFinalThickness(postMedFinalThickness);
+    setIsEditingPostMedFinalThickness(false);
+  };
 
-// Save the temporary value
-const saveTrachelaResection = () => {
-  setTrachelaResection(tempTrachelaResection);
-  setIsEditingTrachelaResection(false);
-};
+  const savePostLatField = async (fieldName, value) => {
+    try {
+      const payload = {
+        uhid: uhid.toLowerCase(),
+        field: fieldName,
+        value: value,
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(`${fieldName} saved:`, value);
+    } catch (err) {
+      console.error(`Failed to save ${fieldName}:`, err);
+    }
+  };
 
-// Cancel editing
-const cancelTrachelaResection = () => {
-  setTempTrachelaResection(trachelaResection); // Revert temp to saved value
-  setIsEditingTrachelaResection(false);
-};
+  // Unworn / Worn
+  const [postLatUnwornWorn, setPostLatUnwornWorn] = useState("");
+  const [tempPostLatUnwornWorn, setTempPostLatUnwornWorn] =
+    useState(postLatUnwornWorn);
+  const [isEditingPostLatUnwornWorn, setIsEditingPostLatUnwornWorn] =
+    useState(false);
 
-// State variables
-const [patella, setPatella] = useState("");               // Saved value
-const [tempPatella, setTempPatella] = useState("");       // Temporary value for editing
-const [isEditingPatella, setIsEditingPatella] = useState(false);
+  // Initial Thickness
+  const [postLatInitialThickness, setPostLatInitialThickness] = useState("");
+  const [tempPostLatInitialThickness, setTempPostLatInitialThickness] =
+    useState(postLatInitialThickness);
+  const [
+    isEditingPostLatInitialThickness,
+    setIsEditingPostLatInitialThickness,
+  ] = useState(false);
 
-// Functions
-const savePatella = () => {
-  setPatella(tempPatella);
-  setIsEditingPatella(false);
-};
+  // Recut Y/N
+  const [postLatRecutYN, setPostLatRecutYN] = useState("");
+  const [tempPostLatRecutYN, setTempPostLatRecutYN] = useState(postLatRecutYN);
+  const [isEditingPostLatRecutYN, setIsEditingPostLatRecutYN] = useState(false);
 
-const cancelPatella = () => {
-  setTempPatella(patella); // Revert temp to saved value
-  setIsEditingPatella(false);
-};
+  // Recut MM
+  const [postLatRecutMM, setPostLatRecutMM] = useState("");
+  const [tempPostLatRecutMM, setTempPostLatRecutMM] = useState(postLatRecutMM);
+  const [isEditingPostLatRecutMM, setIsEditingPostLatRecutMM] = useState(false);
 
-// State variables
-const [preResurfacingThickness, setPreResurfacingThickness] = useState("");      // Saved value
-const [tempPreResurfacingThickness, setTempPreResurfacingThickness] = useState(""); // Temporary value during editing
-const [isEditingPreResurfacing, setIsEditingPreResurfacing] = useState(false);
+  // Final Thickness
+  const [postLatFinalThickness, setPostLatFinalThickness] = useState("");
+  const [tempPostLatFinalThickness, setTempPostLatFinalThickness] = useState(
+    postLatFinalThickness
+  );
+  const [isEditingPostLatFinalThickness, setIsEditingPostLatFinalThickness] =
+    useState(false);
 
-// Functions
-const savePreResurfacing = () => {
-  setPreResurfacingThickness(tempPreResurfacingThickness);
-  setIsEditingPreResurfacing(false);
-};
+  // Unworn / Worn
+  const savePostLatUnwornWorn = async () => {
+    setPostLatUnwornWorn(tempPostLatUnwornWorn);
+    setIsEditingPostLatUnwornWorn(false);
+    await savePostLatField("posterial_lateral,status", tempPostLatUnwornWorn);
+  };
+  const cancelPostLatUnwornWorn = () => {
+    setTempPostLatUnwornWorn(postLatUnwornWorn);
+    setIsEditingPostLatUnwornWorn(false);
+  };
 
-const cancelPreResurfacing = () => {
-  setTempPreResurfacingThickness(preResurfacingThickness); // Revert to saved value
-  setIsEditingPreResurfacing(false);
-};
+  // Initial Thickness
+  const savePostLatInitialThickness = async () => {
+    setPostLatInitialThickness(tempPostLatInitialThickness);
+    setIsEditingPostLatInitialThickness(false);
+    await savePostLatField(
+      "posterial_lateral,initial_thickness",
+      tempPostLatInitialThickness
+    );
+  };
+  const cancelPostLatInitialThickness = () => {
+    setTempPostLatInitialThickness(postLatInitialThickness);
+    setIsEditingPostLatInitialThickness(false);
+  };
 
-const [postResurfacingThickness, setPostResurfacingThickness] = useState(""); 
-const [tempPostResurfacingThickness, setTempPostResurfacingThickness] = useState("");
-const [isEditingPostResurfacing, setIsEditingPostResurfacing] = useState(false);
+  // Recut Y/N
+  const savePostLatRecutYN = async () => {
+    setPostLatRecutYN(tempPostLatRecutYN);
+    setIsEditingPostLatRecutYN(false);
+    await savePostLatField("posterial_lateral,recut", tempPostLatRecutYN);
+  };
+  const cancelPostLatRecutYN = () => {
+    setTempPostLatRecutYN(postLatRecutYN);
+    setIsEditingPostLatRecutYN(false);
+  };
 
-// Functions
-const savePostResurfacing = () => {
-  setPostResurfacingThickness(tempPostResurfacingThickness);
-  setIsEditingPostResurfacing(false);
-};
+  // Recut MM
+  const savePostLatRecutMM = async () => {
+    setPostLatRecutMM(tempPostLatRecutMM);
+    setIsEditingPostLatRecutMM(false);
+    await savePostLatField("posterial_lateral,recutvalue", tempPostLatRecutMM);
+  };
+  const cancelPostLatRecutMM = () => {
+    setTempPostLatRecutMM(postLatRecutMM);
+    setIsEditingPostLatRecutMM(false);
+  };
 
-const cancelPostResurfacing = () => {
-  setTempPostResurfacingThickness(postResurfacingThickness);
-  setIsEditingPostResurfacing(false);
-};
-  
-    if (loading) return <p>Loading patient data...</p>;
-  
-    if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
+  // Final Thickness
+  const savePostLatFinalThickness = async () => {
+    setPostLatFinalThickness(tempPostLatFinalThickness);
+    setIsEditingPostLatFinalThickness(false);
+    await savePostLatField(
+      "posterial_lateral,final_thickness",
+      tempPostLatFinalThickness
+    );
+  };
+  const cancelPostLatFinalThickness = () => {
+    setTempPostLatFinalThickness(postLatFinalThickness);
+    setIsEditingPostLatFinalThickness(false);
+  };
 
-    const calculateAge = (birthDate) => {
+  const saveTibialLeftField = async (fieldName, value) => {
+    try {
+      const payload = {
+        uhid: uhid.toLowerCase(),
+        field: fieldName,
+        value: value,
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(`${fieldName} saved:`, value);
+    } catch (err) {
+      console.error(`Failed to save ${fieldName}:`, err);
+    }
+  };
+
+  // Worn / Unworn
+  const [tibialLeftWorn, setTibialLeftWorn] = useState("");
+  const [tempTibialLeftWorn, setTempTibialLeftWorn] = useState(tibialLeftWorn);
+  const [isEditingTibialLeftWorn, setIsEditingTibialLeftWorn] = useState(false);
+
+  // Thickness MM
+  const [tibialLeftMM, setTibialLeftMM] = useState("");
+  const [tempTibialLeftMM, setTempTibialLeftMM] = useState(tibialLeftMM);
+  const [isEditingTibialLeftMM, setIsEditingTibialLeftMM] = useState(false);
+
+  // Worn / Unworn
+  const saveTibialLeftWorn = async () => {
+    setTibialLeftWorn(tempTibialLeftWorn);
+    setIsEditingTibialLeftWorn(false);
+    await saveTibialLeftField(
+      "tibial_resection_left,status",
+      tempTibialLeftWorn
+    );
+  };
+  const cancelTibialLeftWorn = () => {
+    setTempTibialLeftWorn(tibialLeftWorn);
+    setIsEditingTibialLeftWorn(false);
+  };
+
+  // MM
+  const saveTibialLeftMM = async () => {
+    setTibialLeftMM(tempTibialLeftMM);
+    setIsEditingTibialLeftMM(false);
+    await saveTibialLeftField("tibial_resection_left,value", tempTibialLeftMM);
+  };
+  const cancelTibialLeftMM = () => {
+    setTempTibialLeftMM(tibialLeftMM);
+    setIsEditingTibialLeftMM(false);
+  };
+
+  const saveTibialField = async (side, fieldName, value) => {
+    try {
+      const payload = {
+        side, // "left" or "right"
+        field: fieldName,
+        value: value,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(`${side} tibial ${fieldName} saved:`, value);
+    } catch (err) {
+      console.error(`Failed to save ${side} tibial ${fieldName}:`, err);
+    }
+  };
+
+  // Worn / Unworn
+  const [tibialRightWorn, setTibialRightWorn] = useState("");
+  const [tempTibialRightWorn, setTempTibialRightWorn] =
+    useState(tibialRightWorn);
+  const [isEditingTibialRightWorn, setIsEditingTibialRightWorn] =
+    useState(false);
+
+  // Thickness MM
+  const [tibialRightMM, setTibialRightMM] = useState("");
+  const [tempTibialRightMM, setTempTibialRightMM] = useState(tibialRightMM);
+  const [isEditingTibialRightMM, setIsEditingTibialRightMM] = useState(false);
+
+  // Worn / Unworn
+  const saveTibialRightWorn = async () => {
+    setTibialRightWorn(tempTibialRightWorn);
+    setIsEditingTibialRightWorn(false);
+    await saveTibialField(
+      "right",
+      "tibial_resection_right,status",
+      tempTibialRightWorn
+    );
+  };
+  const cancelTibialRightWorn = () => {
+    setTempTibialRightWorn(tibialRightWorn);
+    setIsEditingTibialRightWorn(false);
+  };
+
+  // MM
+  const saveTibialRightMM = async () => {
+    setTibialRightMM(tempTibialRightMM);
+    setIsEditingTibialRightMM(false);
+    await saveTibialField(
+      "right",
+      "tibial_resection_right,value",
+      tempTibialRightMM
+    );
+  };
+  const cancelTibialRightMM = () => {
+    setTempTibialRightMM(tibialRightMM);
+    setIsEditingTibialRightMM(false);
+  };
+
+  const [pclCondition, setPclCondition] = useState("");
+  const [tempPclCondition, setTempPclCondition] = useState(pclCondition);
+  const [isEditingPclCondition, setIsEditingPclCondition] = useState(false);
+
+  const savePclCondition = async () => {
+    setPclCondition(tempPclCondition);
+    setIsEditingPclCondition(false);
+
+    try {
+      const payload = {
+        field: "pcl",
+        value: tempPclCondition,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("PCL Condition saved:", tempPclCondition);
+    } catch (err) {
+      console.error("Failed to save PCL Condition:", err);
+    }
+  };
+
+  const cancelPclCondition = () => {
+    setTempPclCondition(pclCondition);
+    setIsEditingPclCondition(false);
+  };
+
+  const [tibialVVRecutYN, setTibialVVRecutYN] = useState("");
+  const [tempTibialVVRecutYN, setTempTibialVVRecutYN] =
+    useState(tibialVVRecutYN);
+  const [isEditingTibialVVRecutYN, setIsEditingTibialVVRecutYN] =
+    useState(false);
+
+  const [tibialVVRecutMM, setTibialVVRecutMM] = useState("");
+  const [tempTibialVVRecutMM, setTempTibialVVRecutMM] =
+    useState(tibialVVRecutMM);
+  const [isEditingTibialVVRecutMM, setIsEditingTibialVVRecutMM] =
+    useState(false);
+
+  const saveTibialVVRecutYN = async () => {
+    setTibialVVRecutYN(tempTibialVVRecutYN);
+    setIsEditingTibialVVRecutYN(false);
+
+    try {
+      const payload = {
+        field: "tibialvvrecut,status", // backend field for status
+        value: tempTibialVVRecutYN,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Tibial VV Recut Y/N saved:", tempTibialVVRecutYN);
+    } catch (err) {
+      console.error("Failed to save Tibial VV Recut Y/N:", err);
+    }
+  };
+  const cancelTibialVVRecutYN = () => {
+    setTempTibialVVRecutYN(tibialVVRecutYN);
+    setIsEditingTibialVVRecutYN(false);
+  };
+
+  const saveTibialVVRecutMM = async () => {
+    setTibialVVRecutMM(tempTibialVVRecutMM);
+    setIsEditingTibialVVRecutMM(false);
+
+    try {
+      const payload = {
+        field: "tibialvvrecut,value", // backend field for value
+        value: tempTibialVVRecutMM,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Tibial VV Recut MM saved:", tempTibialVVRecutMM);
+    } catch (err) {
+      console.error("Failed to save Tibial VV Recut MM:", err);
+    }
+  };
+  const cancelTibialVVRecutMM = () => {
+    setTempTibialVVRecutMM(tibialVVRecutMM);
+    setIsEditingTibialVVRecutMM(false);
+  };
+
+  const [tibialSlopeRecutYN, setTibialSlopeRecutYN] = useState("");
+  const [tempTibialSlopeRecutYN, setTempTibialSlopeRecutYN] =
+    useState(tibialSlopeRecutYN);
+  const [isEditingTibialSlopeRecutYN, setIsEditingTibialSlopeRecutYN] =
+    useState(false);
+
+  const [tibialSlopeRecutMM, setTibialSlopeRecutMM] = useState("");
+  const [tempTibialSlopeRecutMM, setTempTibialSlopeRecutMM] =
+    useState(tibialSlopeRecutMM);
+  const [isEditingTibialSlopeRecutMM, setIsEditingTibialSlopeRecutMM] =
+    useState(false);
+
+  const saveTibialSlopeRecutYN = async () => {
+    setTibialSlopeRecutYN(tempTibialSlopeRecutYN);
+    setIsEditingTibialSlopeRecutYN(false);
+
+    try {
+      const payload = {
+        field: "tibialsloperecut,status",
+        value: tempTibialSlopeRecutYN,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Tibial Slope Recut Y/N saved:", tempTibialSlopeRecutYN);
+    } catch (err) {
+      console.error("Failed to save Tibial Slope Recut Y/N:", err);
+    }
+  };
+  const cancelTibialSlopeRecutYN = () => {
+    setTempTibialSlopeRecutYN(tibialSlopeRecutYN);
+    setIsEditingTibialSlopeRecutYN(false);
+  };
+
+  const saveTibialSlopeRecutMM = async () => {
+    setTibialSlopeRecutMM(tempTibialSlopeRecutMM);
+    setIsEditingTibialSlopeRecutMM(false);
+
+    try {
+      const payload = {
+        field: "tibialsloperecut,value",
+        value: tempTibialSlopeRecutMM,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Tibial Slope Recut MM saved:", tempTibialSlopeRecutMM);
+    } catch (err) {
+      console.error("Failed to save Tibial Slope Recut MM:", err);
+    }
+  };
+  const cancelTibialSlopeRecutMM = () => {
+    setTempTibialSlopeRecutMM(tibialSlopeRecutMM);
+    setIsEditingTibialSlopeRecutMM(false);
+  };
+
+  const [finalCheckOptions, setFinalCheckOptions] = useState([
+    "Negligible V-V Laxity in extenstion",
+    "2-3 mm of lateral opening with Varus load in 15-30° of flexion",
+  ]);
+
+  const [selectedFinalCheck, setSelectedFinalCheck] = useState([]);
+  const [tempSelectedFinalCheck, setTempSelectedFinalCheck] =
+    useState(selectedFinalCheck);
+  const [isEditingFinalCheck, setIsEditingFinalCheck] = useState(false);
+
+  const toggleTempFinalCheck = (option) => {
+    if (tempSelectedFinalCheck.includes(option)) {
+      setTempSelectedFinalCheck(
+        tempSelectedFinalCheck.filter((item) => item !== option)
+      );
+    } else {
+      setTempSelectedFinalCheck([...tempSelectedFinalCheck, option]);
+    }
+  };
+
+  const saveFinalCheck = async () => {
+    setSelectedFinalCheck(tempSelectedFinalCheck);
+    setIsEditingFinalCheck(false);
+
+    try {
+      // Ensure tempSelectedFinalCheck is always an array
+      const finalCheckArray = Array.isArray(tempSelectedFinalCheck)
+        ? tempSelectedFinalCheck
+        : [tempSelectedFinalCheck];
+
+      const payload = {
+        field: "final_check",
+        value: finalCheckArray.join(", "), // convert to string for backend
+        uhid: uhid.toLowerCase(),
+      };
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Final Check saved:", payload.value);
+    } catch (err) {
+      console.error("Failed to save Final Check:", err);
+    }
+  };
+
+  const cancelFinalCheck = () => {
+    setTempSelectedFinalCheck(selectedFinalCheck);
+    setIsEditingFinalCheck(false);
+  };
+
+  const [tableData, setTableData] = useState(
+    [10, 11, 12, 13, 14].map((val) => ({
+      insertThickness: val,
+      numTicks: "",
+      extOrient: "",
+      flex90Orient: "",
+      liftOff: "", // "Y" or "N"
+      editing: {
+        numTicks: false,
+        extOrient: false,
+        flex90Orient: false,
+        liftOff: false,
+      },
+    }))
+  );
+
+  const startEdit = (rowIdx, field) => {
+    setTableData((prev) =>
+      prev.map((r, i) =>
+        i === rowIdx
+          ? {
+              ...r,
+              editing: { ...r.editing, [field]: true },
+              temp: { ...r }, // store temp values for editing
+            }
+          : r
+      )
+    );
+  };
+
+  const cancelEdit = (rowIdx, field) => {
+    setTableData((prev) =>
+      prev.map((r, i) =>
+        i === rowIdx
+          ? {
+              ...r,
+              editing: { ...r.editing, [field]: false },
+              temp: undefined,
+            }
+          : r
+      )
+    );
+  };
+
+  const fieldMap = {
+    numTicks: "numOfTicks",
+    extOrient: "extensionExtOrient",
+    flex90Orient: "flexionIntOrient",
+    liftOff: "liftOff",
+  };
+
+  const saveEdit = async (rowIdx, field) => {
+    setTableData((prev) =>
+      prev.map((r, i) =>
+        i === rowIdx
+          ? {
+              ...r,
+              [field]: r.temp[field],
+              editing: { ...r.editing, [field]: false },
+              temp: undefined,
+            }
+          : r
+      )
+    );
+
+    try {
+      const thickness = tableData[rowIdx].insertThickness;
+      const backendField = fieldMap[field]; // map to backend name
+
+      const payload = {
+        uhid: uhid.toLowerCase(),
+        update_values: { [backendField]: tableData[rowIdx].temp[field] },
+        thickness: thickness,
+      };
+
+      console.log("Patch payload for thickness_table row:", payload);
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(
+        `Row ${rowIdx} field "${field}" saved:`,
+        tableData[rowIdx].temp[field]
+      );
+    } catch (err) {
+      console.error(`Failed to save Row ${rowIdx} field "${field}":`, err);
+    }
+  };
+
+  const updateTemp = (rowIdx, field, value) => {
+    setTableData((prev) =>
+      prev.map((r, i) =>
+        i === rowIdx
+          ? {
+              ...r,
+              temp: { ...r.temp, [field]: value },
+            }
+          : r
+      )
+    );
+  };
+
+  // State variables
+  const [pfjResurf, setPFJResurf] = useState(""); // Saved value
+  const [tempPFJResurf, setTempPFJResurf] = useState(""); // Temporary editing value
+  const [isEditingPFJResurf, setIsEditingPFJResurf] = useState(false);
+
+  // Functions
+
+  // Save the temporary value as the main value and exit edit mode
+  const savePFJResurf = async () => {
+    setPFJResurf(tempPFJResurf);
+    setIsEditingPFJResurf(false);
+
+    try {
+      const payload = {
+        field: "pfj_resurfacing", // match the backend field name
+        value: tempPFJResurf,
+        uhid: uhid.toLowerCase(),
+      };
+
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("PFJ Resurfacing saved:", tempPFJResurf);
+    } catch (err) {
+      console.error("Failed to save PFJ Resurfacing:", err);
+    }
+  };
+
+  // Cancel editing and revert temporary value
+  const cancelPFJResurf = () => {
+    setTempPFJResurf(pfjResurf); // Revert temp value to saved value
+    setIsEditingPFJResurf(false);
+  };
+
+  // State variables
+  const [trachelaResection, setTrachelaResection] = useState(""); // Saved value
+  const [tempTrachelaResection, setTempTrachelaResection] = useState(""); // Temporary value for editing
+  const [isEditingTrachelaResection, setIsEditingTrachelaResection] =
+    useState(false);
+
+  // Functions
+
+  // Save the temporary value
+  const saveTrachelaResection = async () => {
+    setTrachelaResection(tempTrachelaResection);
+    setIsEditingTrachelaResection(false);
+
+    try {
+      const payload = {
+        field: "trachela_resection",
+        value: tempTrachelaResection,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Trachela Resection saved:", tempTrachelaResection);
+    } catch (err) {
+      console.error("Failed to save Trachela Resection:", err);
+    }
+  };
+
+  // Cancel editing
+  const cancelTrachelaResection = () => {
+    setTempTrachelaResection(trachelaResection); // Revert temp to saved value
+    setIsEditingTrachelaResection(false);
+  };
+
+  // State variables
+  const [patella, setPatella] = useState(""); // Saved value
+  const [tempPatella, setTempPatella] = useState(""); // Temporary value for editing
+  const [isEditingPatella, setIsEditingPatella] = useState(false);
+
+  // Functions
+  const savePatella = async () => {
+    setPatella(tempPatella);
+    setIsEditingPatella(false);
+
+    try {
+      const payload = {
+        field: "patella",
+        value: tempPatella,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log("Patella saved:", tempPatella);
+    } catch (err) {
+      console.error("Failed to save Patella:", err);
+    }
+  };
+
+  const cancelPatella = () => {
+    setTempPatella(patella); // Revert temp to saved value
+    setIsEditingPatella(false);
+  };
+
+  // State variables
+  const [preResurfacingThickness, setPreResurfacingThickness] = useState(""); // Saved value
+  const [tempPreResurfacingThickness, setTempPreResurfacingThickness] =
+    useState(""); // Temporary value during editing
+  const [isEditingPreResurfacing, setIsEditingPreResurfacing] = useState(false);
+
+  // Functions
+  const savePreResurfacing = async () => {
+    setPreResurfacingThickness(tempPreResurfacingThickness);
+    setIsEditingPreResurfacing(false);
+
+    try {
+      const payload = {
+        field: "preresurfacing",
+        value: tempPreResurfacingThickness,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(
+        "Pre-Resurfacing Thickness saved:",
+        tempPreResurfacingThickness
+      );
+    } catch (err) {
+      console.error("Failed to save Pre-Resurfacing Thickness:", err);
+    }
+  };
+
+  const cancelPreResurfacing = () => {
+    setTempPreResurfacingThickness(preResurfacingThickness); // Revert to saved value
+    setIsEditingPreResurfacing(false);
+  };
+
+  const [postResurfacingThickness, setPostResurfacingThickness] = useState("");
+  const [tempPostResurfacingThickness, setTempPostResurfacingThickness] =
+    useState("");
+  const [isEditingPostResurfacing, setIsEditingPostResurfacing] =
+    useState(false);
+
+  // Functions
+  const savePostResurfacing = async () => {
+    setPostResurfacingThickness(tempPostResurfacingThickness);
+    setIsEditingPostResurfacing(false);
+
+    try {
+      const payload = {
+        field: "postresurfacing",
+        value: tempPostResurfacingThickness,
+        uhid: uhid.toLowerCase(),
+      };
+      await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+      console.log(
+        "Post-Resurfacing Thickness saved:",
+        tempPostResurfacingThickness
+      );
+    } catch (err) {
+      console.error("Failed to save Post-Resurfacing Thickness:", err);
+    }
+  };
+
+  const cancelPostResurfacing = () => {
+    setTempPostResurfacingThickness(postResurfacingThickness);
+    setIsEditingPostResurfacing(false);
+  };
+
+  if (loading) return <p>Loading patient data...</p>;
+
+  if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
+
+  const calculateAge = (birthDate) => {
     const birth = new Date(birthDate);
     const today = new Date();
     let age = today.getFullYear() - birth.getFullYear();
@@ -1903,7 +2918,7 @@ const cancelPostResurfacing = () => {
   const capitalizeFirstLetter = (string) => {
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
-  
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
@@ -2025,23 +3040,31 @@ const cancelPostResurfacing = () => {
                     <span
                       className={`${inter.className} text-[#272727] font-semibold text-sm`}
                     >
-                      {selectedHospital}
+                      {selectedHospital || "Parvathy Hospital"}{" "}
+                      {/* default to first option if empty */}
                     </span>
                     <PencilIcon
                       className="w-5 h-5 text-gray-600 cursor-pointer"
-                      onClick={() => setIsEditingHospital(true)}
+                      onClick={() => {
+                        setIsEditingHospital(true);
+                        setTempHospital(
+                          selectedHospital || "Parvathy Hospital" // default to first option if none selected
+                        );
+                      }}
                     />
                   </div>
                 ) : (
                   <div className="flex items-center space-x-2 w-60">
                     <select
                       className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
-                      value={tempHospital}
+                      value={tempHospital} // reflects selected or default
                       onChange={(e) => setTempHospital(e.target.value)}
                     >
-                      <option>Parvathy Hospital</option>
-                      <option>ABC Hospital</option>
-                      <option>XYZ Hospital</option>
+                      <option value="Parvathy Hospital">
+                        Parvathy Hospital
+                      </option>
+                      <option value="ABC Hospital">ABC Hospital</option>
+                      <option value="XYZ Hospital">XYZ Hospital</option>
                     </select>
 
                     <ClipboardDocumentCheckIcon
@@ -2068,11 +3091,14 @@ const cancelPostResurfacing = () => {
                     <span
                       className={`${raleway.className} text-sm text-[#272727] font-semibold`}
                     >
-                      {selectedType}
+                      {selectedType || types[0]} {/* default to first type */}
                     </span>
                     <PencilIcon
                       className="w-5 h-5 text-gray-600 cursor-pointer"
-                      onClick={() => setIsEditingAnaesthetic(true)}
+                      onClick={() => {
+                        setIsEditingAnaesthetic(true);
+                        setTempType(selectedType || types[0]); // default to first type for editing
+                      }}
                     />
                   </div>
                 ) : (
@@ -2124,12 +3150,16 @@ const cancelPostResurfacing = () => {
                 {!isEditingASA ? (
                   <div
                     className="flex items-center space-x-6 pt-4 rounded px-4 py-2 w-full cursor-pointer"
-                    onClick={() => setIsEditingASA(true)}
+                    onClick={() => {
+                      setIsEditingASA(true);
+                      setTempASA(selectedASA || asaGrades[0]); // default to first grade
+                    }}
                   >
                     <span
                       className={`${raleway.className} text-sm text-[#272727] font-semibold`}
                     >
-                      {selectedASA || "Select ASA Grade"}
+                      {selectedASA || asaGrades[0]}{" "}
+                      {/* show default if empty */}
                     </span>
                     <PencilIcon className="w-5 h-5 text-gray-600" />
                   </div>
@@ -2147,7 +3177,8 @@ const cancelPostResurfacing = () => {
                         >
                           <input
                             id={id}
-                            type="checkbox"
+                            type="radio" // switched to radio for single selection
+                            name="asaGrade"
                             checked={tempASA === grade}
                             onChange={() => setTempASA(grade)}
                             className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
@@ -2242,22 +3273,26 @@ const cancelPostResurfacing = () => {
 
             <div className={`space-y-6 pt-[33px] pl-[23px]`}>
               <div className="flex items-center space-x-8">
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   1. Consultant IN-CHARGE
                 </label>
 
                 {!isEditingConsultant ? (
-                  <div className="flex flex-col gap-4 w-60">
+                  <div
+                    className="flex flex-col gap-4 w-60 cursor-pointer"
+                    onClick={handleEditConsultant}
+                  >
                     <div className="flex items-center justify-between px-4 py-2 rounded bg-white">
-                      <span className={`${inter.className} text-[#272727] font-semibold text-sm`}>
-                        {selectedConsultant}
+                      <span
+                        className={`${inter.className} text-[#272727] font-semibold text-sm`}
+                      >
+                        {selectedConsultant || consultants[0]}{" "}
+                        {/* default first option */}
                       </span>
-                      <PencilIcon
-                        className="w-5 h-5 text-gray-600 cursor-pointer"
-                        onClick={handleEditConsultant}
-                      />
+                      <PencilIcon className="w-5 h-5 text-gray-600" />
                     </div>
-                   
                   </div>
                 ) : (
                   <div className="flex flex-row items-center gap-2 w-60">
@@ -2266,9 +3301,11 @@ const cancelPostResurfacing = () => {
                       value={tempConsultant}
                       onChange={(e) => setTempConsultant(e.target.value)}
                     >
-                      <option>Dr. Vetri Kumar</option>
-                      <option>Dr. ABC</option>
-                      <option>Dr. XYZ</option>
+                      {consultants.map((consultant) => (
+                        <option key={consultant} value={consultant}>
+                          {consultant}
+                        </option>
+                      ))}
                     </select>
                     <ClipboardDocumentCheckIcon
                       className="w-5 h-5 text-green-600 cursor-pointer"
@@ -2282,22 +3319,26 @@ const cancelPostResurfacing = () => {
                 )}
               </div>
 
-
               <div className="flex items-center space-x-15.5">
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   2. Operating Surgeon
                 </label>
 
                 {!isEditingSurgeon ? (
-                  <div className="flex flex-col gap-4 w-60">
+                  <div
+                    className="flex flex-col gap-4 w-60 cursor-pointer"
+                    onClick={handleEditSurgeon}
+                  >
                     <div className="flex items-center justify-between px-4 py-2 rounded bg-white">
-                      <span className={`${inter.className} text-[#272727] font-semibold text-sm`}>
-                        {selectedSurgeon}
+                      <span
+                        className={`${inter.className} text-[#272727] font-semibold text-sm`}
+                      >
+                        {selectedSurgeon || surgeons[0]}{" "}
+                        {/* default first option */}
                       </span>
-                      <PencilIcon
-                        className="w-5 h-5 text-gray-600 cursor-pointer"
-                        onClick={() => setIsEditingSurgeon(true)}
-                      />
+                      <PencilIcon className="w-5 h-5 text-gray-600" />
                     </div>
                   </div>
                 ) : (
@@ -2307,9 +3348,11 @@ const cancelPostResurfacing = () => {
                       value={tempSurgeon}
                       onChange={(e) => setTempSurgeon(e.target.value)}
                     >
-                      <option>Dr. Vetri Kumar</option>
-                      <option>Dr. ABC</option>
-                      <option>Dr. XYZ</option>
+                      {surgeons.map((surgeon) => (
+                        <option key={surgeon} value={surgeon}>
+                          {surgeon}
+                        </option>
+                      ))}
                     </select>
                     <ClipboardDocumentCheckIcon
                       className="w-5 h-5 text-green-600 cursor-pointer"
@@ -2323,22 +3366,26 @@ const cancelPostResurfacing = () => {
                 )}
               </div>
 
-
               <div className="flex items-center space-x-[97.3px]">
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   3. First Assistant
                 </label>
 
                 {!isEditingAssistant ? (
-                  <div className="flex flex-col gap-4 w-60">
+                  <div
+                    className="flex flex-col gap-4 w-60 cursor-pointer"
+                    onClick={handleEditAssistant}
+                  >
                     <div className="flex items-center justify-between px-4 py-2 rounded bg-white">
-                      <span className={`${inter.className} text-[#272727] font-semibold text-sm`}>
-                        {selectedAssistant}
+                      <span
+                        className={`${inter.className} text-[#272727] font-semibold text-sm`}
+                      >
+                        {selectedAssistant || assistants[0]}{" "}
+                        {/* default first option */}
                       </span>
-                      <PencilIcon
-                        className="w-5 h-5 text-gray-600 cursor-pointer"
-                        onClick={() => setIsEditingAssistant(true)}
-                      />
+                      <PencilIcon className="w-5 h-5 text-gray-600" />
                     </div>
                   </div>
                 ) : (
@@ -2348,9 +3395,11 @@ const cancelPostResurfacing = () => {
                       value={tempAssistant}
                       onChange={(e) => setTempAssistant(e.target.value)}
                     >
-                      <option>Dr. Vinod Kumar</option>
-                      <option>Dr. ABC</option>
-                      <option>Dr. XYZ</option>
+                      {assistants.map((assistant) => (
+                        <option key={assistant} value={assistant}>
+                          {assistant}
+                        </option>
+                      ))}
                     </select>
                     <ClipboardDocumentCheckIcon
                       className="w-5 h-5 text-green-600 cursor-pointer"
@@ -2364,47 +3413,52 @@ const cancelPostResurfacing = () => {
                 )}
               </div>
 
-
               <div className="flex items-center space-x-[72.8px]">
-              <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
-                4. Second Assistant
-              </label>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
+                  4. Second Assistant
+                </label>
 
-              {!isEditingSecondAssistant ? (
-                <div className="flex flex-col gap-4 w-60">
-                  <div className="flex items-center justify-between px-4 py-2 rounded bg-white">
-                    <span className={`${inter.className} text-[#272727] font-semibold text-sm`}>
-                      {selectedSecondAssistant}
-                    </span>
-                    <PencilIcon
-                      className="w-5 h-5 text-gray-600 cursor-pointer"
-                      onClick={() => setIsEditingSecondAssistant(true)}
+                {!isEditingSecondAssistant ? (
+                  <div
+                    className="flex flex-col gap-4 w-60 cursor-pointer"
+                    onClick={handleEditSecondAssistant}
+                  >
+                    <div className="flex items-center justify-between px-4 py-2 rounded bg-white">
+                      <span
+                        className={`${inter.className} text-[#272727] font-semibold text-sm`}
+                      >
+                        {selectedSecondAssistant || secondAssistants[0]}{" "}
+                        {/* default first option */}
+                      </span>
+                      <PencilIcon className="w-5 h-5 text-gray-600" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-row items-center gap-2 w-60">
+                    <select
+                      className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
+                      value={tempSecondAssistant}
+                      onChange={(e) => setTempSecondAssistant(e.target.value)}
+                    >
+                      {secondAssistants.map((assistant) => (
+                        <option key={assistant} value={assistant}>
+                          {assistant}
+                        </option>
+                      ))}
+                    </select>
+                    <ClipboardDocumentCheckIcon
+                      className="w-5 h-5 text-green-600 cursor-pointer"
+                      onClick={handleSaveSecondAssistant}
+                    />
+                    <XMarkIcon
+                      className="w-5 h-5 text-red-600 cursor-pointer"
+                      onClick={handleCancelSecondAssistant}
                     />
                   </div>
-                </div>
-              ) : (
-                <div className="flex flex-row items-center gap-2 w-60">
-                  <select
-                    className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
-                    value={tempSecondAssistant}
-                    onChange={(e) => setTempSecondAssistant(e.target.value)}
-                  >
-                    <option>Dr. Milan Adhikari</option>
-                    <option>Dr. ABC</option>
-                    <option>Dr. XYZ</option>
-                  </select>
-                  <ClipboardDocumentCheckIcon
-                    className="w-5 h-5 text-green-600 cursor-pointer"
-                    onClick={handleSaveSecondAssistant}
-                  />
-                  <XMarkIcon
-                    className="w-5 h-5 text-red-600 cursor-pointer"
-                    onClick={handleCancelSecondAssistant}
-                  />
-                </div>
-              )}
-            </div>
-
+                )}
+              </div>
             </div>
           </div>
 
@@ -2416,10 +3470,12 @@ const cancelPostResurfacing = () => {
             </h2>
             <div className="h-[2px] w-full bg-gray-200 mt-[14px]"></div>
 
-             <div className={`space-x-6 flex flex-row pt-[33px] pl-[23px]`}>
+            <div className={`space-x-6 flex flex-row pt-[33px] pl-[23px]`}>
               {!isEditingProcedure ? (
                 <div className="flex items-center space-x-4">
-                  <span className={`text-sm ${inter.className} text-[#272727] font-semibold`}>
+                  <span
+                    className={`text-sm ${inter.className} text-[#272727] font-semibold`}
+                  >
                     {selectedProcedure}
                   </span>
                   <PencilIcon
@@ -2454,6 +3510,7 @@ const cancelPostResurfacing = () => {
                       </label>
                     );
                   })}
+
                   <ClipboardDocumentCheckIcon
                     className="w-5 h-5 text-green-600 cursor-pointer"
                     onClick={handleSaveProcedure}
@@ -2477,13 +3534,17 @@ const cancelPostResurfacing = () => {
 
             <div className={`flex flex-col pl-[23px] pt-[33px] gap-4`}>
               <div className={`flex flex-row gap-20`}>
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   Side
                 </label>
 
                 {!isEditingSide ? (
                   <div className="flex items-center gap-2">
-                    <span className={`${raleway.className} text-base font-semibold text-black`}>
+                    <span
+                      className={`${raleway.className} text-base font-semibold text-black`}
+                    >
                       {selectedSides.join(", ")}
                     </span>
                     <PencilIcon
@@ -2505,7 +3566,9 @@ const cancelPostResurfacing = () => {
                             onChange={() => handleToggleSide(side)}
                             className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                           />
-                          <span className={`${raleway.className} text-base font-semibold text-black`}>
+                          <span
+                            className={`${raleway.className} text-base font-semibold text-black`}
+                          >
                             {side}
                           </span>
                         </label>
@@ -2531,14 +3594,20 @@ const cancelPostResurfacing = () => {
               </label>
 
               <div className={`flex flex-row gap-9`}>
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   Deformity
                 </label>
 
                 {!isEditingDeformity ? (
                   <div className="flex items-center gap-2">
-                    <span className={`${raleway.className} text-sm font-semibold text-[#272727]`}>
-                      {selectedDeformity.length > 0 ? selectedDeformity.join(", ") : "Select"}
+                    <span
+                      className={`${raleway.className} text-sm font-semibold text-[#272727]`}
+                    >
+                      {selectedDeformity.length > 0
+                        ? selectedDeformity.join(", ")
+                        : "Select"}
                     </span>
                     <PencilIcon
                       className="w-5 h-5 text-gray-600 cursor-pointer"
@@ -2559,7 +3628,9 @@ const cancelPostResurfacing = () => {
                             onChange={() => handleToggleDeformity(grade)}
                             className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                           />
-                          <span className={`${raleway.className} text-xs font-semibold text-[#272727]`}>
+                          <span
+                            className={`${raleway.className} text-xs font-semibold text-[#272727]`}
+                          >
                             {grade}
                           </span>
                         </label>
@@ -2590,13 +3661,17 @@ const cancelPostResurfacing = () => {
 
             <div className={`flex flex-col pl-[23px] pt-[33px] gap-8`}>
               <div className={`flex flex-row gap-13`}>
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   Technological Assistance
                 </label>
 
                 {!isEditingTech ? (
                   <div className="flex items-center gap-2">
-                    <span className={`${raleway.className} text-sm font-semibold text-[#272727]`}>
+                    <span
+                      className={`${raleway.className} text-sm font-semibold text-[#272727]`}
+                    >
                       {selectedTech || "Select"}
                     </span>
                     <PencilIcon
@@ -2608,7 +3683,10 @@ const cancelPostResurfacing = () => {
                   <div className="flex items-center gap-2">
                     <div className="flex space-x-6">
                       {techOptions.map((grade) => (
-                        <label key={grade} className="flex items-center space-x-2 cursor-pointer">
+                        <label
+                          key={grade}
+                          className="flex items-center space-x-2 cursor-pointer"
+                        >
                           <input
                             type="radio"
                             name="techAssistance"
@@ -2617,7 +3695,9 @@ const cancelPostResurfacing = () => {
                             onChange={() => setTempTech(grade)}
                             className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                           />
-                          <span className={`${raleway.className} text-xs font-semibold text-[#272727]`}>
+                          <span
+                            className={`${raleway.className} text-xs font-semibold text-[#272727]`}
+                          >
                             {grade}
                           </span>
                         </label>
@@ -2637,13 +3717,17 @@ const cancelPostResurfacing = () => {
               </div>
 
               <div className={`flex flex-row gap-20.25`}>
-                <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                <label
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
                   Alignment Philosophy
                 </label>
 
                 {!isEditingAlignment ? (
                   <div className="flex items-center gap-2">
-                    <span className={`${raleway.className} text-sm font-semibold text-[#272727]`}>
+                    <span
+                      className={`${raleway.className} text-sm font-semibold text-[#272727]`}
+                    >
                       {selectedAlignment || "Select"}
                     </span>
                     <PencilIcon
@@ -2655,7 +3739,10 @@ const cancelPostResurfacing = () => {
                   <div className="flex items-center gap-2">
                     <div className="flex space-x-6">
                       {alignmentOptions.map((grade) => (
-                        <label key={grade} className="flex items-center space-x-2 cursor-pointer">
+                        <label
+                          key={grade}
+                          className="flex items-center space-x-2 cursor-pointer"
+                        >
                           <input
                             type="radio"
                             name="alignmentPhilosophy"
@@ -2664,7 +3751,9 @@ const cancelPostResurfacing = () => {
                             onChange={() => setTempAlignment(grade)}
                             className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                           />
-                          <span className={`${raleway.className} text-xs font-semibold text-[#272727]`}>
+                          <span
+                            className={`${raleway.className} text-xs font-semibold text-[#272727]`}
+                          >
                             {grade}
                           </span>
                         </label>
@@ -2703,7 +3792,9 @@ const cancelPostResurfacing = () => {
                 <div className={`space-y-6 flex flex-col pl-8`}>
                   {!isEditingTorque ? (
                     <div className="flex items-center gap-2">
-                      <span className={`${raleway.className} text-sm font-semibold text-[#272727]`}>
+                      <span
+                        className={`${raleway.className} text-sm font-semibold text-[#272727]`}
+                      >
                         {selectedTorque || "Select"}
                       </span>
                       <PencilIcon
@@ -2714,7 +3805,10 @@ const cancelPostResurfacing = () => {
                   ) : (
                     <div className="flex items-center gap-4">
                       {options.map((option) => (
-                        <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                        <label
+                          key={option}
+                          className="flex items-center space-x-2 cursor-pointer"
+                        >
                           <input
                             type="radio"
                             name="torqueUsed"
@@ -2723,7 +3817,9 @@ const cancelPostResurfacing = () => {
                             onChange={() => setTempTorque(option)}
                             className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                           />
-                          <span className={`${raleway.className} text-xs font-semibold text-[#272727]`}>
+                          <span
+                            className={`${raleway.className} text-xs font-semibold text-[#272727]`}
+                          >
                             {option}
                           </span>
                         </label>
@@ -2744,29 +3840,30 @@ const cancelPostResurfacing = () => {
 
               <div className={`flex flex-col gap-4`}>
                 <label
-  className={`${inter.className} text-base font-semibold text-[#484848]`}
->
-  2. Operative Date and Duration
-</label>
-<div className="space-x-12 flex flex-row">
-  <div className="relative w-52">
-    <p
-      className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}
-    >
-      {timeDate ? timeDate : "Select Date"}
-    </p>
-    <Image
-      src={Calendar}
-      alt="Calendar"
-      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
-    />
-  </div>
-
+                  className={`${inter.className} text-base font-semibold text-[#484848]`}
+                >
+                  2. Operative Date and Duration
+                </label>
+                <div className="space-x-12 flex flex-row">
+                  <div className="relative w-52">
+                    <p
+                      className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}
+                    >
+                      {timeDate ? timeDate : "Select Date"}
+                    </p>
+                    <Image
+                      src={Calendar}
+                      alt="Calendar"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
+                    />
+                  </div>
 
                   <div className="relative w-52 flex items-center gap-2">
                     {!isEditingTime ? (
                       <div className="flex items-center justify-between w-full px-2 py-2 rounded bg-white">
-                        <span className={`${poppins.className} font-medium text-sm text-black`}>
+                        <span
+                          className={`${poppins.className} font-medium text-sm text-black`}
+                        >
                           {timeValue || "HH:MM"}
                         </span>
                         <PencilIcon
@@ -2824,7 +3921,9 @@ const cancelPostResurfacing = () => {
                 <div className={`flex flex-col pl-8 space-y-2`}>
                   {!isEditingTorqued ? (
                     <div className="flex items-center justify-between w-52 px-2 py-2 rounded  bg-white">
-                      <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
+                      <span
+                        className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                      >
                         {selectedTorqued || "Select"}
                       </span>
                       <PencilIcon
@@ -2836,7 +3935,10 @@ const cancelPostResurfacing = () => {
                     <div className={`flex flex-col items-start gap-4`}>
                       <div className="space-y-4 flex flex-col">
                         {torquedOptions.map((option) => (
-                          <label key={option} className="flex items-center space-x-4 cursor-pointer">
+                          <label
+                            key={option}
+                            className="flex items-center space-x-4 cursor-pointer"
+                          >
                             <input
                               type="radio"
                               name="torquedStructure"
@@ -2845,7 +3947,9 @@ const cancelPostResurfacing = () => {
                               onChange={() => setTempTorqued(option)}
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                             />
-                            <span className={`text-xs text-[#272727] ${raleway.className} font-semibold`}>
+                            <span
+                              className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                            >
                               {option}
                             </span>
                           </label>
@@ -2899,44 +4003,69 @@ const cancelPostResurfacing = () => {
                         className="w-[123px] h-[176px] pt-2"
                       />
                       <div className="w-full flex flex-col gap-4 py-4">
-
                         {/* 1. Unworn / Worn */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Unworn / Worn</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Unworn / Worn
+                          </label>
                           {!isEditingDistalMedialUnwornWorn ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialUnwornWorn}</span>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalMedialUnwornWorn}
+                              </span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
-                                onClick={() => setIsEditingDistalMedialUnwornWorn(true)}
+                                onClick={() =>
+                                  setIsEditingDistalMedialUnwornWorn(true)
+                                }
                               />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
                               {["Unworn", "Worn"].map((option) => (
-                                <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                                <label
+                                  key={option}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
                                   <input
                                     type="radio"
                                     name="distalMedialUnwornWorn"
                                     value={option}
-                                    checked={tempDistalMedialUnwornWorn === option}
-                                    onChange={(e) => setTempDistalMedialUnwornWorn(e.target.value)}
+                                    checked={
+                                      tempDistalMedialUnwornWorn === option
+                                    }
+                                    onChange={(e) =>
+                                      setTempDistalMedialUnwornWorn(
+                                        e.target.value
+                                      )
+                                    }
                                     className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                   />
-                                  <span className="text-xs text-[#272727]">{option}</span>
+                                  <span className="text-xs text-[#272727]">
+                                    {option}
+                                  </span>
                                 </label>
                               ))}
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={() => {
-                                  setDistalMedialUnwornWorn(tempDistalMedialUnwornWorn);
+                                  setDistalMedialUnwornWorn(
+                                    tempDistalMedialUnwornWorn
+                                  );
+                                  handleSaveDistalMedialUnwornWorn();
                                   setIsEditingDistalMedialUnwornWorn(false);
                                 }}
                               />
                               <XMarkIcon
                                 className="w-5 h-5 text-red-600 cursor-pointer"
                                 onClick={() => {
-                                  setTempDistalMedialUnwornWorn(distalMedialUnwornWorn);
+                                  setTempDistalMedialUnwornWorn(
+                                    distalMedialUnwornWorn
+                                  );
                                   setIsEditingDistalMedialUnwornWorn(false);
                                 }}
                               />
@@ -2946,13 +4075,23 @@ const cancelPostResurfacing = () => {
 
                         {/* 2. Initial Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Initial Thickness
+                          </label>
                           {!isEditingDistalMedialInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialInitialThickness}</span>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalMedialInitialThickness}
+                              </span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
-                                onClick={() => setIsEditingDistalMedialInitialThickness(true)}
+                                onClick={() =>
+                                  setIsEditingDistalMedialInitialThickness(true)
+                                }
                               />
                             </div>
                           ) : (
@@ -2960,21 +4099,33 @@ const cancelPostResurfacing = () => {
                               <input
                                 type="text"
                                 value={tempDistalMedialInitialThickness}
-                                onChange={(e) => setTempDistalMedialInitialThickness(e.target.value)}
+                                onChange={(e) =>
+                                  setTempDistalMedialInitialThickness(
+                                    e.target.value
+                                  )
+                                }
                                 className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
                               />
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={() => {
-                                  setDistalMedialInitialThickness(tempDistalMedialInitialThickness);
-                                  setIsEditingDistalMedialInitialThickness(false);
+                                  setDistalMedialInitialThickness(
+                                    tempDistalMedialInitialThickness
+                                  );
+                                  setIsEditingDistalMedialInitialThickness(
+                                    false
+                                  );
                                 }}
                               />
                               <XMarkIcon
                                 className="w-5 h-5 text-red-600 cursor-pointer"
                                 onClick={() => {
-                                  setTempDistalMedialInitialThickness(distalMedialInitialThickness);
-                                  setIsEditingDistalMedialInitialThickness(false);
+                                  setTempDistalMedialInitialThickness(
+                                    distalMedialInitialThickness
+                                  );
+                                  setIsEditingDistalMedialInitialThickness(
+                                    false
+                                  );
                                 }}
                               />
                             </div>
@@ -2983,19 +4134,27 @@ const cancelPostResurfacing = () => {
 
                         {/* 3. Recut */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Recut</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Recut
+                          </label>
                           {/* Distal Medial Recut Block */}
                           <div className="flex items-center w-1/2 gap-4">
                             {/* Radio (Y/N) */}
                             <div className="flex items-center gap-2">
                               {!isEditingDistalMedialRecutYN ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
                                     {distalMedialRecutYN}
                                   </span>
                                   <PencilIcon
                                     className="w-4 h-4 text-gray-600 cursor-pointer"
-                                    onClick={() => setIsEditingDistalMedialRecutYN(true)}
+                                    onClick={() =>
+                                      setIsEditingDistalMedialRecutYN(true)
+                                    }
                                   />
                                 </>
                               ) : (
@@ -3006,10 +4165,16 @@ const cancelPostResurfacing = () => {
                                       name="distalMedialRecutYN"
                                       value="N"
                                       checked={tempDistalMedialRecutYN === "N"}
-                                      onChange={(e) => setTempDistalMedialRecutYN(e.target.value)}
+                                      onChange={(e) =>
+                                        setTempDistalMedialRecutYN(
+                                          e.target.value
+                                        )
+                                      }
                                       className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                     />
-                                    <span className="text-xs text-[#272727]">N</span>
+                                    <span className="text-xs text-[#272727]">
+                                      N
+                                    </span>
                                   </label>
 
                                   <label className="flex items-center gap-1 cursor-pointer">
@@ -3018,10 +4183,16 @@ const cancelPostResurfacing = () => {
                                       name="distalMedialRecutYN"
                                       value="Y"
                                       checked={tempDistalMedialRecutYN === "Y"}
-                                      onChange={(e) => setTempDistalMedialRecutYN(e.target.value)}
+                                      onChange={(e) =>
+                                        setTempDistalMedialRecutYN(
+                                          e.target.value
+                                        )
+                                      }
                                       className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                     />
-                                    <span className="text-xs text-[#272727]">Y</span>
+                                    <span className="text-xs text-[#272727]">
+                                      Y
+                                    </span>
                                   </label>
 
                                   <ClipboardDocumentCheckIcon
@@ -3040,12 +4211,16 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingDistalMedialRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
-                                    {distalMedialRecutMM} 
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalMedialRecutMM}
                                   </span>
                                   <PencilIcon
                                     className="w-4 h-4 text-gray-600 cursor-pointer"
-                                    onClick={() => setIsEditingDistalMedialRecutMM(true)}
+                                    onClick={() =>
+                                      setIsEditingDistalMedialRecutMM(true)
+                                    }
                                   />
                                 </>
                               ) : (
@@ -3053,7 +4228,9 @@ const cancelPostResurfacing = () => {
                                   <input
                                     type="text"
                                     value={tempDistalMedialRecutMM}
-                                    onChange={(e) => setTempDistalMedialRecutMM(e.target.value)}
+                                    onChange={(e) =>
+                                      setTempDistalMedialRecutMM(e.target.value)
+                                    }
                                     className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
                                   />
                                   <ClipboardDocumentCheckIcon
@@ -3072,41 +4249,62 @@ const cancelPostResurfacing = () => {
 
                         {/* 4. Washer */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Washer</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Washer
+                          </label>
                           {!isEditingDistalMedialWasher ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialWasher} {distalMedialWasherMM} </span>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalMedialWasher} {distalMedialWasherMM}{" "}
+                              </span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
-                                onClick={() => setIsEditingDistalMedialWasher(true)}
+                                onClick={() =>
+                                  setIsEditingDistalMedialWasher(true)
+                                }
                               />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
                               {["N", "Y"].map((option) => (
-                                <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                                <label
+                                  key={option}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
                                   <input
                                     type="radio"
                                     name="distalMedialWasher"
                                     value={option}
                                     checked={tempDistalMedialWasher === option}
-                                    onChange={(e) => setTempDistalMedialWasher(e.target.value)}
+                                    onChange={(e) =>
+                                      setTempDistalMedialWasher(e.target.value)
+                                    }
                                     className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                   />
-                                  <span className="text-xs text-[#272727]">{option}</span>
+                                  <span className="text-xs text-[#272727]">
+                                    {option}
+                                  </span>
                                 </label>
                               ))}
                               <input
                                 type="text"
                                 value={tempDistalMedialWasherMM}
-                                onChange={(e) => setTempDistalMedialWasherMM(e.target.value)}
+                                onChange={(e) =>
+                                  setTempDistalMedialWasherMM(e.target.value)
+                                }
                                 className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
                               />
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={() => {
                                   setDistalMedialWasher(tempDistalMedialWasher);
-                                  setDistalMedialWasherMM(tempDistalMedialWasherMM);
+                                  setDistalMedialWasherMM(
+                                    tempDistalMedialWasherMM
+                                  );
                                   setIsEditingDistalMedialWasher(false);
                                 }}
                               />
@@ -3114,7 +4312,9 @@ const cancelPostResurfacing = () => {
                                 className="w-5 h-5 text-red-600 cursor-pointer"
                                 onClick={() => {
                                   setTempDistalMedialWasher(distalMedialWasher);
-                                  setTempDistalMedialWasherMM(distalMedialWasherMM);
+                                  setTempDistalMedialWasherMM(
+                                    distalMedialWasherMM
+                                  );
                                   setIsEditingDistalMedialWasher(false);
                                 }}
                               />
@@ -3124,13 +4324,23 @@ const cancelPostResurfacing = () => {
 
                         {/* 5. Final Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Final Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Final Thickness
+                          </label>
                           {!isEditingDistalMedialFinalThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalMedialFinalThickness} </span>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalMedialFinalThickness}{" "}
+                              </span>
                               <PencilIcon
                                 className="w-5 h-5 text-gray-600 cursor-pointer"
-                                onClick={() => setIsEditingDistalMedialFinalThickness(true)}
+                                onClick={() =>
+                                  setIsEditingDistalMedialFinalThickness(true)
+                                }
                               />
                             </div>
                           ) : (
@@ -3138,29 +4348,35 @@ const cancelPostResurfacing = () => {
                               <input
                                 type="text"
                                 value={tempDistalMedialFinalThickness}
-                                onChange={(e) => setTempDistalMedialFinalThickness(e.target.value)}
+                                onChange={(e) =>
+                                  setTempDistalMedialFinalThickness(
+                                    e.target.value
+                                  )
+                                }
                                 className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
                               />
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={() => {
-                                  setDistalMedialFinalThickness(tempDistalMedialFinalThickness);
+                                  setDistalMedialFinalThickness(
+                                    tempDistalMedialFinalThickness
+                                  );
                                   setIsEditingDistalMedialFinalThickness(false);
                                 }}
                               />
                               <XMarkIcon
                                 className="w-5 h-5 text-red-600 cursor-pointer"
                                 onClick={() => {
-                                  setTempDistalMedialFinalThickness(distalMedialFinalThickness);
+                                  setTempDistalMedialFinalThickness(
+                                    distalMedialFinalThickness
+                                  );
                                   setIsEditingDistalMedialFinalThickness(false);
                                 }}
                               />
                             </div>
                           )}
                         </div>
-
                       </div>
-
                     </div>
                   </div>
 
@@ -3179,80 +4395,201 @@ const cancelPostResurfacing = () => {
                     </div>
                     <div className={`flex flex-row gap-8 w-8/9 justify-end`}>
                       <div className="w-full flex flex-col gap-4 py-4">
-
                         {/* 1. Unworn / Worn */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Unworn / Worn</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Unworn / Worn
+                          </label>
                           {!isEditingDistalLateralUnwornWorn ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralUnwornWorn}</span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={editDistalLateralUnwornWorn} />
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalLateralUnwornWorn}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={editDistalLateralUnwornWorn}
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              {["Unworn","Worn"].map(option => (
-                                <label key={option} className="flex items-center space-x-2 cursor-pointer">
-                                  <input type="radio" name="distalLateralUnwornWorn" value={option} checked={tempDistalLateralUnwornWorn===option} onChange={e=>setTempDistalLateralUnwornWorn(e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                  <span className="text-sm text-[#272727]">{option}</span>
+                              {["Unworn", "Worn"].map((option) => (
+                                <label
+                                  key={option}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
+                                  <input
+                                    type="radio"
+                                    name="distalLateralUnwornWorn"
+                                    value={option}
+                                    checked={
+                                      tempDistalLateralUnwornWorn === option
+                                    }
+                                    onChange={(e) =>
+                                      setTempDistalLateralUnwornWorn(
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                  />
+                                  <span className="text-sm text-[#272727]">
+                                    {option}
+                                  </span>
                                 </label>
                               ))}
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={saveDistalLateralUnwornWorn}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelDistalLateralUnwornWorn}/>
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={saveDistalLateralUnwornWorn}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelDistalLateralUnwornWorn}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 2. Initial Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Initial Thickness
+                          </label>
                           {!isEditingDistalLateralInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralInitialThickness} </span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={editDistalLateralInitialThickness}/>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalLateralInitialThickness}{" "}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={editDistalLateralInitialThickness}
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input type="text" value={tempDistalLateralInitialThickness} onChange={e=>setTempDistalLateralInitialThickness(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"/>
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={saveDistalLateralInitialThickness}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelDistalLateralInitialThickness}/>
+                              <input
+                                type="text"
+                                value={tempDistalLateralInitialThickness}
+                                onChange={(e) =>
+                                  setTempDistalLateralInitialThickness(
+                                    e.target.value
+                                  )
+                                }
+                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
+                              />
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={saveDistalLateralInitialThickness}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelDistalLateralInitialThickness}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 3. Recut */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Recut</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Recut
+                          </label>
                           <div className="flex items-center w-1/2 gap-4">
                             <div className="flex items-center gap-2">
                               {!isEditingDistalLateralRecutYN ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralRecutYN}</span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingDistalLateralRecutYN(true)} />
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalLateralRecutYN}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingDistalLateralRecutYN(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  {["N","Y"].map(option=>(
-                                    <label key={option} className="flex items-center gap-1 cursor-pointer">
-                                      <input type="radio" name="distalLateralRecutYN" value={option} checked={tempDistalLateralRecutYN===option} onChange={e=>setTempDistalLateralRecutYN(e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                      <span className="text-xs text-[#272727]">{option}</span>
+                                  {["N", "Y"].map((option) => (
+                                    <label
+                                      key={option}
+                                      className="flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <input
+                                        type="radio"
+                                        name="distalLateralRecutYN"
+                                        value={option}
+                                        checked={
+                                          tempDistalLateralRecutYN === option
+                                        }
+                                        onChange={(e) =>
+                                          setTempDistalLateralRecutYN(
+                                            e.target.value
+                                          )
+                                        }
+                                        className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                      />
+                                      <span className="text-xs text-[#272727]">
+                                        {option}
+                                      </span>
                                     </label>
                                   ))}
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveDistalLateralRecutYN}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelDistalLateralRecutYN}/>
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={saveDistalLateralRecutYN}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelDistalLateralRecutYN}
+                                  />
                                 </>
                               )}
                             </div>
                             <div className="flex items-center gap-2">
                               {!isEditingDistalLateralRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralRecutMM} </span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingDistalLateralRecutMM(true)}/>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalLateralRecutMM}{" "}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingDistalLateralRecutMM(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  <input type="text" value={tempDistalLateralRecutMM} onChange={e=>setTempDistalLateralRecutMM(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"/>
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveDistalLateralRecutMM}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelDistalLateralRecutMM}/>
+                                  <input
+                                    type="text"
+                                    value={tempDistalLateralRecutMM}
+                                    onChange={(e) =>
+                                      setTempDistalLateralRecutMM(
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
+                                  />
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={saveDistalLateralRecutMM}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelDistalLateralRecutMM}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3261,33 +4598,63 @@ const cancelPostResurfacing = () => {
 
                         {/* 4. Washer */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Washer</label>
-                          
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Washer
+                          </label>
+
                           <div className="flex items-center w-1/2 gap-4">
                             {/* Y/N */}
                             <div className="flex items-center gap-2">
                               {!isEditingDistalLateralWasherYN ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralWasherYN}</span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingDistalLateralWasherYN(true)} />
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalLateralWasherYN}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingDistalLateralWasherYN(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  {["N","Y"].map(option => (
-                                    <label key={option} className="flex items-center gap-1 cursor-pointer">
+                                  {["N", "Y"].map((option) => (
+                                    <label
+                                      key={option}
+                                      className="flex items-center gap-1 cursor-pointer"
+                                    >
                                       <input
                                         type="radio"
                                         name="distalLateralWasherYN"
                                         value={option}
-                                        checked={tempDistalLateralWasherYN===option}
-                                        onChange={e=>setTempDistalLateralWasherYN(e.target.value)}
+                                        checked={
+                                          tempDistalLateralWasherYN === option
+                                        }
+                                        onChange={(e) =>
+                                          setTempDistalLateralWasherYN(
+                                            e.target.value
+                                          )
+                                        }
                                         className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                       />
-                                      <span className="text-xs text-[#272727]">{option}</span>
+                                      <span className="text-xs text-[#272727]">
+                                        {option}
+                                      </span>
                                     </label>
                                   ))}
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveDistalLateralWasherYN}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelDistalLateralWasherYN}/>
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={saveDistalLateralWasherYN}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelDistalLateralWasherYN}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3296,14 +4663,38 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingDistalLateralWasherMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralWasherMM} </span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingDistalLateralWasherMM(true)}/>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalLateralWasherMM}{" "}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingDistalLateralWasherMM(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  <input type="text" value={tempDistalLateralWasherMM} onChange={e=>setTempDistalLateralWasherMM(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"/>
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveDistalLateralWasherMM}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelDistalLateralWasherMM}/>
+                                  <input
+                                    type="text"
+                                    value={tempDistalLateralWasherMM}
+                                    onChange={(e) =>
+                                      setTempDistalLateralWasherMM(
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
+                                  />
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={saveDistalLateralWasherMM}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelDistalLateralWasherMM}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3312,21 +4703,46 @@ const cancelPostResurfacing = () => {
 
                         {/* 5. Final Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Final Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Final Thickness
+                          </label>
                           {!isEditingDistalLateralFinalThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{distalLateralFinalThickness}</span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={editDistalLateralFinalThickness}/>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {distalLateralFinalThickness}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={editDistalLateralFinalThickness}
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input type="text" value={tempDistalLateralFinalThickness} onChange={e=>setTempDistalLateralFinalThickness(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"/>
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={saveDistalLateralFinalThickness}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelDistalLateralFinalThickness}/>
+                              <input
+                                type="text"
+                                value={tempDistalLateralFinalThickness}
+                                onChange={(e) =>
+                                  setTempDistalLateralFinalThickness(
+                                    e.target.value
+                                  )
+                                }
+                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
+                              />
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={saveDistalLateralFinalThickness}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelDistalLateralFinalThickness}
+                              />
                             </div>
                           )}
                         </div>
-
                       </div>
                       <Image
                         src={LateralCondyle}
@@ -3371,68 +4787,157 @@ const cancelPostResurfacing = () => {
                         className="w-[123px] h-[176px] pt-2"
                       />
                       <div className="w-full flex flex-col gap-4 justify-between py-4">
-
                         {/* 1. Unworn / Worn */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Unworn / Worn</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Unworn / Worn
+                          </label>
                           {!isEditingPostMedUnwornWorn ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedUnwornWorn}</span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedUnwornWorn(true)} />
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {postMedUnwornWorn}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingPostMedUnwornWorn(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              {["Unworn","Worn"].map(option => (
-                                <label key={option} className="flex items-center space-x-2 cursor-pointer">
-                                  <input type="radio" name="postMedUnwornWorn" value={option} checked={tempPostMedUnwornWorn===option} onChange={e=>setTempPostMedUnwornWorn(e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                  <span className="text-xs text-[#272727]">{option}</span>
+                              {["Unworn", "Worn"].map((option) => (
+                                <label
+                                  key={option}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
+                                  <input
+                                    type="radio"
+                                    name="postMedUnwornWorn"
+                                    value={option}
+                                    checked={tempPostMedUnwornWorn === option}
+                                    onChange={(e) =>
+                                      setTempPostMedUnwornWorn(e.target.value)
+                                    }
+                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                  />
+                                  <span className="text-xs text-[#272727]">
+                                    {option}
+                                  </span>
                                 </label>
                               ))}
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={savePostMedUnwornWorn}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelPostMedUnwornWorn}/>
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={savePostMedUnwornWorn}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelPostMedUnwornWorn}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 2. Initial Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Initial Thickness
+                          </label>
                           {!isEditingPostMedInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedInitialThickness} </span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedInitialThickness(true)} />
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {postMedInitialThickness}{" "}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingPostMedInitialThickness(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input type="text" value={tempPostMedInitialThickness} onChange={e=>setTempPostMedInitialThickness(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"/>
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={savePostMedInitialThickness}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelPostMedInitialThickness}/>
+                              <input
+                                type="text"
+                                value={tempPostMedInitialThickness}
+                                onChange={(e) =>
+                                  setTempPostMedInitialThickness(e.target.value)
+                                }
+                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
+                              />
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={savePostMedInitialThickness}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelPostMedInitialThickness}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 3. Recut */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Recut</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Recut
+                          </label>
                           <div className="flex items-center w-1/2 gap-4">
-
                             {/* Y/N */}
                             <div className="flex items-center gap-2">
                               {!isEditingPostMedRecutYN ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedRecutYN}</span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedRecutYN(true)}/>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {postMedRecutYN}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingPostMedRecutYN(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  {["N","Y"].map(option => (
-                                    <label key={option} className="flex items-center gap-1 cursor-pointer">
-                                      <input type="radio" value={option} checked={tempPostMedRecutYN===option} onChange={e=>setTempPostMedRecutYN(e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                      <span className="text-xs text-[#272727]">{option}</span>
+                                  {["N", "Y"].map((option) => (
+                                    <label
+                                      key={option}
+                                      className="flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <input
+                                        type="radio"
+                                        value={option}
+                                        checked={tempPostMedRecutYN === option}
+                                        onChange={(e) =>
+                                          setTempPostMedRecutYN(e.target.value)
+                                        }
+                                        className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                      />
+                                      <span className="text-xs text-[#272727]">
+                                        {option}
+                                      </span>
                                     </label>
                                   ))}
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={savePostMedRecutYN}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelPostMedRecutYN}/>
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={savePostMedRecutYN}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelPostMedRecutYN}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3441,14 +4946,36 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingPostMedRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedRecutMM} </span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedRecutMM(true)}/>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {postMedRecutMM}{" "}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingPostMedRecutMM(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  <input type="text" value={tempPostMedRecutMM} onChange={e=>setTempPostMedRecutMM(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"/>
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={savePostMedRecutMM}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelPostMedRecutMM}/>
+                                  <input
+                                    type="text"
+                                    value={tempPostMedRecutMM}
+                                    onChange={(e) =>
+                                      setTempPostMedRecutMM(e.target.value)
+                                    }
+                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
+                                  />
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={savePostMedRecutMM}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelPostMedRecutMM}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3457,25 +4984,49 @@ const cancelPostResurfacing = () => {
 
                         {/* 4. Final Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Final Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Final Thickness
+                          </label>
                           <div className="flex items-center w-1/2 gap-4">
-                          {!isEditingPostMedFinalThickness ? (
-                            <>
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postMedFinalThickness} </span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostMedFinalThickness(true)}/>
-                            </>
-                          ) : (
-                            <div className="flex items-center w-1/2 gap-2">
-                              <input type="text" value={tempPostMedFinalThickness} onChange={e=>setTempPostMedFinalThickness(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"/>
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={savePostMedFinalThickness}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelPostMedFinalThickness}/>
-                            </div>
-                          )}
+                            {!isEditingPostMedFinalThickness ? (
+                              <>
+                                <span
+                                  className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                >
+                                  {postMedFinalThickness}{" "}
+                                </span>
+                                <PencilIcon
+                                  className="w-5 h-5 text-gray-600 cursor-pointer"
+                                  onClick={() =>
+                                    setIsEditingPostMedFinalThickness(true)
+                                  }
+                                />
+                              </>
+                            ) : (
+                              <div className="flex items-center w-1/2 gap-2">
+                                <input
+                                  type="text"
+                                  value={tempPostMedFinalThickness}
+                                  onChange={(e) =>
+                                    setTempPostMedFinalThickness(e.target.value)
+                                  }
+                                  className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
+                                />
+                                <ClipboardDocumentCheckIcon
+                                  className="w-5 h-5 text-green-600 cursor-pointer"
+                                  onClick={savePostMedFinalThickness}
+                                />
+                                <XMarkIcon
+                                  className="w-5 h-5 text-red-600 cursor-pointer"
+                                  onClick={cancelPostMedFinalThickness}
+                                />
+                              </div>
+                            )}
                           </div>
                         </div>
-
                       </div>
-
                     </div>
                   </div>
                   <div className={`w-1/2 flex flex-col items-end`}>
@@ -3493,68 +5044,157 @@ const cancelPostResurfacing = () => {
                     </div>
                     <div className={`flex flex-row gap-8 w-8/9 justify-end`}>
                       <div className="w-full flex flex-col gap-4 justify-between py-4">
-
                         {/* 1. Unworn / Worn */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Unworn / Worn</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Unworn / Worn
+                          </label>
                           {!isEditingPostLatUnwornWorn ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatUnwornWorn}</span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatUnwornWorn(true)} />
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {postLatUnwornWorn}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingPostLatUnwornWorn(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              {["Unworn","Worn"].map(option => (
-                                <label key={option} className="flex items-center space-x-2 cursor-pointer">
-                                  <input type="radio" name="postLatUnwornWorn" value={option} checked={tempPostLatUnwornWorn===option} onChange={e=>setTempPostLatUnwornWorn(e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                  <span className="text-xs text-[#272727]">{option}</span>
+                              {["Unworn", "Worn"].map((option) => (
+                                <label
+                                  key={option}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
+                                  <input
+                                    type="radio"
+                                    name="postLatUnwornWorn"
+                                    value={option}
+                                    checked={tempPostLatUnwornWorn === option}
+                                    onChange={(e) =>
+                                      setTempPostLatUnwornWorn(e.target.value)
+                                    }
+                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                  />
+                                  <span className="text-xs text-[#272727]">
+                                    {option}
+                                  </span>
                                 </label>
                               ))}
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={savePostLatUnwornWorn}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelPostLatUnwornWorn}/>
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={savePostLatUnwornWorn}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelPostLatUnwornWorn}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 2. Initial Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Initial Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Initial Thickness
+                          </label>
                           {!isEditingPostLatInitialThickness ? (
                             <div className="flex items-center w-1/2 justify-between">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatInitialThickness} </span>
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatInitialThickness(true)} />
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {postLatInitialThickness}{" "}
+                              </span>
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingPostLatInitialThickness(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input type="text" value={tempPostLatInitialThickness} onChange={e=>setTempPostLatInitialThickness(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"/>
-                              <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={savePostLatInitialThickness}/>
-                              <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelPostLatInitialThickness}/>
+                              <input
+                                type="text"
+                                value={tempPostLatInitialThickness}
+                                onChange={(e) =>
+                                  setTempPostLatInitialThickness(e.target.value)
+                                }
+                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
+                              />
+                              <ClipboardDocumentCheckIcon
+                                className="w-5 h-5 text-green-600 cursor-pointer"
+                                onClick={savePostLatInitialThickness}
+                              />
+                              <XMarkIcon
+                                className="w-5 h-5 text-red-600 cursor-pointer"
+                                onClick={cancelPostLatInitialThickness}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 3. Recut */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Recut</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Recut
+                          </label>
                           <div className="flex items-center w-1/2 gap-4">
-
                             {/* Y/N */}
                             <div className="flex items-center gap-2">
                               {!isEditingPostLatRecutYN ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatRecutYN}</span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatRecutYN(true)}/>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {postLatRecutYN}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingPostLatRecutYN(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  {["N","Y"].map(option => (
-                                    <label key={option} className="flex items-center gap-1 cursor-pointer">
-                                      <input type="radio" value={option} checked={tempPostLatRecutYN===option} onChange={e=>setTempPostLatRecutYN(e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                      <span className="text-xs text-[#272727]">{option}</span>
+                                  {["N", "Y"].map((option) => (
+                                    <label
+                                      key={option}
+                                      className="flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <input
+                                        type="radio"
+                                        value={option}
+                                        checked={tempPostLatRecutYN === option}
+                                        onChange={(e) =>
+                                          setTempPostLatRecutYN(e.target.value)
+                                        }
+                                        className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                      />
+                                      <span className="text-xs text-[#272727]">
+                                        {option}
+                                      </span>
                                     </label>
                                   ))}
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={savePostLatRecutYN}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelPostLatRecutYN}/>
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={savePostLatRecutYN}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelPostLatRecutYN}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3563,14 +5203,36 @@ const cancelPostResurfacing = () => {
                             <div className="flex items-center gap-2">
                               {!isEditingPostLatRecutMM ? (
                                 <>
-                                  <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatRecutMM} </span>
-                                  <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatRecutMM(true)}/>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {postLatRecutMM}{" "}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingPostLatRecutMM(true)
+                                    }
+                                  />
                                 </>
                               ) : (
                                 <>
-                                  <input type="text" value={tempPostLatRecutMM} onChange={e=>setTempPostLatRecutMM(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"/>
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={savePostLatRecutMM}/>
-                                  <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelPostLatRecutMM}/>
+                                  <input
+                                    type="text"
+                                    value={tempPostLatRecutMM}
+                                    onChange={(e) =>
+                                      setTempPostLatRecutMM(e.target.value)
+                                    }
+                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
+                                  />
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={savePostLatRecutMM}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelPostLatRecutMM}
+                                  />
                                 </>
                               )}
                             </div>
@@ -3579,23 +5241,48 @@ const cancelPostResurfacing = () => {
 
                         {/* 4. Final Thickness */}
                         <div className="flex flex-row gap-4">
-                          <label className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}>Final Thickness</label>
+                          <label
+                            className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
+                          >
+                            Final Thickness
+                          </label>
                           <div className="flex items-center w-1/2 gap-4">
                             {!isEditingPostLatFinalThickness ? (
                               <>
-                                <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{postLatFinalThickness} </span>
-                                <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPostLatFinalThickness(true)}/>
+                                <span
+                                  className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                >
+                                  {postLatFinalThickness}{" "}
+                                </span>
+                                <PencilIcon
+                                  className="w-5 h-5 text-gray-600 cursor-pointer"
+                                  onClick={() =>
+                                    setIsEditingPostLatFinalThickness(true)
+                                  }
+                                />
                               </>
                             ) : (
                               <div className="flex items-center w-1/2 gap-2">
-                                <input type="text" value={tempPostLatFinalThickness} onChange={e=>setTempPostLatFinalThickness(e.target.value)} className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"/>
-                                <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={savePostLatFinalThickness}/>
-                                <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelPostLatFinalThickness}/>
+                                <input
+                                  type="text"
+                                  value={tempPostLatFinalThickness}
+                                  onChange={(e) =>
+                                    setTempPostLatFinalThickness(e.target.value)
+                                  }
+                                  className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
+                                />
+                                <ClipboardDocumentCheckIcon
+                                  className="w-5 h-5 text-green-600 cursor-pointer"
+                                  onClick={savePostLatFinalThickness}
+                                />
+                                <XMarkIcon
+                                  className="w-5 h-5 text-red-600 cursor-pointer"
+                                  onClick={cancelPostLatFinalThickness}
+                                />
                               </div>
                             )}
                           </div>
                         </div>
-
                       </div>
 
                       <Image
@@ -3622,66 +5309,111 @@ const cancelPostResurfacing = () => {
                 <div className={`w-full flex flex-row pt-10`}>
                   <div className={`w-1/2 flex flex-col gap-12`}>
                     <div className={`w-full flex flex-row gap-2`}>
-                      <div className={`w-1/7 h-full flex flex-col justify-between`}>
-
+                      <div
+                        className={`w-1/7 h-full flex flex-col justify-between`}
+                      >
                         {/* 1. Worn / Unworn */}
                         <div className={`space-y-6 flex flex-col`}>
                           {!isEditingTibialLeftWorn ? (
                             <div className="flex flex-col gap-2">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialLeftWorn}</span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialLeftWorn(true)}/>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {tibialLeftWorn}
+                              </span>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() => setIsEditingTibialLeftWorn(true)}
+                              />
                             </div>
                           ) : (
                             ["Worn", "UnWorn"].map((grade) => {
                               const id = `tibialleftworn-${grade}`;
                               return (
-                                <label key={id} htmlFor={id} className="flex items-center space-x-4 cursor-pointer">
+                                <label
+                                  key={id}
+                                  htmlFor={id}
+                                  className="flex items-center space-x-4 cursor-pointer"
+                                >
                                   <input
                                     id={id}
                                     type="radio"
                                     name="tibialLeftWorn"
                                     value={grade}
-                                    checked={tempTibialLeftWorn===grade}
-                                    onChange={e=>setTempTibialLeftWorn(e.target.value)}
+                                    checked={tempTibialLeftWorn === grade}
+                                    onChange={(e) =>
+                                      setTempTibialLeftWorn(e.target.value)
+                                    }
                                     className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                   />
-                                  <span className={`text-xs text-[#272727] ${raleway.className} font-semibold`}>{grade}</span>
+                                  <span
+                                    className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {grade}
+                                  </span>
                                 </label>
-                              )
+                              );
                             })
                           )}
                           {isEditingTibialLeftWorn && (
                             <div className="flex gap-2 mt-1">
-                              <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialLeftWorn}/>
-                              <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialLeftWorn}/>
+                              <ClipboardDocumentCheckIcon
+                                className="w-4 h-4 text-green-600 cursor-pointer"
+                                onClick={saveTibialLeftWorn}
+                              />
+                              <XMarkIcon
+                                className="w-4 h-4 text-red-600 cursor-pointer"
+                                onClick={cancelTibialLeftWorn}
+                              />
                             </div>
                           )}
                         </div>
 
                         {/* 2. Thickness MM */}
                         <div className={`flex flex-row gap-1 items-center`}>
-                          
                           {!isEditingTibialLeftMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialLeftMM}</span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialLeftMM(true)}/>
+                              <label
+                                className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                              ></label>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {tibialLeftMM}
+                              </span>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() => setIsEditingTibialLeftMM(true)}
+                              />
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-3">
                               <div className={`flex flex-row gap-2`}>
-                                <label className={`${raleway.className} font-semibold text-xs text-[#484848]`}></label>
-                                <input type="text" value={tempTibialLeftMM} onChange={e=>setTempTibialLeftMM(e.target.value)} className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"/>
+                                <label
+                                  className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                                ></label>
+                                <input
+                                  type="text"
+                                  value={tempTibialLeftMM}
+                                  onChange={(e) =>
+                                    setTempTibialLeftMM(e.target.value)
+                                  }
+                                  className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"
+                                />
                               </div>
                               <div className={`flex flex-row gap-3`}>
-                              <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialLeftMM}/>
-                              <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialLeftMM}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={saveTibialLeftMM}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={cancelTibialLeftMM}
+                                />
                               </div>
-                              
                             </div>
                           )}
                         </div>
-
                       </div>
 
                       <div className={`w-5/7 flex items-center`}>
@@ -3692,38 +5424,64 @@ const cancelPostResurfacing = () => {
                         />
                       </div>
 
-                      <div className={`w-1/7 h-full flex flex-col justify-between`}>
-
+                      <div
+                        className={`w-1/7 h-full flex flex-col justify-between`}
+                      >
                         {/* 1. Worn / Unworn */}
                         <div className={`space-y-6 flex flex-col`}>
                           {!isEditingTibialRightWorn ? (
                             <div className="flex flex-col gap-2">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialRightWorn}</span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialRightWorn(true)}/>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {tibialRightWorn}
+                              </span>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingTibialRightWorn(true)
+                                }
+                              />
                             </div>
                           ) : (
                             ["Worn", "UnWorn"].map((grade) => {
                               const id = `tibialrightworn-${grade}`;
                               return (
-                                <label key={id} htmlFor={id} className="flex items-center space-x-4 cursor-pointer">
+                                <label
+                                  key={id}
+                                  htmlFor={id}
+                                  className="flex items-center space-x-4 cursor-pointer"
+                                >
                                   <input
                                     id={id}
                                     type="radio"
                                     name="tibialRightWorn"
                                     value={grade}
-                                    checked={tempTibialRightWorn===grade}
-                                    onChange={e=>setTempTibialRightWorn(e.target.value)}
+                                    checked={tempTibialRightWorn === grade}
+                                    onChange={(e) =>
+                                      setTempTibialRightWorn(e.target.value)
+                                    }
                                     className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                   />
-                                  <span className={`text-xs text-[#272727] ${raleway.className} font-semibold`}>{grade}</span>
+                                  <span
+                                    className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {grade}
+                                  </span>
                                 </label>
-                              )
+                              );
                             })
                           )}
                           {isEditingTibialRightWorn && (
                             <div className="flex gap-2 mt-1">
-                              <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialRightWorn}/>
-                              <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialRightWorn}/>
+                              <ClipboardDocumentCheckIcon
+                                className="w-4 h-4 text-green-600 cursor-pointer"
+                                onClick={saveTibialRightWorn}
+                              />
+                              <XMarkIcon
+                                className="w-4 h-4 text-red-600 cursor-pointer"
+                                onClick={cancelTibialRightWorn}
+                              />
                             </div>
                           )}
                         </div>
@@ -3732,26 +5490,48 @@ const cancelPostResurfacing = () => {
                         <div className={`flex flex-row gap-1 items-center`}>
                           {!isEditingTibialRightMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialRightMM}</span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialRightMM(true)}/>
+                              <label
+                                className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                              ></label>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {tibialRightMM}
+                              </span>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() => setIsEditingTibialRightMM(true)}
+                              />
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-3">
                               <div className={`flex flex-row gap-2`}>
-                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
-                                <input type="text" value={tempTibialRightMM} onChange={e=>setTempTibialRightMM(e.target.value)} className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"/>
+                                <label
+                                  className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                                ></label>
+                                <input
+                                  type="text"
+                                  value={tempTibialRightMM}
+                                  onChange={(e) =>
+                                    setTempTibialRightMM(e.target.value)
+                                  }
+                                  className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"
+                                />
                               </div>
                               <div className={`flex flex-row gap-3`}>
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialRightMM}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialRightMM}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={saveTibialRightMM}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={cancelTibialRightMM}
+                                />
                               </div>
                             </div>
                           )}
                         </div>
-
                       </div>
-
                     </div>
 
                     <div className={`flex flex-col gap-4`}>
@@ -3760,50 +5540,72 @@ const cancelPostResurfacing = () => {
                       >
                         PCL Condition
                       </label>
-                     <div className={`space-x-6 flex flex-row items-center`}>
-
-                      {!isEditingPclCondition ? (
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{pclCondition}</span>
-                          <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingPclCondition(true)}/>
-                        </div>
-                      ) : (
-                        <>
-                          {["Intact", "Torn", "Excised"].map((grade) => {
-                            const id = `pclcondition-${grade}`;
-                            return (
-                              <label key={id} htmlFor={id} className="flex items-center space-x-2 cursor-pointer">
-                                <input
-                                  id={id}
-                                  type="radio"
-                                  name="pclCondition"
-                                  value={grade}
-                                  checked={tempPclCondition===grade}
-                                  onChange={e=>setTempPclCondition(e.target.value)}
-                                  className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
-                                />
-                                <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{grade}</span>
-                              </label>
-                            );
-                          })}
-                          <div className="flex gap-2 mt-1">
-                            <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={savePclCondition}/>
-                            <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelPclCondition}/>
+                      <div className={`space-x-6 flex flex-row items-center`}>
+                        {!isEditingPclCondition ? (
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                            >
+                              {pclCondition}
+                            </span>
+                            <PencilIcon
+                              className="w-4 h-4 text-gray-600 cursor-pointer"
+                              onClick={() => setIsEditingPclCondition(true)}
+                            />
                           </div>
-                        </>
-                      )}
-
-                    </div>
-
-
+                        ) : (
+                          <>
+                            {["Intact", "Torn", "Excised"].map((grade) => {
+                              const id = `pclcondition-${grade}`;
+                              return (
+                                <label
+                                  key={id}
+                                  htmlFor={id}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
+                                  <input
+                                    id={id}
+                                    type="radio"
+                                    name="pclCondition"
+                                    value={grade}
+                                    checked={tempPclCondition === grade}
+                                    onChange={(e) =>
+                                      setTempPclCondition(e.target.value)
+                                    }
+                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                  />
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {grade}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                            <div className="flex gap-2 mt-1">
+                              <ClipboardDocumentCheckIcon
+                                className="w-4 h-4 text-green-600 cursor-pointer"
+                                onClick={savePclCondition}
+                              />
+                              <XMarkIcon
+                                className="w-4 h-4 text-red-600 cursor-pointer"
+                                onClick={cancelPclCondition}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div className={`w-1/2 flex flex-col`}>
                     <div className={`flex flex-col gap-8`}>
-                      <div className={`flex flex-row gap-12 items-center pl-20`}>
-
-                        <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                      <div
+                        className={`flex flex-row gap-12 items-center pl-20`}
+                      >
+                        <label
+                          className={`${inter.className} text-base font-semibold text-[#484848]`}
+                        >
                           Tibial V-V Recut
                         </label>
 
@@ -3811,33 +5613,56 @@ const cancelPostResurfacing = () => {
                         <div className={`space-x-3 flex flex-row pl-3.5`}>
                           {!isEditingTibialVVRecutYN ? (
                             <div className="flex items-center gap-2">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
                                 {tibialVVRecutYN}
                               </span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialVVRecutYN(true)}/>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingTibialVVRecutYN(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <>
-                              {["N","Y"].map((grade) => {
+                              {["N", "Y"].map((grade) => {
                                 const id = `tibialvvrecut-${grade}`;
                                 return (
-                                  <label key={id} htmlFor={id} className="flex items-center space-x-2 cursor-pointer">
+                                  <label
+                                    key={id}
+                                    htmlFor={id}
+                                    className="flex items-center space-x-2 cursor-pointer"
+                                  >
                                     <input
                                       id={id}
                                       type="radio"
                                       name="tibialVVRecutYN"
                                       value={grade}
-                                      checked={tempTibialVVRecutYN===grade}
-                                      onChange={e=>setTempTibialVVRecutYN(e.target.value)}
+                                      checked={tempTibialVVRecutYN === grade}
+                                      onChange={(e) =>
+                                        setTempTibialVVRecutYN(e.target.value)
+                                      }
                                       className="w-4 h-4 appearance-none rounded-sm bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                     />
-                                    <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{grade}</span>
+                                    <span
+                                      className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                    >
+                                      {grade}
+                                    </span>
                                   </label>
                                 );
                               })}
                               <div className="flex gap-2 mt-1">
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialVVRecutYN}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialVVRecutYN}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={saveTibialVVRecutYN}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={cancelTibialVVRecutYN}
+                                />
                               </div>
                             </>
                           )}
@@ -3847,35 +5672,57 @@ const cancelPostResurfacing = () => {
                         <div className={`flex items-center gap-2`}>
                           {!isEditingTibialVVRecutMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialVVRecutMM}</span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialVVRecutMM(true)}/>
+                              <label
+                                className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                              ></label>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {tibialVVRecutMM}
+                              </span>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingTibialVVRecutMM(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <div className="flex flex-row gap-2">
                               <div className="flex items-center gap-2">
-                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
+                                <label
+                                  className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                                ></label>
                                 <input
                                   type="text"
                                   value={tempTibialVVRecutMM}
-                                  onChange={e=>setTempTibialVVRecutMM(e.target.value)}
+                                  onChange={(e) =>
+                                    setTempTibialVVRecutMM(e.target.value)
+                                  }
                                   className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-sm px-1 text-black"
                                 />
                               </div>
                               <div className="flex gap-2">
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialVVRecutMM}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialVVRecutMM}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={saveTibialVVRecutMM}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={cancelTibialVVRecutMM}
+                                />
                               </div>
                             </div>
                           )}
                         </div>
-
                       </div>
 
-
-                      <div className={`flex flex-row gap-12 items-center pl-20`}>
-
-                        <label className={`${inter.className} text-base font-semibold text-[#484848]`}>
+                      <div
+                        className={`flex flex-row gap-12 items-center pl-20`}
+                      >
+                        <label
+                          className={`${inter.className} text-base font-semibold text-[#484848]`}
+                        >
                           Tibial Slope Recut
                         </label>
 
@@ -3883,33 +5730,58 @@ const cancelPostResurfacing = () => {
                         <div className={`space-x-3 flex flex-row`}>
                           {!isEditingTibialSlopeRecutYN ? (
                             <div className="flex items-center gap-2">
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
                                 {tibialSlopeRecutYN}
                               </span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialSlopeRecutYN(true)}/>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingTibialSlopeRecutYN(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <>
-                              {["N","Y"].map((grade) => {
+                              {["N", "Y"].map((grade) => {
                                 const id = `tibialsloperecut-${grade}`;
                                 return (
-                                  <label key={id} htmlFor={id} className="flex items-center space-x-2 cursor-pointer">
+                                  <label
+                                    key={id}
+                                    htmlFor={id}
+                                    className="flex items-center space-x-2 cursor-pointer"
+                                  >
                                     <input
                                       id={id}
                                       type="radio"
                                       name="tibialSlopeRecutYN"
                                       value={grade}
-                                      checked={tempTibialSlopeRecutYN===grade}
-                                      onChange={e=>setTempTibialSlopeRecutYN(e.target.value)}
+                                      checked={tempTibialSlopeRecutYN === grade}
+                                      onChange={(e) =>
+                                        setTempTibialSlopeRecutYN(
+                                          e.target.value
+                                        )
+                                      }
                                       className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                     />
-                                    <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{grade}</span>
+                                    <span
+                                      className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                    >
+                                      {grade}
+                                    </span>
                                   </label>
                                 );
                               })}
                               <div className="flex gap-2 mt-1">
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialSlopeRecutYN}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialSlopeRecutYN}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={saveTibialSlopeRecutYN}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={cancelTibialSlopeRecutYN}
+                                />
                               </div>
                             </>
                           )}
@@ -3919,74 +5791,119 @@ const cancelPostResurfacing = () => {
                         <div className={`flex items-center gap-2`}>
                           {!isEditingTibialSlopeRecutMM ? (
                             <div className="flex items-center gap-1">
-                              <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
-                              <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>{tibialSlopeRecutMM}</span>
-                              <PencilIcon className="w-4 h-4 text-gray-600 cursor-pointer" onClick={()=>setIsEditingTibialSlopeRecutMM(true)}/>
+                              <label
+                                className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                              ></label>
+                              <span
+                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                              >
+                                {tibialSlopeRecutMM}
+                              </span>
+                              <PencilIcon
+                                className="w-4 h-4 text-gray-600 cursor-pointer"
+                                onClick={() =>
+                                  setIsEditingTibialSlopeRecutMM(true)
+                                }
+                              />
                             </div>
                           ) : (
                             <div className="flex flex-row gap-2">
                               <div className="flex items-center gap-2">
-                                <label className={`${raleway.className} font-semibold text-sm text-[#484848]`}></label>
+                                <label
+                                  className={`${raleway.className} font-semibold text-sm text-[#484848]`}
+                                ></label>
                                 <input
                                   type="text"
                                   value={tempTibialSlopeRecutMM}
-                                  onChange={e=>setTempTibialSlopeRecutMM(e.target.value)}
+                                  onChange={(e) =>
+                                    setTempTibialSlopeRecutMM(e.target.value)
+                                  }
                                   className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-sm text-black px-1"
                                 />
                               </div>
                               <div className="flex gap-2">
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={saveTibialSlopeRecutMM}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={cancelTibialSlopeRecutMM}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={saveTibialSlopeRecutMM}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={cancelTibialSlopeRecutMM}
+                                />
                               </div>
                             </div>
                           )}
                         </div>
-
                       </div>
 
-
                       <div className={`pl-20 pt-14`}>
-                        <div className={`flex flex-col gap-4 border-[#AAA8A8] border-2 px-5 pb-5 pt-2`}>
-                          <label className={`${inter.className} text-base font-bold text-[#7676A4]`}>
+                        <div
+                          className={`flex flex-col gap-4 border-[#AAA8A8] border-2 px-5 pb-5 pt-2`}
+                        >
+                          <label
+                            className={`${inter.className} text-base font-bold text-[#7676A4]`}
+                          >
                             Final Check With Spacer Block and Trial Components
                           </label>
 
                           {!isEditingFinalCheck ? (
                             <div className="flex flex-col space-y-2">
                               {selectedFinalCheck.length === 0 ? (
-                                <span className={` ${raleway.className} text-sm text-[#272727] font-semibold`}>None Selected</span>
+                                <span
+                                  className={` ${raleway.className} text-sm text-[#272727] font-semibold`}
+                                >
+                                  None Selected
+                                </span>
                               ) : (
-                                
-                                  <span className={` ${raleway.className} text-sm text-[#272727] font-semibold`}>{selectedFinalCheck || "None Selected"}</span>
-                                
+                                <span
+                                  className={` ${raleway.className} text-sm text-[#272727] font-semibold`}
+                                >
+                                  {selectedFinalCheck || "None Selected"}
+                                </span>
                               )}
-                              <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={() => setIsEditingFinalCheck(true)} />
+                              <PencilIcon
+                                className="w-5 h-5 text-gray-600 cursor-pointer"
+                                onClick={() => setIsEditingFinalCheck(true)}
+                              />
                             </div>
                           ) : (
                             <div className="flex flex-col space-y-2">
-                              {finalCheckOptions.map(option => (
-                                <label key={option} className="flex items-center space-x-2 cursor-pointer">
+                              {finalCheckOptions.map((option) => (
+                                <label
+                                  key={option}
+                                  className="flex items-center space-x-2 cursor-pointer"
+                                >
                                   <input
                                     type="radio"
                                     name="finalCheck"
                                     value={option}
                                     checked={tempSelectedFinalCheck === option}
-                                    onChange={e => setTempSelectedFinalCheck(e.target.value)}
+                                    onChange={(e) =>
+                                      setTempSelectedFinalCheck(e.target.value)
+                                    }
                                     className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                                   />
-                                  <span className={`text-sm ${raleway.className} text-[#272727] font-semibold`}>{option}</span>
+                                  <span
+                                    className={`text-sm ${raleway.className} text-[#272727] font-semibold`}
+                                  >
+                                    {option}
+                                  </span>
                                 </label>
                               ))}
                               <div className="flex gap-2 mt-2">
-                                <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={saveFinalCheck}/>
-                                <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelFinalCheck}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-5 h-5 text-green-600 cursor-pointer"
+                                  onClick={saveFinalCheck}
+                                />
+                                <XMarkIcon
+                                  className="w-5 h-5 text-red-600 cursor-pointer"
+                                  onClick={cancelFinalCheck}
+                                />
                               </div>
                             </div>
                           )}
                         </div>
-
                       </div>
-
                     </div>
                   </div>
                 </div>
@@ -3997,10 +5914,21 @@ const cancelPostResurfacing = () => {
                   <table className="min-w-full table-fixed border-separate border-spacing-y-0">
                     <thead className="text-[#475467] text-[16px] font-medium text-center">
                       <tr className={`rounded-2xl ${inter.className}`}>
-                        {["Insert Thickness","No of Ticks","Extension EXT. ORIENT.","90° Flexion INT. ORIENT.","Lift–Off"].map((header, idx) => (
-                          <th key={header} className={`px-4 py-3 bg-black/80 text-white font-bold text-[15px] text-center whitespace-nowrap
+                        {[
+                          "Insert Thickness",
+                          "No of Ticks",
+                          "Extension EXT. ORIENT.",
+                          "90° Flexion INT. ORIENT.",
+                          "Lift–Off",
+                        ].map((header, idx) => (
+                          <th
+                            key={header}
+                            className={`px-4 py-3 bg-black/80 text-white font-bold text-[15px] text-center whitespace-nowrap
                           ${idx === 0 ? "rounded-tl-[8px]" : ""}
-                          ${idx === 4 ? "rounded-tr-[8px]" : ""}`}>{header}</th>
+                          ${idx === 4 ? "rounded-tr-[8px]" : ""}`}
+                          >
+                            {header}
+                          </th>
                         ))}
                       </tr>
                     </thead>
@@ -4009,83 +5937,227 @@ const cancelPostResurfacing = () => {
                       {tableData.map((row, rowIdx) => (
                         <tr key={rowIdx}>
                           {/* Insert Thickness */}
-                          <td className={`${raleway.className} text-[13px] px-4 py-2 text-center font-semibold text-black border-l-2 border-[#AAA8A8] ${rowIdx===0?"border-t-2":""} ${rowIdx===tableData.length-1?"border-b-2":""}`}>
+                          <td
+                            className={`${
+                              raleway.className
+                            } text-[13px] px-4 py-2 text-center font-semibold text-black border-l-2 border-[#AAA8A8] ${
+                              rowIdx === 0 ? "border-t-2" : ""
+                            } ${
+                              rowIdx === tableData.length - 1
+                                ? "border-b-2"
+                                : ""
+                            }`}
+                          >
                             {row.insertThickness} mm
                           </td>
 
                           {/* No of Ticks */}
-                          <td className={`px-4 py-2 text-center ${raleway.className} text-[13px] text-center font-semibold text-black ${rowIdx===0?"border-t-2 border-[#AAA8A8]":""} ${rowIdx===tableData.length-1?"border-b-2 border-[#AAA8A8]":""}`}>
+                          <td
+                            className={`px-4 py-2 text-center ${
+                              raleway.className
+                            } text-[13px] text-center font-semibold text-black ${
+                              rowIdx === 0 ? "border-t-2 border-[#AAA8A8]" : ""
+                            } ${
+                              rowIdx === tableData.length - 1
+                                ? "border-b-2 border-[#AAA8A8]"
+                                : ""
+                            }`}
+                          >
                             {!row.editing.numTicks ? (
                               <div className="flex items-center justify-center gap-2">
                                 <span>{row.numTicks || "0"}</span>
-                                <PencilIcon className="w-4 h-4 cursor-pointer" onClick={()=>startEdit(rowIdx,"numTicks")}/>
+                                <PencilIcon
+                                  className="w-4 h-4 cursor-pointer"
+                                  onClick={() => startEdit(rowIdx, "numTicks")}
+                                />
                               </div>
                             ) : (
                               <div className="flex items-center justify-center gap-2">
-                                <input type="number" value={row.temp.numTicks} onChange={e=>updateTemp(rowIdx,"numTicks",e.target.value)} className="w-16 border rounded px-2 py-1 text-center"/>
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={()=>saveEdit(rowIdx,"numTicks")}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={()=>cancelEdit(rowIdx,"numTicks")}/>
+                                <input
+                                  type="number"
+                                  value={row.temp.numTicks}
+                                  onChange={(e) =>
+                                    updateTemp(
+                                      rowIdx,
+                                      "numTicks",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-16 border rounded px-2 py-1 text-center"
+                                />
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={() => saveEdit(rowIdx, "numTicks")}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={() => cancelEdit(rowIdx, "numTicks")}
+                                />
                               </div>
                             )}
                           </td>
 
                           {/* Extension EXT. ORIENT. */}
-                          <td className={`px-4 py-2 ${raleway.className} text-[13px] text-center font-semibold text-black ${rowIdx===0?"border-t-2 border-[#AAA8A8]":""} ${rowIdx===tableData.length-1?"border-b-2 border-[#AAA8A8]":""}`}>
+                          <td
+                            className={`px-4 py-2 ${
+                              raleway.className
+                            } text-[13px] text-center font-semibold text-black ${
+                              rowIdx === 0 ? "border-t-2 border-[#AAA8A8]" : ""
+                            } ${
+                              rowIdx === tableData.length - 1
+                                ? "border-b-2 border-[#AAA8A8]"
+                                : ""
+                            }`}
+                          >
                             {!row.editing.extOrient ? (
                               <div className="flex justify-center items-center gap-2">
                                 <span>{row.extOrient || "—"}</span>
                                 <p>Deg</p>
-                                <PencilIcon className="w-4 h-4 cursor-pointer" onClick={()=>startEdit(rowIdx,"extOrient")}/>
+                                <PencilIcon
+                                  className="w-4 h-4 cursor-pointer"
+                                  onClick={() => startEdit(rowIdx, "extOrient")}
+                                />
                               </div>
                             ) : (
                               <div className="flex items-center justify-center gap-2">
-                                <input type="text" value={row.temp.extOrient} onChange={e=>updateTemp(rowIdx,"extOrient",e.target.value)} className="w-20 border rounded px-2 py-1 text-center"/>
+                                <input
+                                  type="text"
+                                  value={row.temp.extOrient}
+                                  onChange={(e) =>
+                                    updateTemp(
+                                      rowIdx,
+                                      "extOrient",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-20 border rounded px-2 py-1 text-center"
+                                />
                                 <p>Deg</p>
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={()=>saveEdit(rowIdx,"extOrient")}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={()=>cancelEdit(rowIdx,"extOrient")}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={() => saveEdit(rowIdx, "extOrient")}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={() =>
+                                    cancelEdit(rowIdx, "extOrient")
+                                  }
+                                />
                               </div>
                             )}
                           </td>
 
                           {/* 90° Flexion INT. ORIENT. */}
-                          <td className={`px-4 py-2 ${raleway.className} text-[13px] text-center font-semibold text-black ${rowIdx===0?"border-t-2 border-[#AAA8A8]":""} ${rowIdx===tableData.length-1?"border-b-2 border-[#AAA8A8]":""}`}>
+                          <td
+                            className={`px-4 py-2 ${
+                              raleway.className
+                            } text-[13px] text-center font-semibold text-black ${
+                              rowIdx === 0 ? "border-t-2 border-[#AAA8A8]" : ""
+                            } ${
+                              rowIdx === tableData.length - 1
+                                ? "border-b-2 border-[#AAA8A8]"
+                                : ""
+                            }`}
+                          >
                             {!row.editing.flex90Orient ? (
                               <div className="flex justify-center items-center gap-2">
                                 <span>{row.flex90Orient || "—"}</span>
                                 <p>Deg</p>
-                                <PencilIcon className="w-4 h-4 cursor-pointer" onClick={()=>startEdit(rowIdx,"flex90Orient")}/>
+                                <PencilIcon
+                                  className="w-4 h-4 cursor-pointer"
+                                  onClick={() =>
+                                    startEdit(rowIdx, "flex90Orient")
+                                  }
+                                />
                               </div>
                             ) : (
                               <div className="flex items-center justify-center gap-2">
-                                <input type="text" value={row.temp.flex90Orient} onChange={e=>updateTemp(rowIdx,"flex90Orient",e.target.value)} className="w-20 border rounded px-2 py-1 text-center"/>
+                                <input
+                                  type="text"
+                                  value={row.temp.flex90Orient}
+                                  onChange={(e) =>
+                                    updateTemp(
+                                      rowIdx,
+                                      "flex90Orient",
+                                      e.target.value
+                                    )
+                                  }
+                                  className="w-20 border rounded px-2 py-1 text-center"
+                                />
                                 <p>Deg</p>
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={()=>saveEdit(rowIdx,"flex90Orient")}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={()=>cancelEdit(rowIdx,"flex90Orient")}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={() =>
+                                    saveEdit(rowIdx, "flex90Orient")
+                                  }
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={() =>
+                                    cancelEdit(rowIdx, "flex90Orient")
+                                  }
+                                />
                               </div>
                             )}
                           </td>
 
                           {/* Lift-Off Y/N */}
-                          <td className={`border-r-2 border-[#AAA8A8] px-4 py-2 text-center ${raleway.className} text-[13px] text-center font-semibold text-black ${rowIdx===0?"border-t-2":""} ${rowIdx===tableData.length-1?"border-b-2":""}`}>
+                          <td
+                            className={`border-r-2 border-[#AAA8A8] px-4 py-2 text-center ${
+                              raleway.className
+                            } text-[13px] text-center font-semibold text-black ${
+                              rowIdx === 0 ? "border-t-2" : ""
+                            } ${
+                              rowIdx === tableData.length - 1
+                                ? "border-b-2"
+                                : ""
+                            }`}
+                          >
                             {!row.editing.liftOff ? (
                               <div className="flex justify-center items-center gap-2">
                                 <span>{row.liftOff || "—"}</span>
-                                <PencilIcon className="w-4 h-4 cursor-pointer" onClick={()=>startEdit(rowIdx,"liftOff")}/>
+                                <PencilIcon
+                                  className="w-4 h-4 cursor-pointer"
+                                  onClick={() => startEdit(rowIdx, "liftOff")}
+                                />
                               </div>
                             ) : (
                               <div className="flex justify-center items-center gap-3">
-                                {["N","Y"].map(option => (
-                                  <label key={option} className="flex items-center gap-1 cursor-pointer">
-                                    <input type="radio" name={`liftOff-${rowIdx}`} value={option} checked={row.temp.liftOff===option} onChange={e=>updateTemp(rowIdx,"liftOff",e.target.value)} className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"/>
-                                    <span className="text-xs text-[#272727] font-semibold">{option}</span>
+                                {["N", "Y"].map((option) => (
+                                  <label
+                                    key={option}
+                                    className="flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <input
+                                      type="radio"
+                                      name={`liftOff-${rowIdx}`}
+                                      value={option}
+                                      checked={row.temp.liftOff === option}
+                                      onChange={(e) =>
+                                        updateTemp(
+                                          rowIdx,
+                                          "liftOff",
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                    />
+                                    <span className="text-xs text-[#272727] font-semibold">
+                                      {option}
+                                    </span>
                                   </label>
                                 ))}
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-green-600 cursor-pointer" onClick={()=>saveEdit(rowIdx,"liftOff")}/>
-                                <XMarkIcon className="w-4 h-4 text-red-600 cursor-pointer" onClick={()=>cancelEdit(rowIdx,"liftOff")}/>
+                                <ClipboardDocumentCheckIcon
+                                  className="w-4 h-4 text-green-600 cursor-pointer"
+                                  onClick={() => saveEdit(rowIdx, "liftOff")}
+                                />
+                                <XMarkIcon
+                                  className="w-4 h-4 text-red-600 cursor-pointer"
+                                  onClick={() => cancelEdit(rowIdx, "liftOff")}
+                                />
                               </div>
                             )}
                           </td>
-
                         </tr>
                       ))}
                     </tbody>
@@ -4096,13 +6168,17 @@ const cancelPostResurfacing = () => {
               <div className={`w-full flex flex-col pt-10`}>
                 <div className={`flex flex-col gap-8`}>
                   <div className="flex flex-col gap-6">
-                    <label className={`${inter.className} text-base font-extrabold text-[#484848]`}>
+                    <label
+                      className={`${inter.className} text-base font-extrabold text-[#484848]`}
+                    >
                       PFJ Resurfacing
                     </label>
 
                     {!isEditingPFJResurf ? (
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm text-[#272727] ${raleway.className} font-semibold`}>
+                        <span
+                          className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                        >
                           {pfjResurf || "—"}
                         </span>
                         <PencilIcon
@@ -4113,7 +6189,10 @@ const cancelPostResurfacing = () => {
                     ) : (
                       <div className="flex items-center gap-4">
                         {["N", "Y"].map((option) => (
-                          <label key={option} className="flex items-center gap-2 cursor-pointer">
+                          <label
+                            key={option}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
                             <input
                               type="radio"
                               name="pfjResurf"
@@ -4122,7 +6201,9 @@ const cancelPostResurfacing = () => {
                               onChange={(e) => setTempPFJResurf(e.target.value)}
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                             />
-                            <span className={`text-xs text-[#272727] ${raleway.className} font-semibold`}>
+                            <span
+                              className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                            >
                               {option}
                             </span>
                           </label>
@@ -4140,39 +6221,57 @@ const cancelPostResurfacing = () => {
                     )}
                   </div>
 
-                 <div className={`flex flex-row gap-28 items-center`}>
-                    <label className={`${inter.className} text-base font-extrabold text-[#484848]`}>
+                  <div className={`flex flex-row gap-28 items-center`}>
+                    <label
+                      className={`${inter.className} text-base font-extrabold text-[#484848]`}
+                    >
                       Trachela Resection
                     </label>
 
                     {!isEditingTrachelaResection ? (
                       <div className="flex items-center gap-2">
-                        <span className="px-4 py-1 rounded w-40  text-black text-sm">{trachelaResection}</span>
-                        <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={() => setIsEditingTrachelaResection(true)} />
+                        <span className="px-4 py-1 rounded w-40  text-black text-sm">
+                          {trachelaResection}
+                        </span>
+                        <PencilIcon
+                          className="w-5 h-5 text-gray-600 cursor-pointer"
+                          onClick={() => setIsEditingTrachelaResection(true)}
+                        />
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={tempTrachelaResection}
-                          onChange={(e) => setTempTrachelaResection(e.target.value)}
+                          onChange={(e) =>
+                            setTempTrachelaResection(e.target.value)
+                          }
                           className="px-4 py-1 rounded w-40 bg-gray-300 text-black text-sm"
                         />
-                        <ClipboardDocumentCheckIcon className="w-5 h-5 text-green-600 cursor-pointer" onClick={saveTrachelaResection} />
-                        <XMarkIcon className="w-5 h-5 text-red-600 cursor-pointer" onClick={cancelTrachelaResection} />
+                        <ClipboardDocumentCheckIcon
+                          className="w-5 h-5 text-green-600 cursor-pointer"
+                          onClick={saveTrachelaResection}
+                        />
+                        <XMarkIcon
+                          className="w-5 h-5 text-red-600 cursor-pointer"
+                          onClick={cancelTrachelaResection}
+                        />
                       </div>
                     )}
                   </div>
 
-
                   <div className={`flex flex-col gap-6`}>
-                    <label className={`${inter.className} text-base font-extrabold text-[#484848]`}>
+                    <label
+                      className={`${inter.className} text-base font-extrabold text-[#484848]`}
+                    >
                       Patella
                     </label>
 
                     {!isEditingPatella ? (
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs text-[#272727] ${raleway.className} font-semibold`}>
+                        <span
+                          className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                        >
                           {patella}
                         </span>
                         <PencilIcon
@@ -4183,7 +6282,10 @@ const cancelPostResurfacing = () => {
                     ) : (
                       <div className="flex items-center gap-4">
                         {["Worn", "UnWorn"].map((grade) => (
-                          <label key={grade} className="flex items-center space-x-2 cursor-pointer">
+                          <label
+                            key={grade}
+                            className="flex items-center space-x-2 cursor-pointer"
+                          >
                             <input
                               type="radio"
                               name="patella"
@@ -4192,7 +6294,9 @@ const cancelPostResurfacing = () => {
                               onChange={(e) => setTempPatella(e.target.value)}
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                             />
-                            <span className={`text-xs text-[#272727] ${raleway.className} font-semibold`}>
+                            <span
+                              className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                            >
                               {grade}
                             </span>
                           </label>
@@ -4209,9 +6313,10 @@ const cancelPostResurfacing = () => {
                     )}
                   </div>
 
-
                   <div className={`flex flex-row gap-[49px] items-center`}>
-                    <label className={`${inter.className} text-base font-extrabold text-[#484848]`}>
+                    <label
+                      className={`${inter.className} text-base font-extrabold text-[#484848]`}
+                    >
                       Pre Resurfacing Thickness
                     </label>
 
@@ -4230,7 +6335,9 @@ const cancelPostResurfacing = () => {
                         <input
                           type="text"
                           value={tempPreResurfacingThickness}
-                          onChange={(e) => setTempPreResurfacingThickness(e.target.value)}
+                          onChange={(e) =>
+                            setTempPreResurfacingThickness(e.target.value)
+                          }
                           className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
                         />
                         <ClipboardDocumentCheckIcon
@@ -4245,9 +6352,10 @@ const cancelPostResurfacing = () => {
                     )}
                   </div>
 
-
                   <div className={`flex flex-row gap-10 items-center`}>
-                    <label className={`${inter.className} text-base font-extrabold text-[#484848]`}>
+                    <label
+                      className={`${inter.className} text-base font-extrabold text-[#484848]`}
+                    >
                       Post Resurfacing Thickness
                     </label>
 
@@ -4266,7 +6374,9 @@ const cancelPostResurfacing = () => {
                         <input
                           type="text"
                           value={tempPostResurfacingThickness}
-                          onChange={(e) => setTempPostResurfacingThickness(e.target.value)}
+                          onChange={(e) =>
+                            setTempPostResurfacingThickness(e.target.value)
+                          }
                           className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
                         />
                         <ClipboardDocumentCheckIcon
@@ -4280,8 +6390,6 @@ const cancelPostResurfacing = () => {
                       </div>
                     )}
                   </div>
-
-
                 </div>
               </div>
 
@@ -4309,11 +6417,15 @@ const cancelPostResurfacing = () => {
                       </tr>
                     </thead>
 
-                    <tbody className={`${inter.className} bg-white text-[13px]`}>
+                    <tbody
+                      className={`${inter.className} bg-white text-[13px]`}
+                    >
                       {rows.map((row, rowIdx, arr) => (
                         <tr key={row}>
                           <td
-                            className={`px-4 py-3 text-left font-semibold text-[#010101] ${raleway.className}
+                            className={`px-4 py-3 text-left font-semibold text-[#010101] ${
+                              raleway.className
+                            }
                               border-l-2 border-[#AAA8A8]
                               ${rowIdx === 0 ? "border-t-2" : ""}
                               ${rowIdx === arr.length - 1 ? "border-b-2" : ""}`}
@@ -4324,10 +6436,24 @@ const cancelPostResurfacing = () => {
                           {categories.map((col, colIdx) => (
                             <td
                               key={col}
-                              className={`px-4 py-3 text-center ${raleway.className} text-[13px] font-semibold text-[#010101]
-                                ${colIdx === 3 ? "border-r-2 border-[#AAA8A8]" : ""}
-                                ${rowIdx === 0 ? "border-t-2 border-[#AAA8A8]" : ""}
-                                ${rowIdx === arr.length - 1 ? "border-b-2 border-[#AAA8A8]" : ""}`}
+                              className={`px-4 py-3 text-center ${
+                                raleway.className
+                              } text-[13px] font-semibold text-[#010101]
+                                ${
+                                  colIdx === 3
+                                    ? "border-r-2 border-[#AAA8A8]"
+                                    : ""
+                                }
+                                ${
+                                  rowIdx === 0
+                                    ? "border-t-2 border-[#AAA8A8]"
+                                    : ""
+                                }
+                                ${
+                                  rowIdx === arr.length - 1
+                                    ? "border-b-2 border-[#AAA8A8]"
+                                    : ""
+                                }`}
                             >
                               {implantTableEditingCell[col][row] ? (
                                 <div className="flex items-center gap-2 justify-center">
@@ -4337,47 +6463,74 @@ const cancelPostResurfacing = () => {
                                     onChange={(e) =>
                                       setImplantTableTempSelections({
                                         ...implantTableTempSelections,
-                                        [col]: { ...implantTableTempSelections[col], [row]: e.target.value },
+                                        [col]: {
+                                          ...implantTableTempSelections[col],
+                                          [row]: e.target.value,
+                                        },
                                       })
                                     }
                                   >
-                                    <option value="" disabled>Select</option>
+                                    <option value="" disabled>
+                                      Select
+                                    </option>
 
                                     {row === "MANUFACTURER" &&
-                                      optionsData[col]?.MANUFACTURER?.map((opt) => (
-                                        <option key={opt} value={opt}>{opt}</option>
-                                      ))}
+                                      optionsData[col]?.MANUFACTURER?.map(
+                                        (opt) => (
+                                          <option key={opt} value={opt}>
+                                            {opt}
+                                          </option>
+                                        )
+                                      )}
 
                                     {row === "MODEL" &&
-                                      implantTableTempSelections[col].MANUFACTURER &&
-                                      optionsData[col]?.MODEL[implantTableTempSelections[col].MANUFACTURER]?.map((opt) => (
-                                        <option key={opt} value={opt}>{opt}</option>
+                                      implantTableTempSelections[col]
+                                        .MANUFACTURER &&
+                                      optionsData[col]?.MODEL[
+                                        implantTableTempSelections[col]
+                                          .MANUFACTURER
+                                      ]?.map((opt) => (
+                                        <option key={opt} value={opt}>
+                                          {opt}
+                                        </option>
                                       ))}
 
                                     {row === "SIZE" &&
                                       implantTableTempSelections[col].MODEL &&
-                                      optionsData[col]?.SIZE[implantTableTempSelections[col].MODEL]?.map((opt) => (
-                                        <option key={opt} value={opt}>{opt}</option>
+                                      optionsData[col]?.SIZE[
+                                        implantTableTempSelections[col].MODEL
+                                      ]?.map((opt) => (
+                                        <option key={opt} value={opt}>
+                                          {opt}
+                                        </option>
                                       ))}
                                   </select>
 
                                   <ClipboardDocumentCheckIcon
                                     className="w-5 h-5 text-green-600 cursor-pointer"
-                                    onClick={() => implantTableSaveEdit(col, row)}
+                                    onClick={() =>
+                                      implantTableSaveEdit(col, row)
+                                    }
                                   />
                                   <XMarkIcon
                                     className="w-5 h-5 text-red-600 cursor-pointer"
-                                    onClick={()=>implantTableCancelEdit(col, row)}
+                                    onClick={() =>
+                                      implantTableCancelEdit(col, row)
+                                    }
                                   />
-
-                                  
                                 </div>
                               ) : (
                                 <div className="flex items-center justify-center gap-2">
-                                  <span>{implantTableSelections[col][row] || "—"}</span>
+                                  <span>
+                                    {implantTableSelections[col][row] || "—"}
+                                  </span>
                                   {/* Edit Icon */}
-                                   <PencilIcon className="w-5 h-5 text-gray-600 cursor-pointer" onClick={() => implantTableStartEdit(col, row)} />
-                                  
+                                  <PencilIcon
+                                    className="w-5 h-5 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      implantTableStartEdit(col, row)
+                                    }
+                                  />
                                 </div>
                               )}
                             </td>
@@ -4385,9 +6538,7 @@ const cancelPostResurfacing = () => {
                         </tr>
                       ))}
                     </tbody>
-
                   </table>
-
                 </div>
               </div>
             </div>
