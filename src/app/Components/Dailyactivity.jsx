@@ -152,12 +152,10 @@ const Dailyactivity = ({
 
     return overall;
   };
-
+  let adminUhid = null;
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        let adminUhid = null;
-
         if (typeof window !== "undefined") {
           adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
         }
@@ -217,6 +215,7 @@ const Dailyactivity = ({
             doctor_right: p.Practitioners?.right_doctor,
             doctor: res.data?.doctor_uhid ?? "NA",
             vip: p.VIP_Status ?? false,
+            opd: p.Appointments?.[0].start ?? "NA",
 
             // ✅ New: overall scores (only if doctor exists)
             overall_scores: {
@@ -234,7 +233,7 @@ const Dailyactivity = ({
         });
 
         setPatientdata(mapped);
-        console.log("Mapped doctor", apiPatients);
+        console.log("Mapped doctor", mapped);
       } catch (err) {
         console.error("❌ Error fetching patients:", err);
         if (err.response) {
@@ -247,6 +246,30 @@ const Dailyactivity = ({
 
     fetchPatients();
   }, []);
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const filteredPatients = patientdata?.filter((p) => {
+    if (typeof window !== "undefined") {
+      adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
+    }
+
+    const leftDateOnly = p.surgery_left || null;
+    const rightDateOnly = p.surgery_right || null;
+
+    // opd date (convert ISO → yyyy-mm-dd)
+    const opdDateOnly = p.opd
+      ? new Date(p.opd).toISOString().split("T")[0]
+      : null;
+
+    if (p.doctor_left === adminUhid) {
+      return leftDateOnly === today || opdDateOnly === today;
+    } else if (p.doctor_right === adminUhid) {
+      return rightDateOnly === today || opdDateOnly === today;
+    }
+
+    return false;
+  });
 
   useEffect(() => {
     if (patientdata.length > 0) {
@@ -1013,7 +1036,7 @@ const Dailyactivity = ({
 
       <div className="w-full h-fit">
         <div className="flex flex-row gap-13.5 whitespace-nowrap overflow-x-auto pb-4 inline-scroll">
-          {patientdata.map((patient) => {
+          {filteredPatients.map((patient) => {
             const isSelected = selectedId === patient.uhid;
 
             return (

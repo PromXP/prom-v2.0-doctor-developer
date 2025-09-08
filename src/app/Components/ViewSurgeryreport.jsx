@@ -595,6 +595,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
 
   const fetchSurgeryReport = async (storedUHID) => {
     try {
+      setshowsurgeryreport(true);
       const lowercaseUHID = storedUHID.toLowerCase();
       const response = await axios.get(
         `${API_URL}getsurgerybypatient/${lowercaseUHID}`
@@ -1009,6 +1010,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         }));
       });
     } catch (error) {
+      setshowsurgeryreport(false);
       console.error("Error fetching surgery report:", error);
     } finally {
       setLoading(false);
@@ -1032,7 +1034,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
     }
   }, []);
 
-  const [showsurgeryreport, setshowsurgeryreport] = useState(true);
+  const [showsurgeryreport, setshowsurgeryreport] = useState(false);
 
   const [isEditingHospital, setIsEditingHospital] = useState(false);
   const [selectedHospital, setSelectedHospital] = useState(""); // ✅ initially empty
