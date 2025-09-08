@@ -178,11 +178,13 @@ const Patientlist = ({ handlenavigatereport }) => {
     return overall;
   };
 
+  let adminUhid = null;
+
+
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        let adminUhid = null;
-
+        
         if (typeof window !== "undefined") {
           adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
         }
@@ -269,7 +271,7 @@ const Patientlist = ({ handlenavigatereport }) => {
     };
 
     fetchPatients();
-  }, []);
+  }, [adminUhid]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
