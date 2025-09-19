@@ -89,6 +89,26 @@ const Surgeryreport = () => {
     return size;
   };
 
+  const [doctorName, setDoctorName] = useState("");
+
+  useEffect(() => {
+    const doctorUhid = sessionStorage.getItem("doctor");
+
+    if (doctorUhid) {
+      axios
+        .get(`${API_URL}getdoctorname/${doctorUhid}`)
+        .then((res) => {
+          if (res.data?.doctor_name) {
+            sessionStorage.setItem("doctorName", res.data.doctor_name);
+            setDoctorName(res.data.doctor_name);
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error fetching doctor name:", err);
+        });
+    }
+  }, []); 
+
   const { width, height } = useWindowSize();
 
   const categories = ["FEMUR", "TIBIA", "INSERT", "PATELLA"];
@@ -537,6 +557,7 @@ const Surgeryreport = () => {
 
   useEffect(() => {
     const storedUHID = sessionStorage.getItem("selectedUHID");
+    console.log(storedUHID)
     if (storedUHID) {
       // ✅ Update both uhid and patient_records[0].patuhid
       setSurgeryData((prevData) => ({
@@ -615,7 +636,7 @@ const Surgeryreport = () => {
   const fetchPatientData = async (uhid) => {
     try {
       console.log("Fetching patient data for UHID:", uhid);
-      const response = await axios.get(`${API_URL}patients-by-uhid/${uhid}`);
+      const response = await axios.get(`${API_URL}patients/${uhid}`);
       console.log("API Full Response:", response);
       console.log("API Response Data:", response.data);
 
@@ -724,7 +745,8 @@ const Surgeryreport = () => {
       console.log("📦 Sending Draft Data:", updatedData);
 
       const response = await axios.post(
-        `${API_URL}surgery_details`,
+        `${API_URL}post-surgery/fhir
+`,
         updatedData,
         {
           headers: {
@@ -831,7 +853,7 @@ const Surgeryreport = () => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                Doctor Name
+                {doctorName}
               </p>
             </div>
           </div>

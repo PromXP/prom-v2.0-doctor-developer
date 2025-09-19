@@ -74,7 +74,7 @@ const Dailyactivity = ({
   handlenavigatereport,
   handlenavigatesurgeryreport,
 }) => {
-  const useWindowSize = () => {
+const useWindowSize = () => {
     const [size, setSize] = useState({
       width: 0,
       height: 0,
@@ -166,13 +166,13 @@ const Dailyactivity = ({
         }
 
         const res = await axios.get(
-          `${API_URL}patients/by-doctor-uhid/${adminUhid}`
+          `${API_URL}get_admin_doctor_page${adminUhid}`
         );
         // console.log("✅ API Response:", res.data);
 
         // setPatients1(res.data.patients || []);
 
-        const apiPatients = res.data.patients || [];
+        const apiPatients = res.data[0].patients || [];
 
         // 🔄 Map API data → static UI format
         const mapped = apiPatients.map((p, i) => {
@@ -193,7 +193,7 @@ const Dailyactivity = ({
               : "NA",
             gender:
               p.Patient?.gender?.toLowerCase() === "male" ? "Male" : "Female",
-            uhid: p.uhid,
+            uhid: p.Patient?.uhid,
             dob: p.Patient?.birthDate ?? "NA",
             period: p.Patient_Status_Left || "NA",
             period_right: p.Patient_Status_Right || "NA",
@@ -246,6 +246,26 @@ const Dailyactivity = ({
 
     fetchPatients();
   }, []);
+
+  const [doctorName, setDoctorName] = useState("");
+
+  useEffect(() => {
+    const doctorUhid = sessionStorage.getItem("doctor");
+
+    if (doctorUhid) {
+      axios
+        .get(`${API_URL}getdoctorname/${doctorUhid}`)
+        .then((res) => {
+          if (res.data?.doctor_name) {
+            sessionStorage.setItem("doctorName", res.data.doctor_name);
+            setDoctorName(res.data.doctor_name);
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error fetching doctor name:", err);
+        });
+    }
+  }, []); 
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -479,6 +499,81 @@ const Dailyactivity = ({
     } catch (error) {
       console.error("Error updating status:", error);
       showWarning("Failed to update status");
+    }
+  };
+
+
+  const [selectedPeriod, setSelectedPeriod] = useState("");
+  const [flexion, setFlexion] = useState("");
+  const [extension, setExtension] = useState("");
+
+
+  const handlesubmitprom = async () => {
+    const lowercaseUHID = selectedPatient?.uhid.toLowerCase(); // make sure uhid is in scope
+
+    if(!lowercaseUHID){
+      showWarning("Patien ID not found. Please reload");
+      return;
+    }
+
+    if(!selectedPeriod){
+      showWarning("Select Period");
+      return;
+    }
+    
+    if(!flexion){
+      showWarning("Enter flexion");
+      return;
+    }
+
+    if(!extension){
+      showWarning("Enter extension");
+      return;
+    }
+
+    try {
+      const payload = {
+        uhid: lowercaseUHID,
+        period: selectedPeriod, // e.g., "Preop"
+        field: "flexion", // "flexion" or "extension"
+        value: flexion, // value for that motion
+      };
+
+      // ✅ Console payload before sending
+      console.log(
+        `⚡ PATCH payload for flexion:`,
+        payload
+      );
+return;
+      // 2️⃣ Send PATCH request using API_URL
+      const response = await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload
+      );
+
+       const payload1 = {
+        uhid: lowercaseUHID,
+        period: selectedPeriod, // e.g., "Preop"
+        field: "extension", // "flexion" or "extension"
+        value: extension, // value for that motion
+      };
+
+      // ✅ Console payload before sending
+      console.log(
+        `⚡ PATCH payload for extension:`,
+        JSON.stringify(payload, null, 2)
+      );
+
+      // 2️⃣ Send PATCH request using API_URL
+      const response1 = await axios.patch(
+        `${API_URL}patient_surgery_details/update_field`,
+        payload1
+      );
+
+      window.location.reload();
+    } catch (error) {
+      console.error(`Failed to save ROM for ${tp}:`, error);
+      showWarning(error);
     }
   };
 
@@ -875,13 +970,14 @@ const Dailyactivity = ({
                   inter.className
                 } font-medium text-[15px] rounded-[10px] cursor-pointer`}
                 onClick={() => {
-                  handlenavigatesurgeryreport();
-                  if (typeof window !== "undefined") {
-                    sessionStorage.setItem(
-                      "selectedUHID",
-                      selectedPatient.uhid
-                    );
-                  }
+                  // handlenavigatesurgeryreport();
+                  // if (typeof window !== "undefined") {
+                  //   sessionStorage.setItem(
+                  //     "selectedUHID",
+                  //     selectedPatient.uhid
+                  //   );
+                  // }
+                  handlesurgery(selectedPatient);
                 }}
                 // onClick={() => setshowprof(true)}
               >
@@ -1036,90 +1132,98 @@ const Dailyactivity = ({
 
       <div className="w-full h-fit">
         <div className="flex flex-row gap-13.5 whitespace-nowrap overflow-x-auto pb-4 inline-scroll">
-          {filteredPatients.map((patient) => {
-            const isSelected = selectedId === patient.uhid;
+          {filteredPatients.length > 0 ? (
+            filteredPatients.map((patient) => {
+              const isSelected = selectedId === patient.uhid;
 
-            return (
-              <div
-                key={patient.uhid}
-                onClick={() => setSelectedId(patient.uhid)}
-                className={`w-fit h-fit min-w-[220px] flex-shrink-0 flex flex-col rounded-lg py-3 px-4 gap-2 cursor-pointer transition-colors duration-200 ${
-                  isSelected
-                    ? "bg-[#2A343D]"
-                    : "bg-white border-[#EBEBEB] border-1"
-                }`}
-              >
-                {/* Top Row */}
-                <div className="w-full flex flex-row gap-6 items-center">
-                  <Image
-                    src={patient.avatar}
-                    alt="Avatar"
-                    className={`rounded-full w-[35px] h-[35px]`}
-                    width={35}
-                    height={35}
-                    onDoubleClick={() =>
-                      handlevipstatus(patient.uhid, patient.vip)
-                    }
-                  />
-                  <div className="flex flex-col gap-1">
+              return (
+                <div
+                  key={patient.uhid}
+                  onClick={() => setSelectedId(patient.uhid)}
+                  className={`w-fit h-fit min-w-[220px] flex-shrink-0 flex flex-col rounded-lg py-3 px-4 gap-2 cursor-pointer transition-colors duration-200 ${
+                    isSelected
+                      ? "bg-[#2A343D]"
+                      : "bg-white border-[#EBEBEB] border-1"
+                  }`}
+                >
+                  {/* Top Row */}
+                  <div className="w-full flex flex-row gap-6 items-center">
+                    <Image
+                      src={patient.avatar}
+                      alt="Avatar"
+                      className={`rounded-full w-[35px] h-[35px]`}
+                      width={35}
+                      height={35}
+                      onDoubleClick={() =>
+                        handlevipstatus(patient.uhid, patient.vip)
+                      }
+                    />
+                    <div className="flex flex-col gap-1">
+                      <p
+                        className={`${
+                          raleway.className
+                        } font-semibold text-lg ${
+                          isSelected ? "text-white" : "text-black"
+                        }`}
+                      >
+                        {patient.name}
+                      </p>
+                      <p
+                        className={`${poppins.className} font-normal text-sm ${
+                          isSelected ? "text-white" : "text-black"
+                        }`}
+                      >
+                        {patient.age}, {patient.gender}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Center ID */}
+                  <div className="w-full text-center">
                     <p
-                      className={`${raleway.className} font-semibold text-lg ${
+                      className={`uppercase ${
+                        poppins.className
+                      } font-medium text-base opacity-50 ${
                         isSelected ? "text-white" : "text-black"
                       }`}
                     >
-                      {patient.name}
+                      ID: {patient.uhid}
+                    </p>
+                  </div>
+
+                  {/* Bottom L/R */}
+                  <div
+                    className={`${inter.className} w-full flex flex-row justify-between pt-2`}
+                  >
+                    <p
+                      className={`font-semibold text-sm ${
+                        isSelected ? "text-white" : "text-black"
+                      }`}
+                    >
+                      L:{" "}
+                      {patient.doctor_left === patient.doctor
+                        ? patient.period
+                        : "NA"}
                     </p>
                     <p
-                      className={`${poppins.className} font-normal text-sm ${
+                      className={`font-semibold text-sm ${
                         isSelected ? "text-white" : "text-black"
                       }`}
                     >
-                      {patient.age}, {patient.gender}
+                      R:{" "}
+                      {patient.doctor_right === patient.doctor
+                        ? patient.period_right
+                        : "NA"}
                     </p>
                   </div>
                 </div>
-
-                {/* Center ID */}
-                <div className="w-full text-center">
-                  <p
-                    className={`uppercase ${
-                      poppins.className
-                    } font-medium text-base opacity-50 ${
-                      isSelected ? "text-white" : "text-black"
-                    }`}
-                  >
-                    ID: {patient.uhid}
-                  </p>
-                </div>
-
-                {/* Bottom L/R */}
-                <div
-                  className={`${inter.className} w-full flex flex-row justify-between pt-2`}
-                >
-                  <p
-                    className={`font-semibold text-sm ${
-                      isSelected ? "text-white" : "text-black"
-                    }`}
-                  >
-                    L:{" "}
-                    {patient.doctor_left === patient.doctor
-                      ? patient.period
-                      : "NA"}
-                  </p>
-                  <p
-                    className={`font-semibold text-sm ${
-                      isSelected ? "text-white" : "text-black"
-                    }`}
-                  >
-                    R:{" "}
-                    {patient.doctor_right === patient.doctor
-                      ? patient.period_right
-                      : "NA"}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <p className={`${raleway.className} font-semibold text-black`}>
+              No Patients Found
+            </p>
+          )}
         </div>
       </div>
 
@@ -1244,7 +1348,8 @@ const Dailyactivity = ({
 
                           <select
                             className={`${outfit.className} cursor-pointer border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                            defaultValue=""
+                            value={selectedPeriod} // controlled component
+                            onChange={(e) => setSelectedPeriod(e.target.value)} // update state
                           >
                             <option value="" disabled>
                               Select Period
@@ -1271,6 +1376,8 @@ const Dailyactivity = ({
                         <input
                           type="text"
                           placeholder="Enter flexion"
+                          value={flexion} // controlled value
+                          onChange={(e) => setFlexion(e.target.value)} // update state
                           className={`${outfit.className} border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         />
                       </div>
@@ -1288,6 +1395,8 @@ const Dailyactivity = ({
                         <input
                           type="text"
                           placeholder="Enter extension"
+                          value={extension} // controlled value
+                          onChange={(e) => setExtension(e.target.value)} // update state
                           className={`${outfit.className} border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         />
                       </div>
@@ -1299,8 +1408,7 @@ const Dailyactivity = ({
                       } text-center bg-[#2A343D] px-4 py-1 text-white ${
                         inter.className
                       } font-medium text-lg cursor-pointer`}
-                      // onClick={handlenavigatesurgeryreport}
-                      // onClick={() => setshowprof(true)}
+                      onClick={() =>{ handlesubmitprom();}}
                     >
                       SUBMIT
                     </p>

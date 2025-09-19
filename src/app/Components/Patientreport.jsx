@@ -222,7 +222,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     const fetchPatientReminder = async () => {
       try {
         const res = await axios.get(
-          `${API_URL}patients-by-uhid/${patientReportId}`
+          `${API_URL}patients/${patientReportId}`
         );
 
         const patient = res.data.patient;
@@ -283,7 +283,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           gender: patient.Patient?.gender ?? "NA",
           phone: patient.Patient?.phone ?? "NA",
           email: patient.Patient?.email ?? "NA",
-          uhid: patient.uhid ?? "NA",
+          uhid: patient.Patient?.uhid ?? "NA",
           statusLeft: patient.Patient_Status_Left ?? "NA",
           statusRight: patient.Patient_Status_Right ?? "NA",
           leftCompleted: patient.Medical_Left_Completed_Count ?? "NA",
@@ -383,13 +383,13 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
         }
 
         const res = await axios.get(
-          `${API_URL}patients/by-doctor-uhid/${adminUhid}`
+          `${API_URL}get_admin_doctor_page${adminUhid}`
         );
         // console.log("✅ API Response:", res.data);
 
         // setPatients1(res.data.patients || []);
 
-        const apiPatients = res.data.patients || [];
+        const apiPatients = res.data[0].patients || [];
 
         // 🔄 Map API data → static UI format
         const mapped = apiPatients
@@ -965,6 +965,26 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       error: [10, 10],
     }));
 
+  const [doctorName, setDoctorName] = useState("");
+
+  useEffect(() => {
+    const doctorUhid = sessionStorage.getItem("doctor");
+
+    if (doctorUhid) {
+      axios
+        .get(`${API_URL}getdoctorname/${doctorUhid}`)
+        .then((res) => {
+          if (res.data?.doctor_name) {
+            sessionStorage.setItem("doctorName", res.data.doctor_name);
+            setDoctorName(res.data.doctor_name);
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error fetching doctor name:", err);
+        });
+    }
+  }, []); 
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
@@ -992,7 +1012,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                Doctor Name
+                {doctorName}
               </p>
             </div>
           </div>

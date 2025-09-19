@@ -193,7 +193,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
         }
 
         const res = await axios.get(
-          `${API_URL}patients/by-doctor-uhid/${adminUhid}`
+          `${API_URL}get_admin_doctor_page${adminUhid}`
         );
         // console.log("✅ API Response:", res.data);
 
@@ -435,7 +435,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
     try {
       // ✅ API call
       const response = await axios.put(
-        `${API_URL}patients/update/${uhid}`,
+        `${API_URL}patients/update-field/${uhid}`,
         payload
       );
 

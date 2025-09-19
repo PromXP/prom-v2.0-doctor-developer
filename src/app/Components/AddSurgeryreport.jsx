@@ -670,7 +670,7 @@ const AddSurgeryreport = () => {
   const fetchPatientData = async (uhid) => {
     try {
       console.log("Fetching patient data for UHID:", uhid);
-      const response = await axios.get(`${API_URL}patients-by-uhid/${uhid}`);
+      const response = await axios.get(`${API_URL}patients/${uhid}`);
       console.log("API Full Response:", response);
       console.log("API Response Data:", response.data);
 
@@ -779,7 +779,7 @@ const AddSurgeryreport = () => {
       console.log("📦 Sending Draft Data:", updatedData);
 
       const response = await axios.post(
-        `${API_URL}surgery_details`,
+        `${API_URL}post-surgery/fhir`,
         updatedData,
         {
           headers: {

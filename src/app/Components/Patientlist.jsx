@@ -195,13 +195,13 @@ const Patientlist = ({ handlenavigatereport }) => {
         }
 
         const res = await axios.get(
-          `${API_URL}patients/by-doctor-uhid/${adminUhid}`
+          `${API_URL}get_admin_doctor_page${adminUhid}`
         );
         // console.log("✅ API Response:", res.data);
 
         // setPatients1(res.data.patients || []);
 
-        const apiPatients = res.data.patients || [];
+        const apiPatients = res.data[0].patients || [];
 
         // 🔄 Map API data → static UI format
         const mapped = apiPatients.map((p, i) => {
@@ -222,7 +222,7 @@ const Patientlist = ({ handlenavigatereport }) => {
               : "NA",
             gender:
               p.Patient?.gender?.toLowerCase() === "male" ? "Male" : "Female",
-            uhid: p.uhid,
+            uhid: p.Patient?.uhid,
             dob: p.Patient?.birthDate ?? "NA",
             period: p.Patient_Status_Left || "NA",
             period_right: p.Patient_Status_Right || "NA",
@@ -433,7 +433,7 @@ const Patientlist = ({ handlenavigatereport }) => {
     try {
       // ✅ API call
       const response = await axios.put(
-        `${API_URL}patients/update/${uhid}`,
+        `${API_URL}patients/update-field/${uhid}`,
         payload
       );
 

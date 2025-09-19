@@ -88,14 +88,15 @@ const page = () => {
       const res = await axios.post(`${API_URL}auth/login`, {
         identifier: userUHID,
         password: userPassword,
-        type: "doctor",
+        role: "doctor",
       });
 
       console.log("Login", res);
 
       if (typeof window !== "undefined") {
-        sessionStorage.setItem("doctor", res.data.user_id);
-      }
+      sessionStorage.setItem("doctor", res.data.user.uhid);
+    }
+
 
       // redirect
       router.replace("/Homedashboard");
@@ -105,7 +106,14 @@ const page = () => {
       setuserUHID("");
       setuserPassword("");
       if (err.response) {
-        showWarning(err.response.data.detail || "Login failed");
+        let errorMsg = err.response.data?.detail || "Login failed";
+
+        // If detail is an object (like FastAPI validation error), stringify it
+        if (typeof errorMsg === "object") {
+          errorMsg = JSON.stringify(errorMsg);
+        }
+
+        showWarning(errorMsg);
       } else if (err.request) {
         showWarning("No response from server");
       } else {
