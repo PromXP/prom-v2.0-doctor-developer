@@ -446,6 +446,26 @@ const Markedpatient = ({ handlenavigatereport }) => {
     }
   };
 
+  const [doctorName, setDoctorName] = useState("");
+
+  useEffect(() => {
+    const doctorUhid = sessionStorage.getItem("doctor");
+
+    if (doctorUhid) {
+      axios
+        .get(`${API_URL}getdoctorname/${doctorUhid}`)
+        .then((res) => {
+          if (res.data?.doctor_name) {
+            sessionStorage.setItem("doctorName", res.data.doctor_name);
+            setDoctorName(res.data.doctor_name);
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error fetching doctor name:", err);
+        });
+    }
+  }, []); 
+
   return (
     <div
       className={`w-full ${
@@ -490,7 +510,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                Doctor Name
+               {doctorName || "Doctor Name"}
               </p>
             </div>
           )}
