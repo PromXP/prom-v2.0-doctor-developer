@@ -500,6 +500,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         component_values: {
           [row]: implantTableTempSelections[category][row], // e.g., MANUFACTURER, MODEL, SIZE
         },
+        op_date: `op-${op_date}`
       };
 
       // ✅ Log payload before sending
@@ -537,11 +538,12 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   const [uhid, setUhid] = useState(null);
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [op_date, setop_date] = useState("");
 
   const fetchPatientData = async (uhid) => {
     try {
       console.log("Fetching patient data for UHID:", uhid);
-      const response = await axios.get(`${API_URL}patients-by-uhid/${uhid}`);
+      const response = await axios.get(`${API_URL}patients/${uhid}`);
       console.log("API Full Response:", response);
       console.log("API Response Data:", response.data);
 
@@ -564,10 +566,13 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         }
 
         // ✅ Optionally pick op_date
-        const op_date = surgeryLeft || surgeryRight || "";
-
+        setop_date(surgeryLeft);
         // ✅ Update state
         setPatientData(patient);
+
+        if (surgeryLeft) {
+        fetchSurgeryReport(uhid, surgeryLeft);
+      }
         // setSurgeryData((prev) => ({
         //   ...prev,
         //   uhid,
@@ -593,54 +598,59 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
     }
   };
 
-  const fetchSurgeryReport = async (storedUHID) => {
+   const fetchSurgeryReport = async (storedUHID, op_date) => {
     try {
       setshowsurgeryreport(true);
       const lowercaseUHID = storedUHID.toLowerCase();
+          console.log(op_date)
+      const formattedOpDate = `op-${op_date}`;  
+      console.log(formattedOpDate)
       const response = await axios.get(
-        `${API_URL}getsurgerybypatient/${lowercaseUHID}`
+        `${API_URL}get-surgery/${lowercaseUHID}/${formattedOpDate}`
       );
 
-      const components30 =
-        response.data.patients[0].entry[30].resource.component;
-      const components29 =
-        response.data.patients[0].entry[29].resource.component;
+      console.log("Surgery",response.data.entry)
+
+      const components28 =
+        response.data.entry[28].resource.component;
+      const components27 =
+        response.data.entry[27].resource.component;
 
       console.log(
-        "surgery report entry 30",
-        response.data.patients[0].entry[30]
+        "surgery report entry 28",
+        response.data.entry[28]
       );
       console.log(
-        "surgery report entry 29",
-        response.data.patients[0].entry[29]
+        "surgery report entry 27",
+        response.data.entry[27]
       );
 
       // ✅ Helper functions for both entries
-      const getValue30 = (key) =>
-        components30.find((c) => c.code.text === key)?.valueString || "";
-      const getValue29 = (key) =>
-        components29.find((c) => c.code.text === key)?.valueString || "";
+      const getValue28 = (key) =>
+        components28.find((c) => c.code.text === key)?.valueString || "";
+      const getValue27 = (key) =>
+        components27.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract values from entry 30
-      const hospitalName = getValue30("hospital_name");
-      const anaestheticType = getValue30("anaesthetic_type");
-      const asaGrade = getValue30("asa_grade");
-      const consultant = getValue30("consultant_incharge");
-      const surgeon = getValue30("operating_surgeon");
-      const firstAssistant = getValue30("first_assistant");
-      const secondAssistant = getValue30("second_assistant");
-      const procedure = getValue30("mag_proc");
-      const sideValue = getValue30("side");
-      const deformityValue = getValue30("surgery_indication");
-      const techAssist = getValue30("tech_assist");
-      const alignment = getValue30("align_phil");
-      const torqueUsed = getValue30("torq_used");
-      const operationTime = getValue30("op_time");
-      const operationDate = getValue30("op_date");
+      const hospitalName = getValue28("hospital_name");
+      const anaestheticType = getValue28("anaesthetic_type");
+      const asaGrade = getValue28("asa_grade");
+      const consultant = getValue28("consultant_incharge");
+      const surgeon = getValue28("operating_surgeon");
+      const firstAssistant = getValue28("first_assistant");
+      const secondAssistant = getValue28("second_assistant");
+      const procedure = getValue28("mag_proc");
+      const sideValue = getValue28("side");
+      const deformityValue = getValue28("surgery_indication");
+      const techAssist = getValue28("tech_assist");
+      const alignment = getValue28("align_phil");
+      const torqueUsed = getValue28("torq_used");
+      const operationTime = getValue28("op_time");
+      const operationDate = getValue28("op_date");
 
-      // Assuming response.data.patients[0].entry contains entries 2 to 11 for ROM
+      // Assuming response.data.entry contains entries 2 to 11 for ROM
       const romEntriesMap = timepoints.reduce((acc, tp, idx) => {
-        acc[tp] = 2 + idx; // Preop => entry[2], 1Month => entry[3], ... 10Year => entry[11]
+        acc[tp] = 0 + idx; // Preop => entry[2], 1Month => entry[3], ... 10Year => entry[11]
         return acc;
       }, {});
 
@@ -654,7 +664,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
 
       Object.entries(romEntriesMap).forEach(([tp, index]) => {
         const components =
-          response.data.patients[0].entry[index]?.resource?.component || [];
+          response.data.entry[index]?.resource?.component || [];
         const flexion = getComponentValue(components, "flexion");
         const extension = getComponentValue(components, "extension");
 
@@ -664,37 +674,37 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setValues(updatedValues);
 
       // ✅ Extract ACL from entry 29
-      const aclStatus = getValue29("acl"); // e.g., "Torn"
+      const aclStatus = getValue27("acl"); // e.g., "Torn"
 
-      const pclConditionValue = getValue29("pcl"); // e.g., "Excised"
+      const pclConditionValue = getValue27("pcl"); // e.g., "Excised"
       setPclCondition(pclConditionValue);
       setTempPclCondition(pclConditionValue);
 
-      const finalCheckValue = getValue29("final_check"); // e.g., "Negligible V-V Laxity in extenstion"
+      const finalCheckValue = getValue27("final_check"); // e.g., "Negligible V-V Laxity in extenstion"
       setSelectedFinalCheck([finalCheckValue]);
       setTempSelectedFinalCheck([finalCheckValue]);
 
-      const pfjResurfacing = getValue29("pfj_resurfacing"); // e.g., "Y"
+      const pfjResurfacing = getValue27("pfj_resurfacing"); // e.g., "Y"
       setPFJResurf(pfjResurfacing);
       setTempPFJResurf(pfjResurfacing);
 
-      const trachelaResectionValue = getValue29("trachela_resection"); // e.g., "10.0 mm"
+      const trachelaResectionValue = getValue27("trachela_resection"); // e.g., "10.0 mm"
       setTrachelaResection(trachelaResectionValue);
       setTempTrachelaResection(trachelaResectionValue);
 
-      const patellaValue = getValue29("patella"); // e.g., "UnWorn"
+      const patellaValue = getValue27("patella"); // e.g., "UnWorn"
       setPatella(patellaValue);
       setTempPatella(patellaValue);
 
-      const preResurfacingValue = getValue29("preresurfacing"); // e.g., "10.0"
+      const preResurfacingValue = getValue27("preresurfacing"); // e.g., "10.0"
       setPreResurfacingThickness(preResurfacingValue);
       setTempPreResurfacingThickness(preResurfacingValue);
 
-      const postResurfacingValue = getValue29("postresurfacing"); // e.g., "8.0"
+      const postResurfacingValue = getValue27("postresurfacing"); // e.g., "8.0"
       setPostResurfacingThickness(postResurfacingValue);
       setTempPostResurfacingThickness(postResurfacingValue);
 
-      // ✅ Update states for entry 30 values
+      // ✅ Update states for entry 28 values
       setSelectedProcedure(procedure);
       setTempProcedure(procedure);
 
@@ -758,193 +768,193 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       console.log("Hospital Name:", hospitalName);
       console.log("ACL Status:", aclStatus);
 
-      const components16 =
-        response.data.patients[0].entry[16].resource.component;
-      const getValue16 = (key) =>
-        components16.find((c) => c.code.text === key)?.valueString || "";
+      const components14 =
+        response.data.entry[14].resource.component;
+      const getValue14 = (key) =>
+        components14.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for distal medial section
-      const distalMedialStatus = getValue16("status"); // e.g., "Worn"
+      const distalMedialStatus = getValue14("status"); // e.g., "Worn"
       setDistalMedialUnwornWorn(distalMedialStatus);
       setTempDistalMedialUnwornWorn(distalMedialStatus);
 
-      const distalMedialInitial = getValue16("initial_thickness"); // e.g., "9.0 mm"
+      const distalMedialInitial = getValue14("initial_thickness"); // e.g., "9.0 mm"
       setDistalMedialInitialThickness(distalMedialInitial);
       setTempDistalMedialInitialThickness(distalMedialInitial);
 
-      const distalMedialRecutValue = getValue16("recutvalue"); // e.g., "9.5 mm"
+      const distalMedialRecutValue = getValue14("recutvalue"); // e.g., "9.5 mm"
       setDistalMedialRecutMM(distalMedialRecutValue);
       setTempDistalMedialRecutMM(distalMedialRecutValue);
 
-      const distalMedialRecutYNValue = getValue16("recut"); // e.g., "Y"
+      const distalMedialRecutYNValue = getValue14("recut"); // e.g., "Y"
       setDistalMedialRecutYN(distalMedialRecutYNValue);
       setTempDistalMedialRecutYN(distalMedialRecutYNValue);
 
-      const distalMedialWasherValue = getValue16("washer"); // e.g., "N"
+      const distalMedialWasherValue = getValue14("washer"); // e.g., "N"
       setDistalMedialWasher(distalMedialWasherValue);
       setTempDistalMedialWasher(distalMedialWasherValue);
 
-      const distalMedialWasherMMValue = getValue16("washervalue"); // e.g., "8.5 mm"
+      const distalMedialWasherMMValue = getValue14("washervalue"); // e.g., "8.5 mm"
       setDistalMedialWasherMM(distalMedialWasherMMValue);
       setTempDistalMedialWasherMM(distalMedialWasherMMValue);
 
-      const distalMedialFinal = getValue16("final_thickness"); // e.g., "8.5 mm"
+      const distalMedialFinal = getValue14("final_thickness"); // e.g., "8.5 mm"
       setDistalMedialFinalThickness(distalMedialFinal);
       setTempDistalMedialFinalThickness(distalMedialFinal);
 
-      const components17 =
-        response.data.patients[0].entry[17].resource.component;
-      const getValue17 = (key) =>
-        components17.find((c) => c.code.text === key)?.valueString || "";
+      const components15 =
+        response.data.entry[15].resource.component;
+      const getValue15 = (key) =>
+        components15.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for distal lateral section
-      const distalLateralStatus = getValue17("status"); // e.g., "Worn"
+      const distalLateralStatus = getValue15("status"); // e.g., "Worn"
       setDistalLateralUnwornWorn(distalLateralStatus);
       setTempDistalLateralUnwornWorn(distalLateralStatus);
 
-      const distalLateralInitial = getValue17("initial_thickness"); // e.g., "9.0 mm"
+      const distalLateralInitial = getValue15("initial_thickness"); // e.g., "9.0 mm"
       setDistalLateralInitialThickness(distalLateralInitial);
       setTempDistalLateralInitialThickness(distalLateralInitial);
 
-      const distalLateralRecutValue = getValue17("recutvalue"); // e.g., "9.5 mm"
+      const distalLateralRecutValue = getValue15("recutvalue"); // e.g., "9.5 mm"
       setDistalLateralRecutMM(distalLateralRecutValue);
       setTempDistalLateralRecutMM(distalLateralRecutValue);
 
-      const distalLateralRecutYNValue = getValue17("recut"); // e.g., "N"
+      const distalLateralRecutYNValue = getValue15("recut"); // e.g., "N"
       setDistalLateralRecutYN(distalLateralRecutYNValue);
       setTempDistalLateralRecutYN(distalLateralRecutYNValue);
 
-      const distalLateralWasherYNValue = getValue17("washer"); // e.g., "N"
+      const distalLateralWasherYNValue = getValue15("washer"); // e.g., "N"
       setDistalLateralWasherYN(distalLateralWasherYNValue);
       setTempDistalLateralWasherYN(distalLateralWasherYNValue);
 
-      const distalLateralWasherMMValue = getValue17("washervalue"); // e.g., "9.0 mm"
+      const distalLateralWasherMMValue = getValue15("washervalue"); // e.g., "9.0 mm"
       setDistalLateralWasherMM(distalLateralWasherMMValue);
       setTempDistalLateralWasherMM(distalLateralWasherMMValue);
 
-      const distalLateralFinal = getValue17("final_thickness"); // e.g., "8.0 mm"
+      const distalLateralFinal = getValue15("final_thickness"); // e.g., "8.0 mm"
       setDistalLateralFinalThickness(distalLateralFinal);
       setTempDistalLateralFinalThickness(distalLateralFinal);
 
-      const components18 =
-        response.data.patients[0].entry[18].resource.component;
-      const getValue18 = (key) =>
-        components18.find((c) => c.code.text === key)?.valueString || "";
+      const components16 =
+        response.data.entry[16].resource.component;
+      const getValue16 = (key) =>
+        components16.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for posterial medial section
-      const postMedWear = getValue18("wear"); // e.g., "Worn"
+      const postMedWear = getValue16("wear"); // e.g., "Worn"
       setPostMedUnwornWorn(postMedWear);
       setTempPostMedUnwornWorn(postMedWear);
 
-      const postMedInitial = getValue18("initial_thickness"); // e.g., "8.0 mm"
+      const postMedInitial = getValue16("initial_thickness"); // e.g., "8.0 mm"
       setPostMedInitialThickness(postMedInitial);
       setTempPostMedInitialThickness(postMedInitial);
 
-      const postMedRecutYNValue = getValue18("recut"); // e.g., "Y"
+      const postMedRecutYNValue = getValue16("recut"); // e.g., "Y"
       setPostMedRecutYN(postMedRecutYNValue);
       setTempPostMedRecutYN(postMedRecutYNValue);
 
-      const postMedRecutValue = getValue18("recutvalue"); // e.g., "8.5 mm"
+      const postMedRecutValue = getValue16("recutvalue"); // e.g., "8.5 mm"
       setPostMedRecutMM(postMedRecutValue);
       setTempPostMedRecutMM(postMedRecutValue);
 
-      const postMedFinal = getValue18("final_thickness"); // e.g., "9.0 mm"
+      const postMedFinal = getValue16("final_thickness"); // e.g., "9.0 mm"
       setPostMedFinalThickness(postMedFinal);
       setTempPostMedFinalThickness(postMedFinal);
 
-      const components19 =
-        response.data.patients[0].entry[19].resource.component;
-      const getValue19 = (key) =>
-        components19.find((c) => c.code.text === key)?.valueString || "";
+      const components17 =
+        response.data.entry[17].resource.component;
+      const getValue17 = (key) =>
+        components17.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for posterial lateral section
-      const postLatStatus = getValue19("status"); // e.g., "Unworn"
+      const postLatStatus = getValue17("status"); // e.g., "Unworn"
       setPostLatUnwornWorn(postLatStatus);
       setTempPostLatUnwornWorn(postLatStatus);
 
-      const postLatInitial = getValue19("initial_thickness"); // e.g., "9.0 mm"
+      const postLatInitial = getValue17("initial_thickness"); // e.g., "9.0 mm"
       setPostLatInitialThickness(postLatInitial);
       setTempPostLatInitialThickness(postLatInitial);
 
-      const postLatRecutYNValue = getValue19("recut"); // e.g., "N"
+      const postLatRecutYNValue = getValue17("recut"); // e.g., "N"
       setPostLatRecutYN(postLatRecutYNValue);
       setTempPostLatRecutYN(postLatRecutYNValue);
 
-      const postLatRecutValue = getValue19("recutvalue"); // e.g., "8.5 mm"
+      const postLatRecutValue = getValue17("recutvalue"); // e.g., "8.5 mm"
       setPostLatRecutMM(postLatRecutValue);
       setTempPostLatRecutMM(postLatRecutValue);
 
-      const postLatFinal = getValue19("final_thickness"); // e.g., "9.0 mm"
+      const postLatFinal = getValue17("final_thickness"); // e.g., "9.0 mm"
       setPostLatFinalThickness(postLatFinal);
       setTempPostLatFinalThickness(postLatFinal);
 
-      const components20 =
-        response.data.patients[0].entry[20].resource.component;
-      const getValue20 = (key) =>
-        components20.find((c) => c.code.text === key)?.valueString || "";
+      const components18 =
+        response.data.entry[18].resource.component;
+      const getValue18 = (key) =>
+        components18.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for tibial_resection_left section
-      const tibialLeftStatus = getValue20("status"); // e.g., "UnWorn"
+      const tibialLeftStatus = getValue18("status"); // e.g., "UnWorn"
       setTibialLeftWorn(tibialLeftStatus);
       setTempTibialLeftWorn(tibialLeftStatus);
 
-      const tibialLeftValue = getValue20("value"); // e.g., "8.5 mm"
+      const tibialLeftValue = getValue18("value"); // e.g., "8.5 mm"
       setTibialLeftMM(tibialLeftValue);
       setTempTibialLeftMM(tibialLeftValue);
 
-      const components21 =
-        response.data.patients[0].entry[21].resource.component;
-      const getValue21 = (key) =>
-        components21.find((c) => c.code.text === key)?.valueString || "";
+      const components19 =
+        response.data.entry[19].resource.component;
+      const getValue19 = (key) =>
+        components19.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for tibial_resection_right section
-      const tibialRightStatus = getValue21("status"); // e.g., "Worn"
+      const tibialRightStatus = getValue19("status"); // e.g., "Worn"
       setTibialRightWorn(tibialRightStatus);
       setTempTibialRightWorn(tibialRightStatus);
 
-      const tibialRightValue = getValue21("value"); // e.g., "8.5 mm"
+      const tibialRightValue = getValue19("value"); // e.g., "8.5 mm"
       setTibialRightMM(tibialRightValue);
       setTempTibialRightMM(tibialRightValue);
 
-      const components22 =
-        response.data.patients[0].entry[22].resource.component;
-      const getValue22 = (key) =>
-        components22.find((c) => c.code.text === key)?.valueString || "";
+      const components20 =
+        response.data.entry[20].resource.component;
+      const getValue20 = (key) =>
+        components20.find((c) => c.code.text === key)?.valueString || "";
 
       console.log(
-        "surgery report entry 22",
-        response.data.patients[0].entry[22]
+        "surgery report entry 20",
+        response.data.entry[20]
       );
 
       // ✅ Extract and set values for tibialvvrecut section
-      const tibialVVStatus = getValue22("status"); // e.g., "Y"
+      const tibialVVStatus = getValue20("status"); // e.g., "Y"
       setTibialVVRecutYN(tibialVVStatus);
       setTempTibialVVRecutYN(tibialVVStatus);
 
-      const tibialVVValue = getValue22("value"); // e.g., "10.0 mm"
+      const tibialVVValue = getValue20("value"); // e.g., "10.0 mm"
       setTibialVVRecutMM(tibialVVValue);
       setTempTibialVVRecutMM(tibialVVValue);
 
-      const components23 =
-        response.data.patients[0].entry[23].resource.component;
-      const getValue23 = (key) =>
-        components23.find((c) => c.code.text === key)?.valueString || "";
+      const components21 =
+        response.data.entry[21].resource.component;
+      const getValue21 = (key) =>
+        components21.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for tibial_slope section
-      const tibialSlopeStatus = getValue23("status"); // e.g., "Y"
+      const tibialSlopeStatus = getValue21("status"); // e.g., "Y"
       setTibialSlopeRecutYN(tibialSlopeStatus);
       setTempTibialSlopeRecutYN(tibialSlopeStatus);
 
-      const tibialSlopeValue = getValue23("value"); // e.g., "10.0 mm"
+      const tibialSlopeValue = getValue21("value"); // e.g., "10.0 mm"
       setTibialSlopeRecutMM(tibialSlopeValue);
       setTempTibialSlopeRecutMM(tibialSlopeValue);
 
-      // ✅ Fill tableData from entry[23] to entry[27] and log entries
+      // ✅ Fill tableData from entry[21] to entry[26] and log entries
       let thicknessTable = [...tableData]; // use existing state as base
 
       for (let i = 0; i < 5; i++) {
-        const entryIndex = 24 + i;
-        const currentEntry = response.data.patients[0].entry[entryIndex];
+        const entryIndex = 22 + i;
+        const currentEntry = response.data.entry[entryIndex];
 
         console.log(`Surgery report entry ${entryIndex}:`, currentEntry);
 
@@ -979,17 +989,17 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
 
       setTableData(thicknessTable);
 
-      // Assuming response.data.patients[0].entry[12-15] exist
+      // Assuming response.data.entry[12-15] exist
       const entriesMap = {
-        FEMUR: 12,
-        TIBIA: 13,
-        INSERT: 14,
-        PATELLA: 15,
+        FEMUR: 10,
+        TIBIA: 11,
+        INSERT: 12,
+        PATELLA: 13,
       };
 
       Object.entries(entriesMap).forEach(([category, index]) => {
         const components =
-          response.data.patients[0].entry[index]?.resource?.component || [];
+          response.data.entry[index]?.resource?.component || [];
         const getValue = (key) =>
           components.find((c) => c.code.text === key)?.valueString || "";
 
@@ -1018,21 +1028,15 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   useEffect(() => {
-    const storedUHID = sessionStorage.getItem("selectedUHID");
+  const storedUHID = sessionStorage.getItem("selectedUHID");
+  if (storedUHID) {
+    setUhid(storedUHID);
+    fetchPatientData(storedUHID);
+  } else {
+    setLoading(false);
+  }
+}, []);
 
-    if (storedUHID) {
-      // ✅ Update uhid state
-      setUhid(storedUHID);
-
-      // ✅ Fetch Patient Data using original UHID
-      fetchPatientData(storedUHID);
-
-      // ✅ Call the separated function
-      fetchSurgeryReport(storedUHID);
-    } else {
-      setLoading(false);
-    }
-  }, []);
 
   const [showsurgeryreport, setshowsurgeryreport] = useState(false);
 
@@ -1048,6 +1052,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID, // patient UHID
         field: "hospital_name", // field to update
         value: tempHospital, // new hospital
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2)); // ✅ log JSON
@@ -1088,6 +1093,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID, // patient UHID
         field: "anaesthetic_type", // field to update in backend
         value: tempType, // selected type
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
@@ -1124,6 +1130,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "asa_grade",
         value: tempASA,
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
@@ -1189,6 +1196,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
           period: tp, // e.g., "Preop"
           field: motion.toLowerCase(), // "flexion" or "extension"
           value: tempValues[motion], // value for that motion
+          op_date: `op-${op_date}`
         };
 
         // ✅ Console payload before sending
@@ -1241,6 +1249,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "consultant_incharge",
         value: tempConsultant,
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1281,6 +1290,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "operating_surgeon",
         value: tempSurgeon,
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1321,6 +1331,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "first_assistant",
         value: tempAssistant,
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1362,6 +1373,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "second_assistant",
         value: tempSecondAssistant,
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1412,6 +1424,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID, // patient UHID
         field: "mag_proc", // field in your Observation JSON
         value: tempProcedure, // selected procedure
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1453,6 +1466,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "side", // field in your Observation JSON
         value: tempSides.join(", "), // send as comma-separated string
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1507,6 +1521,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "surgery_indication", // field name in your backend
         value: tempDeformity.join(", "), // send as comma-separated string
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1561,6 +1576,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "tech_assist", // field name in backend
         value: tempTech, // selected option
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1602,6 +1618,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "align_phil", // backend field name
         value: tempAlignment, // selected alignment
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1643,6 +1660,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "torq_used", // backend field name
         value: tempTorque, // selected option
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1684,6 +1702,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "op_time", // backend field name
         value: tempTimeValue, // new time value
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1724,6 +1743,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "acl", // backend field name from your JSON ("acl" in bone_resection component)
         value: tempTorqued, // selected option
+        op_date: `op-${op_date}`
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1754,6 +1774,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: fieldName,
         value: value,
+        op_date: `op-${op_date}`
       };
 
       console.log(
@@ -1973,6 +1994,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2094,6 +2116,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2206,6 +2229,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2318,6 +2342,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2371,6 +2396,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: fieldName,
         value: value,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2437,6 +2463,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "pcl",
         value: tempPclCondition,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2474,6 +2501,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialvvrecut,status", // backend field for status
         value: tempTibialVVRecutYN,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2498,6 +2526,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialvvrecut,value", // backend field for value
         value: tempTibialVVRecutMM,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2534,6 +2563,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialsloperecut,status",
         value: tempTibialSlopeRecutYN,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2558,6 +2588,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialsloperecut,value",
         value: tempTibialSlopeRecutMM,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2607,6 +2638,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "final_check",
         value: finalCheckArray.join(", "), // convert to string for backend
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
 
       await axios.patch(
@@ -2697,6 +2729,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         update_values: { [backendField]: tableData[rowIdx].temp[field] },
         thickness: thickness,
+        op_date: `op-${op_date}`
       };
 
       console.log("Patch payload for thickness_table row:", payload);
@@ -2744,6 +2777,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "pfj_resurfacing", // match the backend field name
         value: tempPFJResurf,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
 
       await axios.patch(
@@ -2780,6 +2814,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "trachela_resection",
         value: tempTrachelaResection,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2812,6 +2847,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "patella",
         value: tempPatella,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2844,6 +2880,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "preresurfacing",
         value: tempPreResurfacingThickness,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2879,6 +2916,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "postresurfacing",
         value: tempPostResurfacingThickness,
         uhid: uhid.toLowerCase(),
+        op_date: `op-${op_date}`
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
