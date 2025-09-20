@@ -265,7 +265,7 @@ const Dailyactivity = ({
           console.error("❌ Error fetching doctor name:", err);
         });
     }
-  }, []); 
+  }, []);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -501,6 +501,58 @@ const Dailyactivity = ({
       showWarning("Failed to update status");
     }
   };
+
+  const [showresetpassword, setshowresetpassword] = useState(false);
+
+  useEffect(() => {
+    let adminPassword = null;
+
+    if (typeof window !== "undefined") {
+      adminPassword = sessionStorage.getItem("doctor_password"); // 👈 safe access
+    }
+
+    if (adminPassword === "doctor@123") {
+      setshowresetpassword(true);
+    }
+  }, []);
+
+    const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const handleResetPassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      showWarning("Please fill in both fields");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      showWarning("Passwords do not match");
+      return;
+    }
+    let adminUhid = null;
+    if (typeof window !== "undefined") {
+      adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
+    }
+
+    const payload = {
+      uhid: adminUhid,
+      role: "doctor",
+      new_password: newPassword,
+    };
+
+    try {
+      await axios.patch(`${API_URL}auth/reset-password`, payload);
+
+      showWarning(`Password reset successfull`);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("doctor_password", newPassword); // 👈 safe access
+      }
+      window.location.reload();
+    } catch (error) {
+      console.error("Error reset password:", error);
+      showWarning(`Failed to reset password for ${profpat?.uhid}`);
+    }
+  };
+
 
   return (
     <div
@@ -1348,6 +1400,97 @@ const Dailyactivity = ({
             </style>
           </div>,
           document.body // portal target
+        )}
+
+        {showresetpassword &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center"
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`
+    h-fit flex flex-col items-center justify-center mx-auto my-auto bg-white p-8 rounded-2xl
+    ${width < 950 ? "gap-4 w-full" : "w-1/2"}
+  `}
+            >
+              <h2
+                className={`${raleway.className} text-2xl font-semibold text-gray-800 mb-6`}
+              >
+                Reset Password
+              </h2>
+
+              <div
+                className={`${poppins.className} w-full flex flex-col gap-8`}
+              >
+                {/* New Password */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-base text-gray-700">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    className="w-full border-b-2 border-gray-400 outline-none px-2 py-2 text-lg bg-transparent text-black"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                  />
+                </div>
+
+                {/* Confirm Password */}
+                <div className="flex flex-col gap-1">
+                  <label className="text-base text-gray-700">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full border-b-2 border-gray-400 outline-none px-2 py-2 text-lg bg-transparent text-black"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                  />
+                </div>
+
+                {/* Submit Button */}
+                <button
+                  onClick={handleResetPassword}
+                  className="cursor-pointer mt-4 w-full bg-[#319B8F] text-white font-semibold py-2 rounded-lg hover:bg-[#26776f] transition-all"
+                >
+                  Reset Password
+                </button>
+              </div>
+            </div>
+
+            <style>
+              {`
+                .inline-scroll::-webkit-scrollbar {
+                  width: 12px;
+                }
+                .inline-scroll::-webkit-scrollbar-track {
+                  background: transparent;
+                }
+                .inline-scroll::-webkit-scrollbar-thumb {
+                  background-color: #076C40;
+                  border-radius: 8px;
+                }
+          
+                .inline-scroll {
+                  scrollbar-color: #076C40 transparent;
+                }
+              `}
+            </style>
+
+            {showAlert && (
+              <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+                <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out">
+                  {alertmessage}
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body // Render to body, outside constrained parent.
         )}
     </div>
   );

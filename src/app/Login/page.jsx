@@ -95,6 +95,7 @@ const page = () => {
 
       if (typeof window !== "undefined") {
       sessionStorage.setItem("doctor", res.data.user.uhid);
+      sessionStorage.setItem("doctor_password", userPassword);
     }
 
 
