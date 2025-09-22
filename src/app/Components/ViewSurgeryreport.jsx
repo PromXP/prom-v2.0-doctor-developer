@@ -37,6 +37,7 @@ import {
 import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
 import ManAvatar from "@/app/Assets/man.png";
+import WomanAvatar from "@/app/Assets/woman.png";
 import Calendar from "@/app/Assets/calendar.png";
 import Clock from "@/app/Assets/clock.png";
 import BoneLeft from "@/app/Assets/boneleft.png";
@@ -87,6 +88,26 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   const { width, height } = useWindowSize();
+
+  const [doctorName, setDoctorName] = useState("");
+
+  useEffect(() => {
+    const doctorUhid = sessionStorage.getItem("doctor");
+
+    if (doctorUhid) {
+      axios
+        .get(`${API_URL}getdoctorname/${doctorUhid}`)
+        .then((res) => {
+          if (res.data?.doctor_name) {
+            sessionStorage.setItem("doctorName", res.data.doctor_name);
+            setDoctorName(res.data.doctor_name);
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error fetching doctor name:", err);
+        });
+    }
+  }, []);
 
   const categories = ["FEMUR", "TIBIA", "INSERT", "PATELLA"];
   const rows = ["MANUFACTURER", "MODEL", "SIZE"];
@@ -500,7 +521,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         component_values: {
           [row]: implantTableTempSelections[category][row], // e.g., MANUFACTURER, MODEL, SIZE
         },
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       // ✅ Log payload before sending
@@ -539,7 +560,9 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [op_date, setop_date] = useState("");
-
+  const [opside, setOpside] = useState("LEFT KNEE");
+  // state for surgeries + selected surgery
+  
   const fetchPatientData = async (uhid) => {
     try {
       console.log("Fetching patient data for UHID:", uhid);
@@ -559,20 +582,68 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         let side = "left";
         if (surgeryLeft && !surgeryRight) {
           side = "left";
+          setOpside("LEFT KNEE");
         } else if (!surgeryLeft && surgeryRight) {
           side = "right";
+          setOpside("RIGHT KNEE");
         } else if (surgeryLeft && surgeryRight) {
           side = "left"; // Default to left if both exist
+          setOpside("LEFT KNEE, RIGHT KNEE");
         }
 
         // ✅ Optionally pick op_date
         setop_date(surgeryLeft);
+        const apiPatients = response.data.patient || [];
         // ✅ Update state
-        setPatientData(patient);
+        const mapped = {
+          // ✅ Only calculate if doctor is assigned
+          // assume doctorUhid = res.data[0]?.uhid
 
-        if (surgeryLeft) {
-        fetchSurgeryReport(uhid, surgeryLeft);
-      }
+          name: apiPatients.Patient?.name || "Unknown",
+          age: apiPatients.Patient?.birthDate
+            ? new Date().getFullYear() -
+              new Date(apiPatients.Patient.birthDate).getFullYear()
+            : "NA",
+          gender:
+            apiPatients.Patient?.gender?.toLowerCase() === "male"
+              ? "Male"
+              : "Female",
+          uhid: apiPatients.Patient?.uhid,
+          period: apiPatients.Patient_Status_Left || "NA",
+          period_right: apiPatients.Patient_Status_Right || "NA",
+          activation_status: apiPatients.Activation_Status ?? "True",
+          patient_initial_status: apiPatients.patient_current_status ?? "NA",
+          surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
+          surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
+          doctor_left: apiPatients.Practitioners?.left_doctor,
+          doctor_right: apiPatients.Practitioners?.right_doctor,
+          vip: apiPatients.VIP_Status ?? false,
+          opd: apiPatients.Appointments?.[0].start ?? "NA",
+
+          avatar:
+            apiPatients.Patient?.photo && apiPatients.Patient?.photo !== "NA"
+              ? apiPatients.Patient.photo
+              : apiPatients.Patient?.gender?.toLowerCase() === "male"
+              ? ManAvatar
+              : WomanAvatar,
+
+          bmi:
+            apiPatients.Medical?.height && apiPatients.Medical?.weight
+              ? (() => {
+                  const h = parseFloat(
+                    apiPatients.Medical.height.match(/[\d.]+/)?.[0]
+                  );
+                  const w = parseFloat(
+                    apiPatients.Medical.weight.match(/[\d.]+/)?.[0]
+                  );
+                  return h && w ? (w / Math.pow(h / 100, 2)).toFixed(1) : "NA";
+                })()
+              : "NA",
+        };
+
+        setPatientData(mapped);
+
+
         // setSurgeryData((prev) => ({
         //   ...prev,
         //   uhid,
@@ -585,7 +656,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         //           side,
         //           op_date, // ✅ If you want operation date set too
         //         }
-        //       : record
+        //       : recrd
         //   ),
         // }));
       } else {
@@ -598,32 +669,52 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
     }
   };
 
-   const fetchSurgeryReport = async (storedUHID, op_date) => {
+  const [surgeries, setSurgeries] = useState([]);
+const [selectedSurgery, setSelectedSurgery] = useState("");
+
+// after patientData is set, update surgeries
+useEffect(() => {
+  if (patientData) {
+    const s = [
+      patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
+      patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
+    ].filter(Boolean); // remove null/NA
+
+    setSurgeries(s);
+    setSelectedSurgery(s[0] || ""); // default to first available
+    setop_date(s[0]); // update op_date state
+
+  }
+}, [patientData]);
+
+// whenever selectedSurgery changes, call API
+useEffect(() => {
+  if (selectedSurgery && patientData?.uhid) {
+    console.log("Fetching surgery report for:", selectedSurgery);
+    setop_date(selectedSurgery); // update op_date state
+    fetchSurgeryReport(patientData?.uhid, selectedSurgery);
+  }
+}, [selectedSurgery, patientData?.uhid]);
+
+
+  const fetchSurgeryReport = async (storedUHID, op_date) => {
     try {
       setshowsurgeryreport(true);
       const lowercaseUHID = storedUHID.toLowerCase();
-          console.log(op_date)
-      const formattedOpDate = `op-${op_date}`;  
-      console.log(formattedOpDate)
+      console.log(op_date);
+      const formattedOpDate = `op-${op_date}`;
+      console.log(formattedOpDate);
       const response = await axios.get(
         `${API_URL}get-surgery/${lowercaseUHID}/${formattedOpDate}`
       );
 
-      console.log("Surgery",response.data.entry)
+      console.log("Surgery", response.data.entry);
 
-      const components28 =
-        response.data.entry[28].resource.component;
-      const components27 =
-        response.data.entry[27].resource.component;
+      const components28 = response.data.entry[28].resource.component;
+      const components27 = response.data.entry[27].resource.component;
 
-      console.log(
-        "surgery report entry 28",
-        response.data.entry[28]
-      );
-      console.log(
-        "surgery report entry 27",
-        response.data.entry[27]
-      );
+      console.log("surgery report entry 28", response.data.entry[28]);
+      console.log("surgery report entry 27", response.data.entry[27]);
 
       // ✅ Helper functions for both entries
       const getValue28 = (key) =>
@@ -768,8 +859,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       console.log("Hospital Name:", hospitalName);
       console.log("ACL Status:", aclStatus);
 
-      const components14 =
-        response.data.entry[14].resource.component;
+      const components14 = response.data.entry[14].resource.component;
       const getValue14 = (key) =>
         components14.find((c) => c.code.text === key)?.valueString || "";
 
@@ -802,8 +892,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setDistalMedialFinalThickness(distalMedialFinal);
       setTempDistalMedialFinalThickness(distalMedialFinal);
 
-      const components15 =
-        response.data.entry[15].resource.component;
+      const components15 = response.data.entry[15].resource.component;
       const getValue15 = (key) =>
         components15.find((c) => c.code.text === key)?.valueString || "";
 
@@ -836,8 +925,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setDistalLateralFinalThickness(distalLateralFinal);
       setTempDistalLateralFinalThickness(distalLateralFinal);
 
-      const components16 =
-        response.data.entry[16].resource.component;
+      const components16 = response.data.entry[16].resource.component;
       const getValue16 = (key) =>
         components16.find((c) => c.code.text === key)?.valueString || "";
 
@@ -862,8 +950,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setPostMedFinalThickness(postMedFinal);
       setTempPostMedFinalThickness(postMedFinal);
 
-      const components17 =
-        response.data.entry[17].resource.component;
+      const components17 = response.data.entry[17].resource.component;
       const getValue17 = (key) =>
         components17.find((c) => c.code.text === key)?.valueString || "";
 
@@ -888,8 +975,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setPostLatFinalThickness(postLatFinal);
       setTempPostLatFinalThickness(postLatFinal);
 
-      const components18 =
-        response.data.entry[18].resource.component;
+      const components18 = response.data.entry[18].resource.component;
       const getValue18 = (key) =>
         components18.find((c) => c.code.text === key)?.valueString || "";
 
@@ -902,8 +988,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setTibialLeftMM(tibialLeftValue);
       setTempTibialLeftMM(tibialLeftValue);
 
-      const components19 =
-        response.data.entry[19].resource.component;
+      const components19 = response.data.entry[19].resource.component;
       const getValue19 = (key) =>
         components19.find((c) => c.code.text === key)?.valueString || "";
 
@@ -916,15 +1001,11 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setTibialRightMM(tibialRightValue);
       setTempTibialRightMM(tibialRightValue);
 
-      const components20 =
-        response.data.entry[20].resource.component;
+      const components20 = response.data.entry[20].resource.component;
       const getValue20 = (key) =>
         components20.find((c) => c.code.text === key)?.valueString || "";
 
-      console.log(
-        "surgery report entry 20",
-        response.data.entry[20]
-      );
+      console.log("surgery report entry 20", response.data.entry[20]);
 
       // ✅ Extract and set values for tibialvvrecut section
       const tibialVVStatus = getValue20("status"); // e.g., "Y"
@@ -935,8 +1016,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       setTibialVVRecutMM(tibialVVValue);
       setTempTibialVVRecutMM(tibialVVValue);
 
-      const components21 =
-        response.data.entry[21].resource.component;
+      const components21 = response.data.entry[21].resource.component;
       const getValue21 = (key) =>
         components21.find((c) => c.code.text === key)?.valueString || "";
 
@@ -1028,15 +1108,14 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   useEffect(() => {
-  const storedUHID = sessionStorage.getItem("selectedUHID");
-  if (storedUHID) {
-    setUhid(storedUHID);
-    fetchPatientData(storedUHID);
-  } else {
-    setLoading(false);
-  }
-}, []);
-
+    const storedUHID = sessionStorage.getItem("selectedUHID");
+    if (storedUHID) {
+      setUhid(storedUHID);
+      fetchPatientData(storedUHID);
+    } else {
+      setLoading(false);
+    }
+  }, []);
 
   const [showsurgeryreport, setshowsurgeryreport] = useState(false);
 
@@ -1052,7 +1131,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID, // patient UHID
         field: "hospital_name", // field to update
         value: tempHospital, // new hospital
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2)); // ✅ log JSON
@@ -1093,7 +1172,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID, // patient UHID
         field: "anaesthetic_type", // field to update in backend
         value: tempType, // selected type
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
@@ -1130,7 +1209,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "asa_grade",
         value: tempASA,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
@@ -1196,7 +1275,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
           period: tp, // e.g., "Preop"
           field: motion.toLowerCase(), // "flexion" or "extension"
           value: tempValues[motion], // value for that motion
-          op_date: `op-${op_date}`
+          op_date: `op-${op_date}`,
         };
 
         // ✅ Console payload before sending
@@ -1249,7 +1328,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "consultant_incharge",
         value: tempConsultant,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1290,7 +1369,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "operating_surgeon",
         value: tempSurgeon,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1331,7 +1410,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "first_assistant",
         value: tempAssistant,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1373,7 +1452,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "second_assistant",
         value: tempSecondAssistant,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1424,7 +1503,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID, // patient UHID
         field: "mag_proc", // field in your Observation JSON
         value: tempProcedure, // selected procedure
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1466,7 +1545,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "side", // field in your Observation JSON
         value: tempSides.join(", "), // send as comma-separated string
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1521,7 +1600,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "surgery_indication", // field name in your backend
         value: tempDeformity.join(", "), // send as comma-separated string
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1576,7 +1655,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "tech_assist", // field name in backend
         value: tempTech, // selected option
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1618,7 +1697,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "align_phil", // backend field name
         value: tempAlignment, // selected alignment
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1660,7 +1739,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "torq_used", // backend field name
         value: tempTorque, // selected option
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1702,7 +1781,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "op_time", // backend field name
         value: tempTimeValue, // new time value
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1743,7 +1822,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: "acl", // backend field name from your JSON ("acl" in bone_resection component)
         value: tempTorqued, // selected option
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Payload to send:", JSON.stringify(payload, null, 2));
@@ -1774,7 +1853,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: lowercaseUHID,
         field: fieldName,
         value: value,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log(
@@ -1994,7 +2073,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2116,7 +2195,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2229,7 +2308,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2342,7 +2421,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         field: fieldName,
         value: value,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2396,7 +2475,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: fieldName,
         value: value,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2463,7 +2542,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "pcl",
         value: tempPclCondition,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2501,7 +2580,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialvvrecut,status", // backend field for status
         value: tempTibialVVRecutYN,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2526,7 +2605,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialvvrecut,value", // backend field for value
         value: tempTibialVVRecutMM,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2563,7 +2642,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialsloperecut,status",
         value: tempTibialSlopeRecutYN,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2588,7 +2667,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "tibialsloperecut,value",
         value: tempTibialSlopeRecutMM,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2638,7 +2717,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "final_check",
         value: finalCheckArray.join(", "), // convert to string for backend
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       await axios.patch(
@@ -2729,7 +2808,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         uhid: uhid.toLowerCase(),
         update_values: { [backendField]: tableData[rowIdx].temp[field] },
         thickness: thickness,
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       console.log("Patch payload for thickness_table row:", payload);
@@ -2777,7 +2856,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "pfj_resurfacing", // match the backend field name
         value: tempPFJResurf,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
 
       await axios.patch(
@@ -2814,7 +2893,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "trachela_resection",
         value: tempTrachelaResection,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2847,7 +2926,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "patella",
         value: tempPatella,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2880,7 +2959,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "preresurfacing",
         value: tempPreResurfacingThickness,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2916,7 +2995,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         field: "postresurfacing",
         value: tempPostResurfacingThickness,
         uhid: uhid.toLowerCase(),
-        op_date: `op-${op_date}`
+        op_date: `op-${op_date}`,
       };
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -2988,18 +3067,12 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
                 <p
                   className={`${raleway.className} font-semibold text-lg text-black`}
                 >
-                  {patientData.Patient.name}
+                  {patientData?.name ?? "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  {patientData?.Patient?.birthDate
-                    ? `${calculateAge(
-                        patientData.Patient.birthDate
-                      )} yrs, ${capitalizeFirstLetter(
-                        patientData.Patient.gender
-                      )}`
-                    : "N/A"}
+                  {patientData?.age ?? "N/A"}
                 </p>
               </div>
               <div
@@ -3010,13 +3083,21 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
                 <p
                   className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
                 >
-                  L: {patientData.Patient_Status_Left || "NA"} R:{" "}
-                  {patientData.Patient_Status_Right || "NA"}
+                  L:{" "}
+                  {patientData?.doctor_left === sessionStorage.getItem("doctor")
+                    ? patientData?.period
+                    : "NA"}
+                  <br />
+                  R:{" "}
+                  {patientData?.doctor_right ===
+                  sessionStorage.getItem("doctor")
+                    ? patientData?.period_right
+                    : "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
                 >
-                  {uhid}
+                  {patientData?.uhid}
                 </p>
               </div>
               <p
@@ -3024,14 +3105,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
                   inter.className
                 } text-end font-semibold text-[15px] text-[#484848]`}
               >
-                BMI:{" "}
-                {(() => {
-                  const weight = parseFloat(patientData.Medical.weight); // "70.0 kg" → 70
-                  const height = parseFloat(patientData.Medical.height); // "175.0 cm" → 175
-                  if (!weight || !height) return "N/A";
-                  const bmi = weight / (height / 100) ** 2;
-                  return bmi.toFixed(2);
-                })()}
+                BMI:{patientData?.bmi ?? "N/A"}
               </p>
             </div>
           </div>
@@ -3049,12 +3123,29 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                Doctor Name
+                {doctorName}
               </p>
             </div>
           </div>
         )}
       </div>
+
+      {patientData.surgery_left !== patientData.surgery_right && (
+        <div className="flex items-center space-x-2 w-60 pt-[40px]">
+          <select
+            className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
+            value={selectedSurgery}
+            onChange={(e) => setSelectedSurgery(e.target.value)}
+          >
+            {surgeries.map((surgery, index) => (
+              <option key={index} value={surgery}>
+                {new Date(surgery).toLocaleDateString("en-GB")}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
 
       {showsurgeryreport && (
         <>

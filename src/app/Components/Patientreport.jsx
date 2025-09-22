@@ -219,11 +219,86 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       return;
     }
 
+    const extractScore = (scoreStr) => {
+      if (!scoreStr || typeof scoreStr !== "string") return null;
+      const match = scoreStr.match(/:\s*(\d+)/); // capture first number
+      return match ? parseFloat(match[1]) : null;
+    };
+
+    const KOOSJR_MAP = [
+      100.0, 91.975, 84.6, 79.914, 76.332, 73.342, 70.704, 68.284, 65.994,
+      63.776, 61.583, 59.381, 57.14, 54.84, 52.465, 50.012, 47.487, 44.905,
+      42.281, 39.625, 36.931, 34.174, 31.307, 28.251, 24.875, 20.941, 15.939,
+      8.291, 0.0,
+    ];
+
+    // 🛠️ Compute overall scores for a side
+    const calculateOverallScores = (sideData) => {
+      if (!sideData || sideData === "NA") return {};
+
+      const questionnaires = {};
+
+      for (const [qName, periods] of Object.entries(sideData)) {
+        for (const [period, qData] of Object.entries(periods || {})) {
+          let numScore = extractScore(qData?.score);
+          if (numScore !== null) {
+            if (qName === "KOOS_JR") {
+              // Ensure score is an integer index within 0–29
+
+              numScore = KOOSJR_MAP[numScore];
+            }
+            if (!questionnaires[qName]) {
+              questionnaires[qName] = { total: 0, count: 0 };
+            }
+            questionnaires[qName].total += numScore;
+            questionnaires[qName].count += 1;
+          }
+        }
+      }
+
+      // Convert totals → averages
+      const overall = {};
+      for (const [qName, { total, count }] of Object.entries(questionnaires)) {
+        overall[qName] = count > 0 ? (total / count).toFixed(2) : "NA";
+      }
+
+      return overall;
+    };
+
+    function getCombinedAverage(left, right) {
+      const maxScores = {
+        OKS: 48,
+        SF12: 100,
+        FJS: 60,
+        KOOS_JR: 100,
+        KSS: 100,
+      };
+
+      const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+      let total = 0;
+      let count = 0;
+
+      keys.forEach((key) => {
+        const max = maxScores[key] || 100; // default to 100 if missing
+        const l = parseFloat(left[key] ?? 0);
+        const r = parseFloat(right[key] ?? 0);
+
+        if (l) {
+          total += (l / max) * 100; // normalize to 100
+          count++;
+        }
+        if (r) {
+          total += (r / max) * 100; // normalize to 100
+          count++;
+        }
+      });
+
+      return count > 0 ? (total / count).toFixed(2) : "NA";
+    }
+
     const fetchPatientReminder = async () => {
       try {
-        const res = await axios.get(
-          `${API_URL}patients/${patientReportId}`
-        );
+        const res = await axios.get(`${API_URL}patients/${patientReportId}`);
 
         const patient = res.data.patient;
 
@@ -239,22 +314,6 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           }
           return age;
         };
-
-        // calculate BMI
-        const calculateBMI = (heightStr, weightStr) => {
-          if (!heightStr || !weightStr) return "NA";
-          const heightVal = parseFloat(heightStr.replace("cm", "").trim());
-          const weightVal = parseFloat(weightStr.replace("kg", "").trim());
-          if (isNaN(heightVal) || isNaN(weightVal) || heightVal === 0)
-            return "NA";
-          const heightM = heightVal / 100; // convert cm → m
-          return (weightVal / (heightM * heightM)).toFixed(1); // 1 decimal place
-        };
-
-        const bmi = calculateBMI(
-          patient.Medical?.height,
-          patient.Medical?.weight
-        );
 
         const TOTAL_PERIODS = 6; // expected periods for each questionnaire
 
@@ -277,6 +336,19 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
         const statusLeft = checkCompletion(patient.Medical_Left);
         const statusRight = checkCompletion(patient.Medical_Right);
 
+        const leftOverallScores = patient.Practitioners?.left_doctor === sessionStorage.getItem("doctor")
+          ? calculateOverallScores(patient.Medical_Left)
+          : {};
+
+        const rightOverallScores = patient.Practitioners?.right_doctor === sessionStorage.getItem("doctor")
+          ? calculateOverallScores(patient.Medical_Right)
+          : {};
+
+        const overallCombined = getCombinedAverage(
+          leftOverallScores,
+          rightOverallScores
+        );
+
         const pickedData = {
           name: patient.Patient?.name ?? "NA",
           age: calculateAge(patient.Patient?.birthDate),
@@ -290,7 +362,6 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           leftPending: patient.Medical_Left_Pending_Count ?? "NA",
           rightCompleted: patient.Medical_Right_Completed_Count ?? "NA",
           rightPending: patient.Medical_Right_Pending_Count ?? "NA",
-          bmi: bmi, // ✅ store BMI instead of height/weight
           left_doctor:
             patient.Practitioners?.left_doctor &&
             patient.Practitioners.left_doctor !== "NA"
@@ -314,6 +385,27 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
               : patient.Patient?.gender?.toLowerCase() === "male"
               ? ManAvatar
               : Womanavatar,
+          height: patient.Medical?.height
+            ? patient.Medical.height.match(/[\d.]+/)?.[0] || "NA"
+            : "NA",
+
+          weight: patient.Medical?.weight
+            ? patient.Medical.weight.match(/[\d.]+/)?.[0] || "NA"
+            : "NA",
+
+          bmi:
+            patient.Medical?.height && patient.Medical?.weight
+              ? (() => {
+                  const h = parseFloat(
+                    patient.Medical.height.match(/[\d.]+/)?.[0]
+                  );
+                  const w = parseFloat(
+                    patient.Medical.weight.match(/[\d.]+/)?.[0]
+                  );
+                  return h && w ? (w / Math.pow(h / 100, 2)).toFixed(1) : "NA";
+                })()
+              : "NA",
+          total_combined: overallCombined,
         };
 
         const ques = {
@@ -420,8 +512,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     }
   }, [patientbasic]);
 
-    const [handlequestableswitch, sethandlequestableswitch] = useState("left");
-
+  const [handlequestableswitch, sethandlequestableswitch] = useState("left");
 
   function getTextColor(score) {
     if (score === null || score === undefined || isNaN(score)) return "#9CA3AF"; // gray for missing
@@ -671,7 +762,6 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     setTimeout(() => setshowAlert(false), 4000);
   };
 
-
   const QUESTIONNAIRE_NAMES = {
     OKS: "Oxford Knee Score (OKS)",
     SF12: "Short Form - 12 (SF-12)",
@@ -885,50 +975,58 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     { key: "2y", label: "+730" },
   ];
 
-  const extractSf12Scores = (sf12Data, periodOffsets) => {
-    if (!sf12Data || Object.keys(sf12Data).length === 0) return [];
+const extractSf12Scores = (sf12Data) => {
+  console.log("Extracting SF12 from:", sf12Data);
 
-    const map = {
-      "Pre Op": "-3",
-      "6W": "+42",
-      "3M": "+90",
-      "6M": "+180",
-      "1Y": "+365",
-      "2Y": "+730",
-    };
+  if (!sf12Data || Object.keys(sf12Data).length === 0) return [];
 
-    const result = Object.entries(sf12Data).map(([period, details], index) => {
-      if (!details?.score) {
-        return {
-          x: index,
-          name: map[period] || period,
-          pScore: null,
-          mScore: null,
-        };
-      }
+  const map = {
+    "Pre Op": "-3",
+    "6W": "+42",
+    "3M": "+90",
+    "6M": "+180",
+    "1Y": "+365",
+    "2Y": "+730",
+  };
 
-      // Example: "Scores (6W): 53, 23, 30 (Recorded at ...)"
-      const match = details.score.match(
-        /Scores.*?:\s*([\d]+),\s*([\d]+),\s*([\d]+)/
-      );
+  // ensure iteration in desired order
+  const periods = Object.keys(map);
 
-      const pScore = match ? Number(match[2]) : null; // 2nd
-      const mScore = match ? Number(match[3]) : null; // 3rd
+  const result = periods.map((period, index) => {
+    const details = sf12Data[period];
 
+    if (!details?.score) {
       return {
         x: index,
-        name: map[period] || period,
-        pScore,
-        mScore,
+        name: map[period],
+        pScore: null,
+        mScore: null,
       };
-    });
+    }
 
-    // Insert SURGERY marker between Pre Op (-3) and 6W (+42)
-    result.splice(1, 0, { x: 1, name: "SURGERY", pScore: null, mScore: null });
+    // Example: "Scores (Pre Op): 48, 33, 15 (Recorded at ...)"
+    const match = details.score.match(
+      /Scores.*?:\s*([\d]+),\s*([\d]+),\s*([\d]+)/
+    );
 
-    // Recalculate x index
-    return result.map((r, i) => ({ ...r, x: i }));
-  };
+    const pScore = match ? Number(match[2]) : null; // 2nd
+    const mScore = match ? Number(match[3]) : null; // 3rd
+
+    return {
+      x: index,
+      name: map[period],
+      pScore,
+      mScore,
+    };
+  });
+
+  // Insert SURGERY marker right after Pre Op (-3)
+  result.splice(1, 0, { x: 1, name: "SURGERY", pScore: null, mScore: null });
+
+  // Recalculate x index
+  return result.map((r, i) => ({ ...r, x: i }));
+};
+
 
   // ✅ Now call with SF12 directly
   const leftSf12 = extractSf12Scores(
@@ -983,7 +1081,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           console.error("❌ Error fetching doctor name:", err);
         });
     }
-  }, []); 
+  }, []);
 
   return (
     <div
@@ -1065,8 +1163,15 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                 <p
                   className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
                 >
-                  L: {patientbasic.statusLeft ?? "NA"} R:{" "}
-                  {patientbasic.statusRight ?? "NA"}
+                  L:{" "}
+                  {patientbasic?.left_doctor === sessionStorage.getItem("doctor")
+                    ? patientbasic?.statusLeft
+                    : "NA"}
+                  <br />
+                  R:{" "}
+                  {patientbasic?.right_doctor === sessionStorage.getItem("doctor")
+                    ? patientbasic?.statusRight
+                    : "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
@@ -1077,6 +1182,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
             </div>
           </div>
         </div>
+
         <div
           className={`${width >= 800 ? "w-1/2" : "w-full"} flex justify-end`}
         >
@@ -1089,34 +1195,33 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
               <div className={`bg-black rounded-lg w-3/7 py-1 px-3 flex`}>
                 <p
                   className={`${inter.className} font-semibold text-sm text-white text-center w-full cursor-pointer`}
-                  onClick={()=>{handlenavigateviewsurgeryreport();
+                  onClick={() => {
+                    handlenavigateviewsurgeryreport();
                     if (typeof window !== "undefined") {
-                    sessionStorage.setItem(
-                      "selectedUHID",
-                      patientbasic.uhid
-                    );
-                  }
+                      sessionStorage.setItem("selectedUHID", patientbasic.uhid);
+                    }
                   }}
                 >
                   View Surgery
                 </p>
               </div>
-              <p
-                className={`${inter.className} text-end font-semibold text-[15px] text-[#484848] w-3/7`}
-              >
-                BMI: 27
-              </p>
             </div>
 
             <div className={`w-full flex flex-row justify-end gap-4`}>
               <div
                 className={`w-3/7 flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
               >
-                <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
+                {/* <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
                 <p
                   className={`${inter.className} font-medium text-[15px] text-[#DE8E8A]`}
                 >
                   23 %
+                </p> */}
+
+                <p
+                  className={`${inter.className} text-start font-semibold text-[15px] text-[#484848] w-full`}
+                >
+                  BMI: {patientbasic?.bmi || "NA"}
                 </p>
               </div>
               <div className={`w-3/7 flex flex-col items-center`}>
@@ -1126,7 +1231,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                   <p
                     className={`${inter.className} font-semibold text-sm text-[#484848]`}
                   >
-                    42.73
+                    {patientbasic?.total_combined || "NA"}
                   </p>
                 </div>
               </div>
@@ -1162,7 +1267,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                 className={`${
                   raleway.className
                 } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
-                  !surgerydatleft || surgerydatleft === "NA"
+                   (patientbasic?.left_doctor !== sessionStorage.getItem("doctor"))
                     ? "cursor-not-allowed opacity-50"
                     : "cursor-pointer"
                 }
@@ -1173,7 +1278,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                   }
                   `}
                 onClick={
-                  !surgerydatleft || surgerydatleft === "NA"
+                  (patientbasic?.left_doctor !== sessionStorage.getItem("doctor"))
                     ? undefined
                     : () => {
                         sethandlequestableswitch("left");
@@ -1186,7 +1291,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                 className={`${
                   raleway.className
                 } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
-                  !surgerydatright || surgerydatright === "NA"
+                  (patientbasic?.right_doctor !== sessionStorage.getItem("doctor"))
                     ? "cursor-not-allowed opacity-50"
                     : "cursor-pointer"
                 }
@@ -1196,7 +1301,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                       : "bg-[#CAD9D6] text-black"
                   }`}
                 onClick={
-                  !surgerydatright || surgerydatright === "NA"
+                  (patientbasic?.right_doctor !== sessionStorage.getItem("doctor"))
                     ? undefined
                     : () => {
                         sethandlequestableswitch("right");

@@ -5,6 +5,7 @@ import Image from "next/image";
 import axios from "axios";
 import { API_URL } from "../libs/global";
 import { Raleway, Inter, Poppins } from "next/font/google";
+
 import {
   LineChart,
   Line,
@@ -64,7 +65,7 @@ const poppins = Poppins({
   variable: "--font-inter", // optional CSS variable name
 });
 
-const Surgeryreport = () => {
+const Surgeryreport = ({handleclosereport}) => {
   const [uhid, setUhid] = useState(null);
 
   const useWindowSize = () => {
@@ -107,7 +108,7 @@ const Surgeryreport = () => {
           console.error("❌ Error fetching doctor name:", err);
         });
     }
-  }, []); 
+  }, []);
 
   const { width, height } = useWindowSize();
 
@@ -465,8 +466,8 @@ const Surgeryreport = () => {
   const [postResurfacing, setPostResurfacing] = useState("");
   const consultantOptions = ["Dr. Vetri Kumar"];
   const surgeonOptions = ["Dr. Vetri Kumar"];
-  const firstAssistantOptions = ["Dr. Vinod Kumar"];
-  const secondAssistantOptions = ["Dr. Milan Adhikari"];
+  const firstAssistantOptions = ["Dr. Vetri Kumar", "Dr. Vinod Kumar"];
+  const secondAssistantOptions = ["Dr. Vinod Kumar", "Dr. Milan Adhikari"];
 
   const [selections, setSelections] = useState({
     FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
@@ -498,6 +499,15 @@ const Surgeryreport = () => {
     "5Year",
     "10Year",
   ];
+
+   const [showAlert, setshowAlert] = useState(false);
+    const [alermessage, setAlertMessage] = useState("");
+  
+    const showWarning = (message) => {
+      setAlertMessage(message);
+      setshowAlert(true);
+      setTimeout(() => setshowAlert(false), 4000);
+    };
 
   const [surgeryData, setSurgeryData] = useState(() => ({
     uhid: "NA",
@@ -557,7 +567,7 @@ const Surgeryreport = () => {
 
   useEffect(() => {
     const storedUHID = sessionStorage.getItem("selectedUHID");
-    console.log(storedUHID)
+    console.log(storedUHID);
     if (storedUHID) {
       // ✅ Update both uhid and patient_records[0].patuhid
       setSurgeryData((prevData) => ({
@@ -633,16 +643,18 @@ const Surgeryreport = () => {
     });
   };
 
+  const [opside, setOpside] = useState("LEFT KNEE");
+
   const fetchPatientData = async (uhid) => {
     try {
       console.log("Fetching patient data for UHID:", uhid);
       const response = await axios.get(`${API_URL}patients/${uhid}`);
-      console.log("API Full Response:", response);
-      console.log("API Response Data:", response.data);
+      // console.log("API Full Response:", response);
+      // console.log("API Response Data:", response.data);
 
       if (response.data && response.data.patient) {
         const patient = response.data.patient;
-        console.log("Patient Found:", patient);
+        // console.log("Patient Found:", patient);
 
         // ✅ Extract surgery dates
         const surgeryLeft = patient?.Medical?.surgery_date_left;
@@ -650,19 +662,74 @@ const Surgeryreport = () => {
 
         // ✅ Determine side
         let side = "left";
-        if (surgeryLeft && !surgeryRight) {
+        const today = new Date().toISOString().split("T")[0];
+        let op_date = "";
+        if (surgeryLeft === today && surgeryRight !== today) {
           side = "left";
-        } else if (!surgeryLeft && surgeryRight) {
+          setOpside("LEFT KNEE");
+          op_date = surgeryLeft;
+        } else if (surgeryLeft !== today && surgeryRight === today) {
           side = "right";
-        } else if (surgeryLeft && surgeryRight) {
-          side = "left"; // Default to left if both exist
+          setOpside("RIGHT KNEE");
+          op_date = surgeryRight;
+        } else if (surgeryLeft === today && surgeryRight === today) {
+          side = "left"; // Default to left if both are today
+          setOpside("LEFT KNEE, RIGHT KNEE");
+          op_date = surgeryLeft; // or surgeryRight, both are today
         }
 
         // ✅ Optionally pick op_date
-        const op_date = surgeryLeft || surgeryRight || "";
-
+        
+        const apiPatients = response.data.patient || [];
         // ✅ Update state
-        setPatientData(patient);
+         const mapped = {
+                  // ✅ Only calculate if doctor is assigned
+                  // assume doctorUhid = res.data[0]?.uhid
+                  
+                    name: apiPatients.Patient?.name || "Unknown",
+                    age: apiPatients.Patient?.birthDate
+                      ? new Date().getFullYear() -
+                        new Date(apiPatients.Patient.birthDate).getFullYear()
+                      : "NA",
+                    gender:
+                      apiPatients.Patient?.gender?.toLowerCase() === "male"
+                        ? "Male"
+                        : "Female",
+                    uhid: apiPatients.Patient?.uhid,
+                    period: apiPatients.Patient_Status_Left || "NA",
+                    period_right: apiPatients.Patient_Status_Right || "NA",
+                    activation_status: apiPatients.Activation_Status ?? "True",
+                    patient_initial_status: apiPatients.patient_current_status ?? "NA",
+                    surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
+                    surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
+                    doctor_left: apiPatients.Practitioners?.left_doctor,
+                    doctor_right: apiPatients.Practitioners?.right_doctor,
+                    vip: apiPatients.VIP_Status ?? false,
+                    opd: apiPatients.Appointments?.[0].start ?? "NA",
+
+                    avatar:
+                      apiPatients.Patient?.photo && apiPatients.Patient?.photo !== "NA"
+                        ? apiPatients.Patient.photo
+                        : apiPatients.Patient?.gender?.toLowerCase() === "male"
+                        ? ManAvatar
+                        : Womanavatar,
+
+                    bmi:
+                      apiPatients.Medical?.height && apiPatients.Medical?.weight
+                        ? (() => {
+                            const h = parseFloat(apiPatients.Medical.height.match(/[\d.]+/)?.[0]);
+                            const w = parseFloat(apiPatients.Medical.weight.match(/[\d.]+/)?.[0]);
+                            return h && w
+                              ? (w / Math.pow(h / 100, 2)).toFixed(1)
+                              : "NA";
+                          })()
+                        : "NA",
+
+                  };
+              
+        
+                setPatientData(mapped);
+                console.log("Mapped Patient Data:", mapped);
         setSurgeryData((prev) => ({
           ...prev,
           uhid,
@@ -696,20 +763,7 @@ const Surgeryreport = () => {
   const medical = patientData.Medical || {};
   const practitioners = patientData.Practitioners || {};
 
-  // Function to calculate age
-  const calculateAge = (birthDate) => {
-    const birth = new Date(birthDate);
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const monthDiff = today.getMonth() - birth.getMonth();
-    if (
-      monthDiff < 0 ||
-      (monthDiff === 0 && today.getDate() < birth.getDate())
-    ) {
-      age--;
-    }
-    return age;
-  };
+
 
   // Capitalize gender
   const capitalizeFirstLetter = (string) => {
@@ -763,6 +817,8 @@ const Surgeryreport = () => {
     }
   };
 
+  const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd format
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
@@ -792,18 +848,13 @@ const Surgeryreport = () => {
                 <p
                   className={`${raleway.className} font-semibold text-lg text-black`}
                 >
-                  {patientData.Patient.name}
+                  {patientData.name}
                 </p>
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  {patientData?.Patient?.birthDate
-                    ? `${calculateAge(
-                        patientData.Patient.birthDate
-                      )} yrs, ${capitalizeFirstLetter(
-                        patientData.Patient.gender
-                      )}`
-                    : "N/A"}
+                  {patientData?.age
+                    ?? "N/A"}
                 </p>
               </div>
               <div
@@ -814,13 +865,20 @@ const Surgeryreport = () => {
                 <p
                   className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
                 >
-                  L: {patientData.Patient_Status_Left || "NA"} R:{" "}
-                  {patientData.Patient_Status_Right || "NA"}
+                  L:{" "}
+                  {patientData?.doctor_left === sessionStorage.getItem("doctor")
+                    ? patientData?.period
+                    : "NA"}
+                  <br />
+                  R:{" "}
+                  {patientData?.doctor_right === sessionStorage.getItem("doctor")
+                    ? patientData?.period_right
+                    : "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
                 >
-                  {uhid}
+                  {patientData?.uhid}
                 </p>
               </div>
               <p
@@ -828,14 +886,8 @@ const Surgeryreport = () => {
                   inter.className
                 } text-end font-semibold text-[15px] text-[#484848]`}
               >
-                BMI:{" "}
-                {(() => {
-                  const weight = parseFloat(patientData.Medical.weight); // "70.0 kg" → 70
-                  const height = parseFloat(patientData.Medical.height); // "175.0 cm" → 175
-                  if (!weight || !height) return "N/A";
-                  const bmi = weight / (height / 100) ** 2;
-                  return bmi.toFixed(2);
-                })()}
+                BMI:{patientData?.bmi ?? "N/A"}
+                
               </p>
             </div>
           </div>
@@ -1220,7 +1272,7 @@ const Surgeryreport = () => {
             <label
               className={`${raleway.className} text-base font-semibold text-black`}
             >
-              LEFT KNEE
+              {opside??"NA"}
             </label>
           </div>
 
@@ -1462,15 +1514,18 @@ const Surgeryreport = () => {
             <div className={`space-x-12 flex flex-row`}>
               {/* ✅ Display surgery date from patientData */}
               <div className="relative w-52">
-                <p
-                  className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}
-                >
-                  {patientData?.Medical?.surgery_date_left
-                    ? new Date(
-                        patientData.Medical.surgery_date_left
-                      ).toLocaleDateString("en-GB")
+                <p className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}>
+                  {patientData?.surgery_left === today
+                    ? patientData.surgery_left
+                    : patientData?.surgery_right === today
+                    ? patientData.surgery_right
+                    : patientData?.surgery_left
+                    ? new Date(patientData.surgery_left).toLocaleDateString("en-GB")
+                    : patientData?.surgery_right
+                    ? new Date(patientData.surgery_right).toLocaleDateString("en-GB")
                     : "N/A"}
                 </p>
+
                 <Image
                   src={Calendar}
                   alt="Calendar"
@@ -1497,7 +1552,6 @@ const Surgeryreport = () => {
                     });
                   }}
                 />
-                
               </div>
             </div>
           </div>
@@ -3710,9 +3764,12 @@ const Surgeryreport = () => {
 
             try {
               const result = await saveDraft(surgeryData);
-              alert("Draft saved successfully!");
+              sessionStorage.setItem("selectedTab", "Home");
+              showWarning("Draft saved successfully!");
+              handleclosereport();
+              showWarning("Draft saved successfully!");
             } catch (error) {
-              alert("Failed to save draft.");
+              showWarning("Failed to save draft.");
             }
           }}
         >
@@ -3738,6 +3795,15 @@ const Surgeryreport = () => {
       }
     `}
       </style>
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

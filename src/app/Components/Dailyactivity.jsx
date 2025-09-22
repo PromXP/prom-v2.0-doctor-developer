@@ -107,7 +107,6 @@ const Dailyactivity = ({
   ];
 
   const [patientdata, setPatientdata] = useState([]);
-  const [selectedId, setSelectedId] = useState(null);
 
   const [showAlert, setshowAlert] = useState(false);
   const [alermessage, setAlertMessage] = useState("");
@@ -125,6 +124,12 @@ const Dailyactivity = ({
     return match ? parseFloat(match[1]) : null;
   };
 
+  const KOOSJR_MAP = [
+    100.0, 91.975, 84.6, 79.914, 76.332, 73.342, 70.704, 68.284, 65.994, 63.776,
+    61.583, 59.381, 57.14, 54.84, 52.465, 50.012, 47.487, 44.905, 42.281,
+    39.625, 36.931, 34.174, 31.307, 28.251, 24.875, 20.941, 15.939, 8.291, 0.0,
+  ];
+
   // 🛠️ Compute overall scores for a side
   const calculateOverallScores = (sideData) => {
     if (!sideData || sideData === "NA") return {};
@@ -133,8 +138,13 @@ const Dailyactivity = ({
 
     for (const [qName, periods] of Object.entries(sideData)) {
       for (const [period, qData] of Object.entries(periods || {})) {
-        const numScore = extractScore(qData?.score);
+        let numScore = extractScore(qData?.score);
         if (numScore !== null) {
+          if (qName === "KOOS_JR") {
+            // Ensure score is an integer index within 0–29
+
+            numScore = KOOSJR_MAP[numScore];
+          }
           if (!questionnaires[qName]) {
             questionnaires[qName] = { total: 0, count: 0 };
           }
@@ -152,6 +162,38 @@ const Dailyactivity = ({
 
     return overall;
   };
+
+  function getCombinedAverage(left, right) {
+    const maxScores = {
+      OKS: 48,
+      SF12: 100,
+      FJS: 60,
+      KOOS_JR: 100,
+      KSS: 100,
+    };
+
+    const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+    let total = 0;
+    let count = 0;
+
+    keys.forEach((key) => {
+      const max = maxScores[key] || 100; // default to 100 if missing
+      const l = parseFloat(left[key] ?? 0);
+      const r = parseFloat(right[key] ?? 0);
+
+      if (l) {
+        total += (l / max) * 100; // normalize to 100
+        count++;
+      }
+      if (r) {
+        total += (r / max) * 100; // normalize to 100
+        count++;
+      }
+    });
+
+    return count > 0 ? (total / count).toFixed(2) : "NA";
+  }
+
   let adminUhid = null;
   useEffect(() => {
     const fetchPatients = async () => {
@@ -177,13 +219,23 @@ const Dailyactivity = ({
         // 🔄 Map API data → static UI format
         const mapped = apiPatients.map((p, i) => {
           // ✅ Only calculate if doctor is assigned
-          const leftOverallScores = p.Practitioners?.left_doctor
-            ? calculateOverallScores(p.Medical_Left)
-            : {};
+          // assume doctorUhid = res.data[0]?.uhid
+          const doctorUhid = res.data[0]?.uhid;
 
-          const rightOverallScores = p.Practitioners?.right_doctor
-            ? calculateOverallScores(p.Medical_Right)
-            : {};
+          const leftOverallScores =
+            p.Practitioners?.left_doctor === doctorUhid
+              ? calculateOverallScores(p.Medical_Left)
+              : {};
+
+          const rightOverallScores =
+            p.Practitioners?.right_doctor === doctorUhid
+              ? calculateOverallScores(p.Medical_Right)
+              : {};
+
+          const overallCombined = getCombinedAverage(
+            leftOverallScores,
+            rightOverallScores
+          );
 
           return {
             name: p.Patient?.name || "Unknown",
@@ -197,6 +249,8 @@ const Dailyactivity = ({
             dob: p.Patient?.birthDate ?? "NA",
             period: p.Patient_Status_Left || "NA",
             period_right: p.Patient_Status_Right || "NA",
+            period_left_reverse: p.Patient_Status_Left_Reverse || "NA",
+            period_right_reverse: p.Patient_Status_Right_Reverse || "NA",
             status: i % 3 === 0 ? "COMPLETED" : "PENDING",
             left_compliance: p.Medical_Left_Completion ?? 0,
             right_compliance: p.Medical_Right_Completion ?? 0,
@@ -213,7 +267,7 @@ const Dailyactivity = ({
             id_proofs: p.Medical?.id_proofs ?? "NA",
             doctor_left: p.Practitioners?.left_doctor,
             doctor_right: p.Practitioners?.right_doctor,
-            doctor: res.data?.doctor_uhid ?? "NA",
+            doctor: res.data[0]?.uhid ?? "NA",
             vip: p.VIP_Status ?? false,
             opd: p.Appointments?.[0].start ?? "NA",
 
@@ -229,6 +283,25 @@ const Dailyactivity = ({
                 : p.Patient?.gender?.toLowerCase() === "male"
                 ? ManAvatar
                 : Womanavatar,
+            height: p.Medical?.height
+              ? p.Medical.height.match(/[\d.]+/)?.[0] || "NA"
+              : "NA",
+
+            weight: p.Medical?.weight
+              ? p.Medical.weight.match(/[\d.]+/)?.[0] || "NA"
+              : "NA",
+
+            bmi:
+              p.Medical?.height && p.Medical?.weight
+                ? (() => {
+                    const h = parseFloat(p.Medical.height.match(/[\d.]+/)?.[0]);
+                    const w = parseFloat(p.Medical.weight.match(/[\d.]+/)?.[0]);
+                    return h && w
+                      ? (w / Math.pow(h / 100, 2)).toFixed(1)
+                      : "NA";
+                  })()
+                : "NA",
+            total_combined: overallCombined,
           };
         });
 
@@ -269,35 +342,145 @@ const Dailyactivity = ({
 
   const today = new Date().toISOString().split("T")[0];
 
-  const filteredPatients = patientdata?.filter((p) => {
-    if (typeof window !== "undefined") {
-      adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
+  // helpers (put near top of your file)
+  const getDateOnly = (val) => {
+    if (!val) return null;
+    let v = val;
+
+    // handle arrays or objects with start/date
+    if (Array.isArray(v)) v = v[0];
+    if (typeof v === "object") {
+      if (v.start) v = v.start;
+      else if (v.date) v = v.date;
+      else return null;
     }
 
-    const leftDateOnly = p.surgery_left || null;
-    const rightDateOnly = p.surgery_right || null;
+    // already in YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(v))) return String(v);
 
-    // opd date (convert ISO → yyyy-mm-dd)
-    const opdDateOnly = p.opd
-      ? new Date(p.opd).toISOString().split("T")[0]
-      : null;
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().split("T")[0];
+  };
 
-    if (p.doctor_left === adminUhid) {
-      return leftDateOnly === today || opdDateOnly === today;
-    } else if (p.doctor_right === adminUhid) {
-      return rightDateOnly === today || opdDateOnly === today;
+  const checkGetSurgery = async (uhid, key) => {
+    // returns true if "exists" (we should block), false if not exists or error/404
+    try {
+      const res = await axios.get(
+        `${API_URL}get-surgery/${uhid.toLowerCase()}/${key}`
+      );
+      // treat non-empty response data as existing record
+      if (res && res.data && Object.keys(res.data).length > 0) return true;
+      return false;
+    } catch (err) {
+      // 404 or network errors => treat as not found (allow)
+      if (err?.response?.status === 404) return false;
+      // log for debugging, but return false to allow
+      console.warn(
+        "get-surgery error (treat as not found):",
+        err?.message || err
+      );
+      return false;
+    }
+  };
+
+  // main async filter function
+  const filterPatients = async (patients = []) => {
+    const adminUhid =
+      typeof window !== "undefined" ? sessionStorage.getItem("doctor") : null;
+    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const allowedPatients = [];
+
+    for (const p of patients) {
+      let allowed = false;
+      let matchedSide = null;
+      let matchedReason = null;
+
+      // normalize dates
+      const leftSurgery = getDateOnly(p.surgery_left);
+      const rightSurgery = getDateOnly(p.surgery_right);
+
+      // try picking per-side OPD if available, else fall back to general p.opd
+      const generalOpd = getDateOnly(p.opd ?? null);
+      const leftOpdDate = generalOpd;
+      const rightOpdDate = generalOpd;
+
+      // === Priority checks ===
+      // 1) Left OPD (only if admin is left doctor)
+      if (!allowed && p.doctor_left === adminUhid && leftOpdDate === today) {
+        const exists = await checkGetSurgery(p.uhid, `op-${leftOpdDate}`); // using "op-" prefix for OPD
+        if (!exists) {
+          allowed = true;
+          matchedSide = "left";
+          matchedReason = "opd";
+        } else {
+          allowed = false; // explicitly blocked by existing record
+        }
+      }
+
+      // 2) Right OPD (only if admin is right doctor)
+      if (!allowed && p.doctor_right === adminUhid && rightOpdDate === today) {
+        const exists = await checkGetSurgery(p.uhid, `op-${rightOpdDate}`);
+        if (!exists) {
+          allowed = true;
+          matchedSide = "right";
+          matchedReason = "opd";
+        } else {
+          allowed = false;
+        }
+      }
+
+      // 3) Left surgery
+      if (!allowed && p.doctor_left === adminUhid && leftSurgery === today) {
+        const exists = await checkGetSurgery(p.uhid, "op-"+leftSurgery); // surgery uses plain date key
+        if (!exists) {
+          allowed = true;
+          matchedSide = "left";
+          matchedReason = "surgery";
+        } else {
+          allowed = false;
+        }
+      }
+
+      // 4) Right surgery
+      if (!allowed && p.doctor_right === adminUhid && rightSurgery === today) {
+        const exists = await checkGetSurgery(p.uhid, "op-"+rightSurgery);
+        if (!exists) {
+          allowed = true;
+          matchedSide = "right";
+          matchedReason = "surgery";
+        } else {
+          allowed = false;
+        }
+      }
+
+      if (allowed) {
+        allowedPatients.push({ ...p, matchedSide, matchedReason });
+      }
     }
 
-    return false;
-  });
+    return allowedPatients;
+  };
+
+  const [filteredPatients, setFilteredPatients] = useState([]);
 
   useEffect(() => {
-    if (patientdata.length > 0) {
-      setSelectedId(patientdata[0].uhid);
-    }
+    const fetchFilteredPatients = async () => {
+      const patients = await filterPatients(patientdata);
+      setFilteredPatients(patients);
+    };
+
+    fetchFilteredPatients();
   }, [patientdata]);
 
-  const selectedPatient = patientdata.find((p) => p.uhid === selectedId);
+  const [selectedId, setSelectedId] = useState(null);
+  useEffect(() => {
+    if (filteredPatients.length > 0 && !selectedId) {
+      setSelectedId(filteredPatients[0].uhid);
+    }
+  }, [selectedId, filteredPatients]);
+
+  const selectedPatient = filteredPatients.find((p) => p.uhid === selectedId);
 
   const questionnaireNameMap = {
     oks: "Oxford Knee Score (OKS)",
@@ -337,7 +520,10 @@ const Dailyactivity = ({
       Object.entries(patient.left_questionnaires).forEach(([label, qset]) => {
         if (qset) {
           Object.entries(qset).forEach(([period, q]) => {
-            if (isWithinPeriod(patient.period, period) && !q.completed) {
+            if (
+              isWithinPeriod(patient.period_left_reverse, period) &&
+              !q.completed
+            ) {
               pending.push({
                 label: getFullQuestionnaireName(label), // ✅ use full name
                 side: "L",
@@ -356,7 +542,10 @@ const Dailyactivity = ({
       Object.entries(patient.right_questionnaires).forEach(([label, qset]) => {
         if (qset) {
           Object.entries(qset).forEach(([period, q]) => {
-            if (isWithinPeriod(patient.period_right, period) && !q.completed) {
+            if (
+              isWithinPeriod(patient.period_right_reverse, period) &&
+              !q.completed
+            ) {
               pending.push({
                 label: getFullQuestionnaireName(label), // ✅ use full name
                 side: "R",
@@ -385,6 +574,9 @@ const Dailyactivity = ({
       kssLeft = 0,
       kssRight = 0;
 
+    let leftCount = 0;
+    let rightCount = 0;
+
     patients.forEach((p) => {
       // ✅ Left side
       if (p.doctor_left === p.doctor && p.overall_scores?.left) {
@@ -393,6 +585,7 @@ const Dailyactivity = ({
         koosLeft += parseFloat(p.overall_scores.left.KOOS_JR ?? 0);
         fjsLeft += parseFloat(p.overall_scores.left.FJS ?? 0);
         kssLeft += parseFloat(p.overall_scores.left.KSS ?? 0);
+        leftCount++;
       }
 
       // ✅ Right side
@@ -402,21 +595,113 @@ const Dailyactivity = ({
         koosRight += parseFloat(p.overall_scores.right.KOOS_JR ?? 0);
         fjsRight += parseFloat(p.overall_scores.right.FJS ?? 0);
         kssRight += parseFloat(p.overall_scores.right.KSS ?? 0);
+        rightCount++;
       }
     });
 
     // ✅ Return grouped bardata
     return [
-      { name: "OKS", left: oksLeft, right: oksRight },
-      { name: "SF-12", left: sf12Left, right: sf12Right },
-      { name: "KOOS, JR", left: koosLeft, right: koosRight },
-      { name: "FJS", left: fjsLeft, right: fjsRight },
-      { name: "KSS", left: kssLeft, right: kssRight },
+      {
+        name: "OKS",
+        left: leftCount ? (oksLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (oksRight / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "SF-12",
+        left: leftCount ? (sf12Left / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (sf12Right / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "KOOS, JR",
+        left: leftCount ? (koosLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (koosRight / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "FJS",
+        left: leftCount ? (fjsLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (fjsRight / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "KSS",
+        left: leftCount ? (kssLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (kssRight / rightCount).toFixed(2) : "0.00",
+      },
+    ];
+  };
+
+  const generateBarDataselected = (p) => {
+    console.log("Selected for bardata", p);
+    // Totals
+    let oksLeft = 0,
+      oksRight = 0,
+      sf12Left = 0,
+      sf12Right = 0,
+      koosLeft = 0,
+      koosRight = 0,
+      fjsLeft = 0,
+      fjsRight = 0,
+      kssLeft = 0,
+      kssRight = 0;
+
+    let leftCount = 0;
+    let rightCount = 0;
+
+    // ✅ Left side
+    if (p.doctor_left === p.doctor && p.overall_scores?.left) {
+      oksLeft += parseFloat(p.overall_scores.left.OKS ?? 0);
+      sf12Left += parseFloat(p.overall_scores.left.SF12 ?? 0);
+      koosLeft += parseFloat(p.overall_scores.left.KOOS_JR ?? 0);
+      fjsLeft += parseFloat(p.overall_scores.left.FJS ?? 0);
+      kssLeft += parseFloat(p.overall_scores.left.KSS ?? 0);
+      leftCount++;
+    }
+
+    // ✅ Right side
+    if (p.doctor_right === p.doctor && p.overall_scores?.right) {
+      oksRight += parseFloat(p.overall_scores.right.OKS ?? 0);
+      sf12Right += parseFloat(p.overall_scores.right.SF12 ?? 0);
+      koosRight += parseFloat(p.overall_scores.right.KOOS_JR ?? 0);
+      fjsRight += parseFloat(p.overall_scores.right.FJS ?? 0);
+      kssRight += parseFloat(p.overall_scores.right.KSS ?? 0);
+      rightCount++;
+    }
+
+    // ✅ Return grouped bardata
+    return [
+      {
+        name: "OKS",
+        left: leftCount ? (oksLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (oksRight / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "SF-12",
+        left: leftCount ? (sf12Left / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (sf12Right / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "KOOS, JR",
+        left: leftCount ? (koosLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (koosRight / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "FJS",
+        left: leftCount ? (fjsLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (fjsRight / rightCount).toFixed(2) : "0.00",
+      },
+      {
+        name: "KSS",
+        left: leftCount ? (kssLeft / leftCount).toFixed(2) : "0.00",
+        right: rightCount ? (kssRight / rightCount).toFixed(2) : "0.00",
+      },
     ];
   };
 
   // usage
   const bardata = generateBarData(patientdata);
+
+  const selectedbardata = generateBarDataselected(
+    selectedPatient ? selectedPatient : {}
+  );
 
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
@@ -442,7 +727,7 @@ const Dailyactivity = ({
   const [postRight, setPostRight] = useState(0);
 
   useEffect(() => {
-    if (!patientdata || patientdata.length === 0) return;
+    if (!filteredPatients || filteredPatients.length === 0) return;
 
     let pre = 0;
     let post = 0;
@@ -450,9 +735,8 @@ const Dailyactivity = ({
     let post_left = 0;
     let pre_right = 0;
     let post_right = 0;
-    console.log("🔄 Mapped Patients:", patientdata);
 
-    patientdata.forEach((p) => {
+    filteredPatients.forEach((p) => {
       // ✅ Left side condition
       if (p.doctor_left === p.doctor && p.period) {
         if (p.period === "Pre Op") pre_left++;
@@ -470,13 +754,24 @@ const Dailyactivity = ({
     setPreRight(pre_right);
     setPostLeft(post_left);
     setPostRight(post_right);
-  }, [patientdata]); // recalc when patients or doctor changes
+  }, [filteredPatients]); // recalc when patients or doctor changes
 
   const [profpat, setshowprofpat] = useState([]);
   const [showprof, setshowprof] = useState(false);
   const [expand, setexpand] = useState(false);
 
-  const periods = ["1M", "3M", "6M", "1Y", "2Y", "3Y", "4Y", "5Y", "10Y"];
+  const periods = [
+    "1Month",
+    "3Month",
+    "6Month",
+    "1Year",
+    "2Year",
+    "3Year",
+    "4Year",
+    "5Year",
+    "10Year",
+  ];
+  const sides = ["left", "right"];
 
   const handlevipstatus = async (uhid, vip) => {
     console.log("Status", vip);
@@ -516,7 +811,7 @@ const Dailyactivity = ({
     }
   }, []);
 
-    const [newPassword, setNewPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const handleResetPassword = async () => {
@@ -553,6 +848,85 @@ const Dailyactivity = ({
     }
   };
 
+  const [side, setSide] = useState("left");
+  const [period, setPeriod] = useState("");
+  const [flexion, setFlexion] = useState("");
+  const [extension, setExtension] = useState("");
+
+  const handlesaveform = async () => {
+    let op_date = "";
+    if (side === "left") {
+      op_date = selectedPatient?.surgery_left;
+    } else {
+      op_date = selectedPatient?.surgery_right;
+    }
+    if (!side || !period || !flexion || !extension) {
+      showWarning("Please fill in all fields");
+      return;
+    } else {
+      const payload = {
+        uhid: selectedPatient?.uhid.toLowerCase(),
+        period: period, // e.g., "Preop"
+        field: "flexion", // "flexion" or "extension"
+        value: flexion, // value for that motion
+        op_date: `op-${op_date}`,
+      };
+
+      const payload1 = {
+        uhid: selectedPatient?.uhid.toLowerCase(),
+        period: period, // e.g., "Preop"
+        field: "extension", // "flexion" or "extension"
+        value: extension, // value for that motion
+        op_date: `op-${op_date}`,
+      };
+
+      const payload3 = {
+        field: "start_end", // "flexion" or "extension"
+        value: "1001-01-01", // value for that motion
+      };
+
+      console.log("Payload", payload3);
+
+      try {
+        const res = await axios.get(
+          `${API_URL}get-surgery/${selectedPatient?.uhid.toLowerCase()}/${
+            "op-" + op_date
+          }`
+        );
+        if (res) {
+          console.log("Success1");
+        }
+      } catch (err) {
+        showWarning("Surgery Report not found. Kindly add Surgery Report");
+        setshowprof(false);
+        return;
+      }
+
+      try {
+        // ✅ API call
+        const response = await axios.patch(
+          `${API_URL}patient_surgery_details/update_field`,
+          payload
+        );
+
+        const response1 = await axios.patch(
+          `${API_URL}patient_surgery_details/update_field`,
+          payload1
+        );
+
+        const response2 = await axios.patch(
+          `${API_URL}patients/update-field/${selectedPatient?.uhid}`,
+          payload3
+        );
+
+        showWarning("ROM submitted successfully");
+        setshowprof(false);
+      } catch (error) {
+        console.error("Error submitting ROM:", error);
+        showWarning("Failed to submit ROM");
+      }
+    }
+  };
 
   return (
     <div
@@ -609,7 +983,7 @@ const Dailyactivity = ({
           </p>
 
           <div
-            className={`w-full flex flex-col gap-5 border-[#EBEBEB] border-[1.3px] rounded-[10px] py-6 px-4`}
+            className={`w-full flex flex-col gap-3 border-[#EBEBEB] border-[1.3px] rounded-[10px] py-6 px-4`}
           >
             <div className={`w-full flex `}>
               <div className={`${width >= 1350 ? "w-full" : "w-full"}`}>
@@ -674,11 +1048,11 @@ const Dailyactivity = ({
                         
                     ${
                       width >= 1350
-                        ? "w-1/2"
+                        ? "w-5/7"
                         : width < 1350 && width >= 1000
                         ? "w-full"
                         : width < 1000 && width >= 600
-                        ? "w-1/2"
+                        ? "w-5/7"
                         : "w-full"
                     }`}
                     >
@@ -709,6 +1083,27 @@ const Dailyactivity = ({
                             ? `${selectedPatient.age}, ${selectedPatient.gender}`
                             : "Age, Gender"}
                         </p>
+                        <p
+                          className={`uppercase ${
+                            poppins.className
+                          } font-medium text-base text-[#222222] opacity-50 
+                        
+                        ${
+                          width >= 1350
+                            ? "text-start"
+                            : width < 1350 && width >= 1000
+                            ? "text-start"
+                            : width < 1000 && width >= 600
+                            ? "text-start"
+                            : width < 600 && width >= 530
+                            ? "text-start"
+                            : "text-start"
+                        }
+
+                        `}
+                        >
+                          {selectedPatient ? selectedPatient.uhid : "UHID"}
+                        </p>
                       </div>
                     </div>
                     <div
@@ -716,11 +1111,11 @@ const Dailyactivity = ({
 
                       ${
                         width >= 1350
-                          ? "w-1/2 gap-2 justify-end"
+                          ? "w-2/7 gap-2 justify-start"
                           : width < 1350 && width >= 1000
                           ? "w-full justify-start"
                           : width < 1000 && width >= 600
-                          ? "w-1/2 gap-2 justify-end"
+                          ? "w-2/7 gap-2 justify-start"
                           : "w-full justify-start"
                       }
 
@@ -768,27 +1163,6 @@ const Dailyactivity = ({
                           </>
                         )}
                       </p>
-                      <p
-                        className={`uppercase ${
-                          poppins.className
-                        } font-medium text-base text-[#222222] opacity-50 
-                        
-                        ${
-                          width >= 1350
-                            ? "text-end"
-                            : width < 1350 && width >= 1000
-                            ? "text-start"
-                            : width < 1000 && width >= 600
-                            ? "text-end"
-                            : width < 600 && width >= 530
-                            ? "text-start"
-                            : "text-center"
-                        }
-
-                        `}
-                      >
-                        {selectedPatient ? selectedPatient.uhid : "UHID"}
-                      </p>
                     </div>
                   </div>
                 </div>
@@ -803,44 +1177,55 @@ const Dailyactivity = ({
               <div className={`${width >= 530 ? "w-3/4" : "w-full"}`}>
                 <div className="w-full h-full bg-white rounded-lg">
                   <div className="w-full h-full bg-white rounded-lg">
-                    <ResponsiveContainer>
-                      <LineChart
-                        data={data}
-                        margin={{ top: 0, right: 0, left: -40, bottom: 0 }}
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={selectedbardata}
+                        margin={{ top: 0, right: 0, left: -30, bottom: -10 }}
                       >
                         <CartesianGrid vertical={false} stroke="#EBEBEB" />
-                        <XAxis dataKey="x" hide />
-                        <YAxis
-                          axisLine={false}
+
+                        {/* X Axis */}
+                        <XAxis
+                          dataKey="name"
                           tick={{
-                            fill: "gray",
-                            fontSize: 8,
-                            fontFamily: "Poppins, sans-serif",
+                            fill: "#475467",
+                            opacity: 1,
+                            fontFamily: "Poppins",
                             fontWeight: 500,
+                            fontSize: 8,
                           }}
-                        />
-                        <Tooltip />
-
-                        {/* First dashed line */}
-                        <Line
-                          type="monotone"
-                          dataKey="line1"
-                          stroke="#4A3AFF"
-                          strokeDasharray="20 15"
-                          strokeWidth={2}
-                          dot={false}
+                          axisLine={false}
                         />
 
-                        {/* Second dashed line */}
-                        <Line
-                          type="monotone"
-                          dataKey="line2"
-                          stroke="#962DFF"
-                          strokeDasharray="20 15"
-                          strokeWidth={2}
-                          dot={false}
+                        {/* Y Axis */}
+                        <YAxis
+                          tick={{
+                            fill: "#475467",
+                            opacity: 0.5,
+                            fontFamily: "Poppins",
+                            fontWeight: 500,
+                            fontSize: 12,
+                          }}
+                          axisLine={false}
+                          tickLine={false}
                         />
-                      </LineChart>
+
+                        <Tooltip content={<CustomTooltip />} />
+
+                        {/* ✅ Two bars per questionnaire */}
+                        <Bar
+                          dataKey="left"
+                          fill="#8884d8"
+                          radius={[8, 8, 0, 0]}
+                          barSize={10}
+                        />
+                        <Bar
+                          dataKey="right"
+                          fill="#82ca9d"
+                          radius={[8, 8, 0, 0]}
+                          barSize={10}
+                        />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
@@ -852,7 +1237,7 @@ const Dailyactivity = ({
                     : "w-full flex-row items-center gap-4"
                 } flex   justify-between `}
               >
-                <div
+                {/* <div
                   className={`w-full flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
                 >
                   <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
@@ -861,7 +1246,7 @@ const Dailyactivity = ({
                   >
                     23 %
                   </p>
-                </div>
+                </div> */}
                 <div className={`w-full flex flex-col items-center`}>
                   <div
                     className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
@@ -869,7 +1254,7 @@ const Dailyactivity = ({
                     <p
                       className={`${inter.className} font-semibold text-sm text-[#484848]`}
                     >
-                      42.73
+                      {selectedPatient?.total_combined ?? "NA"}
                     </p>
                   </div>
                   <p
@@ -881,7 +1266,7 @@ const Dailyactivity = ({
                 <p
                   className={`w-full ${poppins.className} text-center font-normal text-sm text-[#0F0F0F]`}
                 >
-                  BMI: 27
+                  BMI: {selectedPatient?.bmi ?? "NA"}
                 </p>
               </div>
             </div>
@@ -896,30 +1281,36 @@ const Dailyactivity = ({
                 className={`w-full flex flex-col ${raleway.className} font-semibold text-xs text-[#696969] gap-1 max-h-40 overflow-y-auto inline-Scroll`}
               >
                 {selectedPatient ? (
-                  getPendingQuestionnaires(selectedPatient).map(
-                    (item, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between rounded-lg px-3 py-1.5 hover:bg-[#f1f1f1] transition"
-                      >
-                        <span className="font-semibold text-gray-800  w-2/3">
-                          {item.label}
-                        </span>
-                        <div className="flex gap-2 text-[10px] font-medium w-1/3 justify-between">
-                          <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit">
-                            {item.side}
+                  getPendingQuestionnaires(selectedPatient).length > 0 ? (
+                    getPendingQuestionnaires(selectedPatient).map(
+                      (item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between rounded-lg px-3 py-1.5 hover:bg-[#f1f1f1] transition"
+                        >
+                          <span className="font-semibold text-gray-800 w-2/3">
+                            {item.label}
                           </span>
-                          <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 w-fit">
-                            {item.period}
-                          </span>
+                          <div className="flex gap-2 text-[10px] font-medium w-1/3 justify-between">
+                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit">
+                              {item.side}
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 w-fit">
+                              {item.period}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )
                     )
+                  ) : (
+                    <div className="text-center py-4 text-gray-400 font-medium">
+                      No pending questionnaires
+                    </div>
                   )
                 ) : (
-                  <span className="text-gray-400 text-center py-2">
+                  <div className="text-center py-4 text-gray-400 font-medium">
                     No pending questionnaires
-                  </span>
+                  </div>
                 )}
               </div>
             </div>
@@ -946,19 +1337,66 @@ const Dailyactivity = ({
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
                 } font-medium text-[15px] rounded-[10px] cursor-pointer`}
-                onClick={() => {
-                  handlenavigatesurgeryreport();
-                  if (typeof window !== "undefined") {
-                    sessionStorage.setItem(
-                      "selectedUHID",
-                      selectedPatient.uhid
-                    );
+                onClick={async () => {
+                  const today = new Date().toISOString().split("T")[0];
+                  const uhid = selectedPatient?.uhid?.toLowerCase();
+                  if (!uhid) return;
+
+                  const opdDate = getDateOnly(selectedPatient?.opd);
+                  const surgeryLeft = getDateOnly(
+                    selectedPatient?.surgery_left
+                  );
+                  const surgeryRight = getDateOnly(
+                    selectedPatient?.surgery_right
+                  );
+
+                  // === Priority ===
+                  // 1) OPD check
+                  if (opdDate === today) {
+                    const exists = await checkGetSurgery(uhid, `op-${opdDate}`);
+                    if (!exists) {
+                      setshowprof(true); // ✅ OPD flow
+                      return;
+                    }
                   }
+
+                  // 2) Left surgery check
+                  if (surgeryLeft === today) {
+                    const exists = await checkGetSurgery(uhid, surgeryLeft);
+                    if (!exists) {
+                      handlenavigatesurgeryreport(); // ✅ Surgery flow
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(
+                          "selectedUHID",
+                          selectedPatient.uhid
+                        );
+                      }
+                      return;
+                    }
+                  }
+
+                  // 3) Right surgery check
+                  if (surgeryRight === today) {
+                    const exists = await checkGetSurgery(uhid, surgeryRight);
+                    if (!exists) {
+                      handlenavigatesurgeryreport(); // ✅ Surgery flow
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(
+                          "selectedUHID",
+                          selectedPatient.uhid
+                        );
+                      }
+                      return;
+                    }
+                  }
+
+                  // ❌ Nothing matched
+                  console.log("Not allowed — already exists or date not today");
                 }}
-                // onClick={() => setshowprof(true)}
               >
                 Surgery
               </p>
+
               <p
                 className={`${
                   width >= 400 ? "w-1/2" : "w-2/3"
@@ -1235,7 +1673,7 @@ const Dailyactivity = ({
             <div
               className={`
                         min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto
-                        ${width < 950 ? "gap-4 w-full" : "w-1/2"}
+                        ${width < 950 ? "gap-4 w-full" : "w-2/3"}
                         ${expand ? "w-full" : "p-4"}
                       `}
             >
@@ -1294,13 +1732,50 @@ const Dailyactivity = ({
                     </div>
 
                     <div
-                      className={`w-full flex gap-12 ${
+                      className={`w-full flex gap-12  ${
                         width >= 1200 ? "flex-row" : "flex-col"
                       }`}
                     >
+                      {selectedPatient?.surgery_left !==
+                        selectedPatient?.surgery_right && (
+                        <div
+                          className={`flex gap-4 ${
+                            width >= 1200 ? "w-1/4" : "w-full"
+                          } ${width < 700 ? "flex-col" : "flex-row"}`}
+                        >
+                          <div
+                            className={`flex flex-col gap-2 ${
+                              width < 700 ? "w-full" : "w-full"
+                            }`}
+                          >
+                            <p
+                              className={` ${outfit.className} font-bold uppercase text-base text-black/80`}
+                            >
+                              SIDE
+                            </p>
+
+                            <select
+                              className={`${outfit.className} cursor-pointer border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                              defaultValue=""
+                              value={side}
+                              onChange={(e) => setSide(e.target.value)}
+                            >
+                              <option value="" disabled>
+                                Select Side
+                              </option>
+                              {sides.map((period) => (
+                                <option key={period} value={period}>
+                                  {period}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
                       <div
                         className={`flex gap-4 ${
-                          width >= 1200 ? "w-1/3" : "w-full"
+                          width >= 1200 ? "w-1/4" : "w-full"
                         } ${width < 700 ? "flex-col" : "flex-row"}`}
                       >
                         <div
@@ -1317,6 +1792,8 @@ const Dailyactivity = ({
                           <select
                             className={`${outfit.className} cursor-pointer border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
                             defaultValue=""
+                            value={period}
+                            onChange={(e) => setPeriod(e.target.value)}
                           >
                             <option value="" disabled>
                               Select Period
@@ -1332,7 +1809,7 @@ const Dailyactivity = ({
 
                       <div
                         className={`flex flex-col gap-2 ${
-                          width >= 1200 ? "w-1/3" : "w-full"
+                          width >= 1200 ? "w-1/4" : "w-full"
                         }`}
                       >
                         <p
@@ -1342,6 +1819,8 @@ const Dailyactivity = ({
                         </p>
                         <input
                           type="text"
+                          value={flexion}
+                          onChange={(e) => setFlexion(e.target.value)}
                           placeholder="Enter flexion"
                           className={`${outfit.className} border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         />
@@ -1349,7 +1828,7 @@ const Dailyactivity = ({
 
                       <div
                         className={`flex flex-col gap-2 ${
-                          width >= 1200 ? "w-1/3" : "w-full"
+                          width >= 1200 ? "w-1/4" : "w-full"
                         }`}
                       >
                         <p
@@ -1359,6 +1838,8 @@ const Dailyactivity = ({
                         </p>
                         <input
                           type="text"
+                          value={extension}
+                          onChange={(e) => setExtension(e.target.value)}
                           placeholder="Enter extension"
                           className={`${outfit.className} border border-gray-300 rounded-md p-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-blue-500`}
                         />
@@ -1373,6 +1854,7 @@ const Dailyactivity = ({
                       } font-medium text-lg cursor-pointer`}
                       // onClick={handlenavigatesurgeryreport}
                       // onClick={() => setshowprof(true)}
+                      onClick={handlesaveform}
                     >
                       SUBMIT
                     </p>
@@ -1402,7 +1884,7 @@ const Dailyactivity = ({
           document.body // portal target
         )}
 
-        {showresetpassword &&
+      {showresetpassword &&
         ReactDOM.createPortal(
           <div
             className="fixed inset-0 z-40 flex items-center justify-center"
@@ -1485,7 +1967,7 @@ const Dailyactivity = ({
             {showAlert && (
               <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
                 <div className="bg-yellow-100 border border-yellow-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out">
-                  {alertmessage}
+                  {alermessage}
                 </div>
               </div>
             )}

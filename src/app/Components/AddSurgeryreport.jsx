@@ -37,7 +37,7 @@ import {
 import Headset from "@/app/Assets/headset.png";
 import Search from "@/app/Assets/searchicon.png";
 import ManAvatar from "@/app/Assets/man.png";
-import Womanavatar from "@/app/Assets/woman.png";
+import WomanAvatar from "@/app/Assets/woman.png";
 import Calendar from "@/app/Assets/calendar.png";
 import Clock from "@/app/Assets/clock.png";
 import BoneLeft from "@/app/Assets/boneleft.png";
@@ -64,7 +64,7 @@ const poppins = Poppins({
   variable: "--font-inter", // optional CSS variable name
 });
 
-const AddSurgeryreport = () => {
+const AddSurgeryreport = ({handleclosereport}) => {
   const [uhid, setUhid] = useState(null);
 
   const useWindowSize = () => {
@@ -90,6 +90,30 @@ const AddSurgeryreport = () => {
   };
 
   const { width, height } = useWindowSize();
+
+  const [doctorName, setDoctorName] = useState("");
+  const [showAlert, setshowAlert] = useState(false);
+        const [alermessage, setAlertMessage] = useState("");
+      
+  
+    useEffect(() => {
+      const doctorUhid = sessionStorage.getItem("doctor");
+  
+      if (doctorUhid) {
+        axios
+          .get(`${API_URL}getdoctorname/${doctorUhid}`)
+          .then((res) => {
+            if (res.data?.doctor_name) {
+              sessionStorage.setItem("doctorName", res.data.doctor_name);
+              setDoctorName(res.data.doctor_name);
+            }
+          })
+          .catch((err) => {
+            console.error("❌ Error fetching doctor name:", err);
+          });
+      }
+    }, []);
+  
 
   const categories = ["FEMUR", "TIBIA", "INSERT", "PATELLA"];
   const rows = ["MANUFACTURER", "MODEL", "SIZE"];
@@ -511,8 +535,8 @@ const AddSurgeryreport = () => {
   const [postResurfacing, setPostResurfacing] = useState("");
   const consultantOptions = ["Dr. Vetri Kumar"];
   const surgeonOptions = ["Dr. Vetri Kumar"];
-  const firstAssistantOptions = ["Dr. Vinod Kumar"];
-  const secondAssistantOptions = ["Dr. Milan Adhikari"];
+  const firstAssistantOptions = ["Dr. Vetri Kumar", "Dr. Vinod Kumar"];
+  const secondAssistantOptions = ["Dr. Vinod Kumar", "Dr. Milan Adhikari"];
 
   const [selections, setSelections] = useState({
     FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
@@ -667,6 +691,9 @@ const AddSurgeryreport = () => {
     });
   };
 
+  
+  const [opside, setOpside] = useState("LEFT KNEE");
+
   const fetchPatientData = async (uhid) => {
     try {
       console.log("Fetching patient data for UHID:", uhid);
@@ -695,8 +722,56 @@ const AddSurgeryreport = () => {
         // ✅ Optionally pick op_date
         const op_date = surgeryLeft || surgeryRight || "";
 
+const apiPatients = response.data.patient || [];
         // ✅ Update state
-        setPatientData(patient);
+        const mapped = {
+          // ✅ Only calculate if doctor is assigned
+          // assume doctorUhid = res.data[0]?.uhid
+
+          name: apiPatients.Patient?.name || "Unknown",
+          age: apiPatients.Patient?.birthDate
+            ? new Date().getFullYear() -
+              new Date(apiPatients.Patient.birthDate).getFullYear()
+            : "NA",
+          gender:
+            apiPatients.Patient?.gender?.toLowerCase() === "male"
+              ? "Male"
+              : "Female",
+          uhid: apiPatients.Patient?.uhid,
+          period: apiPatients.Patient_Status_Left || "NA",
+          period_right: apiPatients.Patient_Status_Right || "NA",
+          activation_status: apiPatients.Activation_Status ?? "True",
+          patient_initial_status: apiPatients.patient_current_status ?? "NA",
+          surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
+          surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
+          doctor_left: apiPatients.Practitioners?.left_doctor,
+          doctor_right: apiPatients.Practitioners?.right_doctor,
+          vip: apiPatients.VIP_Status ?? false,
+          opd: apiPatients.Appointments?.[0].start ?? "NA",
+
+          avatar:
+            apiPatients.Patient?.photo && apiPatients.Patient?.photo !== "NA"
+              ? apiPatients.Patient.photo
+              : apiPatients.Patient?.gender?.toLowerCase() === "male"
+              ? ManAvatar
+              : WomanAvatar,
+
+          bmi:
+            apiPatients.Medical?.height && apiPatients.Medical?.weight
+              ? (() => {
+                  const h = parseFloat(
+                    apiPatients.Medical.height.match(/[\d.]+/)?.[0]
+                  );
+                  const w = parseFloat(
+                    apiPatients.Medical.weight.match(/[\d.]+/)?.[0]
+                  );
+                  return h && w ? (w / Math.pow(h / 100, 2)).toFixed(1) : "NA";
+                })()
+              : "NA",
+        };
+
+        setPatientData(mapped);
+
         setSurgeryData((prev) => ({
           ...prev,
           uhid,
@@ -721,6 +796,86 @@ const AddSurgeryreport = () => {
       setLoading(false);
     }
   };
+
+  const [surgeries, setSurgeries] = useState([]);
+  const [selectedSurgery, setSelectedSurgery] = useState("");
+  const [op_date, setop_date] = useState("");
+  
+  // Determine side based on selected surgery
+const getSideFromSurgery = (surgery) => {
+  if (!surgery) return "";
+  const left = patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null;
+  const right = patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null;
+
+  if (surgery === left && surgery === right) {
+    return "left";
+  } else if (surgery === left) {
+    return "left";
+  } else if (surgery === right) {
+    return "right";
+  } else {
+    return "";
+  }
+};
+
+// after patientData is set, update surgeries
+useEffect(() => {
+  if (patientData) {
+    const s = [
+      patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
+      patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
+    ].filter(Boolean); // remove null/NA
+
+    setSurgeries(s);
+    const defaultSurgery = s[0] || "";
+    setSelectedSurgery(defaultSurgery);
+    setop_date(defaultSurgery);
+
+    // Update side and opside based on default selection
+    const computedSide = getSideFromSurgery(defaultSurgery);
+    setOpside(computedSide);
+    setSurgeryData((prev) => ({
+      ...prev,
+      side: computedSide,
+      patient_records: prev.patient_records.map((record, index) =>
+        index === 0
+          ? {
+              ...record,
+              side: computedSide,
+              op_date: defaultSurgery,
+            }
+          : record
+      ),
+    }));
+  }
+}, [patientData]);
+
+// whenever selectedSurgery changes, update op_date and side dynamically
+useEffect(() => {
+  if (selectedSurgery && patientData?.uhid) {
+    setop_date(selectedSurgery);
+
+    const computedSide = getSideFromSurgery(selectedSurgery);
+    setOpside(computedSide);
+
+    setSurgeryData((prev) => ({
+      ...prev,
+      side: computedSide,
+      patient_records: prev.patient_records.map((record, index) =>
+        index === 0
+          ? {
+              ...record,
+              side: computedSide,
+              op_date: selectedSurgery,
+            }
+          : record
+      ),
+    }));
+
+  }
+}, [selectedSurgery, patientData?.uhid]);
+ 
+  
 
   if (loading) return <p>Loading patient data...</p>;
 
@@ -796,6 +951,15 @@ const AddSurgeryreport = () => {
     }
   };
 
+    const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd format
+
+    
+        const showWarning = (message) => {
+          setAlertMessage(message);
+          setshowAlert(true);
+          setTimeout(() => setshowAlert(false), 4000);
+        };
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
@@ -825,18 +989,13 @@ const AddSurgeryreport = () => {
                 <p
                   className={`${raleway.className} font-semibold text-lg text-black`}
                 >
-                  {patientData.Patient.name}
+                  {patientData?.name}
                 </p>
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  {patientData?.Patient?.birthDate
-                    ? `${calculateAge(
-                        patientData.Patient.birthDate
-                      )} yrs, ${capitalizeFirstLetter(
-                        patientData.Patient.gender
-                      )}`
-                    : "N/A"}
+                  {patientData?.age
+                    ?? "N/A"}
                 </p>
               </div>
               <div
@@ -847,13 +1006,21 @@ const AddSurgeryreport = () => {
                 <p
                   className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
                 >
-                  L: {patientData.Patient_Status_Left || "NA"} R:{" "}
-                  {patientData.Patient_Status_Right || "NA"}
+                  L:{" "}
+                  {patientData?.doctor_left === sessionStorage.getItem("doctor")
+                    ? patientData?.period
+                    : "NA"}
+                  <br />
+                  R:{" "}
+                  {patientData?.doctor_right ===
+                  sessionStorage.getItem("doctor")
+                    ? patientData?.period_right
+                    : "NA"}
                 </p>
                 <p
                   className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
                 >
-                  {uhid}
+                  {patientData?.uhid ?? "N/A"}
                 </p>
               </div>
               <p
@@ -861,14 +1028,8 @@ const AddSurgeryreport = () => {
                   inter.className
                 } text-end font-semibold text-[15px] text-[#484848]`}
               >
-                BMI:{" "}
-                {(() => {
-                  const weight = parseFloat(patientData.Medical.weight); // "70.0 kg" → 70
-                  const height = parseFloat(patientData.Medical.height); // "175.0 cm" → 175
-                  if (!weight || !height) return "N/A";
-                  const bmi = weight / (height / 100) ** 2;
-                  return bmi.toFixed(2);
-                })()}
+                BMI:{patientData?.bmi ?? "N/A"}
+                
               </p>
             </div>
           </div>
@@ -886,12 +1047,28 @@ const AddSurgeryreport = () => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                Doctor Name
+                {doctorName ?? "Doctor Name"}
               </p>
             </div>
           </div>
         )}
       </div>
+
+      {patientData.surgery_left !== patientData.surgery_right && (
+        <div className="flex items-center space-x-2 w-60 pt-[40px]">
+          <select
+            className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
+            value={selectedSurgery}
+            onChange={(e) => setSelectedSurgery(e.target.value)}
+          >
+            {surgeries.map((surgery, index) => (
+              <option key={index} value={surgery}>
+                {new Date(surgery).toLocaleDateString("en-GB")}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className={`w-full flex flex-col pt-[60px]`}>
         <h2
@@ -1517,10 +1694,14 @@ const AddSurgeryreport = () => {
                 <p
                   className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}
                 >
-                  {patientData?.Medical?.surgery_date_left
-                    ? new Date(
-                        patientData.Medical.surgery_date_left
-                      ).toLocaleDateString("en-GB")
+                  {patientData?.surgery_left === today
+                    ? patientData.surgery_left
+                    : patientData?.surgery_right === today
+                    ? patientData.surgery_right
+                    : patientData?.surgery_left
+                    ? new Date(patientData.surgery_left).toLocaleDateString("en-GB")
+                    : patientData?.surgery_right
+                    ? new Date(patientData.surgery_right).toLocaleDateString("en-GB")
                     : "N/A"}
                 </p>
                 <Image
@@ -1548,11 +1729,6 @@ const AddSurgeryreport = () => {
                       };
                     });
                   }}
-                />
-                <Image
-                  src={Clock}
-                  alt="Clock"
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
                 />
               </div>
             </div>
@@ -3766,15 +3942,28 @@ const AddSurgeryreport = () => {
 
             try {
               const result = await saveDraft(surgeryData);
-              alert("Draft saved successfully!");
+              sessionStorage.setItem("selectedTab", "Home");
+              showWarning("Draft saved successfully!");
+              handleclosereport();
+              showWarning("Draft saved successfully!");
             } catch (error) {
-              alert("Failed to save draft.");
+              showWarning("Failed to save draft.");
             }
           }}
         >
           Draft
         </p>
       </div>
+
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
 
       <style>
         {`

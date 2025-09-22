@@ -121,6 +121,10 @@ const page = () => {
     setActiveTab("ViewSurgeryreport");
   };
 
+  const handleclosereport = () => {
+    setActiveTab("Home");
+  };
+
   const handlenavigateaddurgeryreport = () => {
     setActiveTab("AddSurgeryreport");
   };
@@ -156,13 +160,13 @@ const page = () => {
         return <Patientreport handlenavigateviewsurgeryreport={handlenavigateviewsurgeryreport}/>;
 
       case "Surgeryreport":
-        return <Surgeryreport />;
+        return <Surgeryreport handleclosereport={handleclosereport} />;
 
       case "ViewSurgeryreport":
         return <ViewSurgeryreport handlenavigateaddurgeryreport={handlenavigateaddurgeryreport}/>;
 
       case "AddSurgeryreport":
-        return <AddSurgeryreport />;
+        return <AddSurgeryreport handleclosereport={handleclosereport}/>;
     }
   };
 
