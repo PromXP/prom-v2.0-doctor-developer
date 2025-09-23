@@ -806,8 +806,19 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           // Notes
           const [first, second, third, fourth] = periodData.other_notes || [];
           const filtered = [];
-          if (first === "No") filtered.push(first);
-          if (third === "No") filtered.push(third);
+         if (first === "filledBy: Self") {
+            filtered.push(first);
+          } else {
+            filtered.push(first);
+            filtered.push(second);
+          }
+
+          if (third === "otherPain: No") {
+            filtered.push(third);
+          } else {
+            filtered.push(third);
+            filtered.push(fourth);
+          }
           notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
         } else {
           // Period exists and score exists
@@ -816,8 +827,19 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
 
           const [first, second, third, fourth] = periodData.other_notes || [];
           const filtered = [];
-          if (first === "No") filtered.push(first);
-          if (third === "No") filtered.push(third);
+         if (first === "filledBy: Self") {
+            filtered.push(first);
+          } else {
+            filtered.push(first);
+            filtered.push(second);
+          }
+
+          if (third === "otherPain: No") {
+            filtered.push(third);
+          } else {
+            filtered.push(third);
+            filtered.push(fourth);
+          }
           notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
         }
       });
@@ -1372,21 +1394,22 @@ const extractSf12Scores = (sf12Data) => {
                           return (
                             <td
                               key={period.key}
-                              className={`px-4 py-2 font-bold text-center align-middle ${
+                              className={`relative px-4 py-2 font-bold text-center align-middle ${
                                 q.notesMap[period.key] &&
                                 q.notesMap[period.key] !== "NA"
-                                  ? "cursor-pointer"
+                                  ? "group cursor-pointer"
                                   : ""
                               }`}
                               style={{ color }}
-                              title={
-                                q.notesMap[period.key] &&
-                                q.notesMap[period.key] !== "NA"
-                                  ? q.notesMap[period.key]
-                                  : undefined
-                              } // Hover text
+                             
                             >
                               {score || "—"}
+                              {q.notesMap[period.key] &&
+                                  q.notesMap[period.key] !== "NA" && (
+                                    <div className={` ${poppins.className} uppercase  absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden w-full whitespace-normal rounded-lg bg-gray-500 px-3 py-2 text-sm text-white shadow-lg group-hover:block z-50`}>
+                                      {q.notesMap[period.key]}
+                                    </div>
+                                  )}
                             </td>
                           );
                         })
