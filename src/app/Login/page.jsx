@@ -60,6 +60,7 @@ const page = () => {
 
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [resetEmail, setResetEmail] = useState("");
+  const [resetUHID, setresetUHID] = useState("");
 
   const [userUHID, setuserUHID] = useState("");
   const [userPassword, setuserPassword] = useState("");
@@ -125,7 +126,7 @@ const page = () => {
 
   const handlereset = async (e) => {
     if (!resetUHID) {
-      showWarning("Please enter your UHID");
+      showWarning("Please enter your UEID");
       return;
     }
     if (!resetEmail) {
@@ -319,8 +320,8 @@ const page = () => {
                       <input
                         type="text"
                         placeholder="UEID"
-                        value={userUHID}
-                        onChange={(e) => setuserUHID(e.target.value)}
+                        value={resetUHID}
+                        onChange={(e) => setresetUHID(e.target.value)}
                         className={`${poppins.className} rounded-md p-3 text-sm border-1 border-[#E0E9E7] text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
                       />
 
