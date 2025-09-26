@@ -107,6 +107,7 @@ const Dailyactivity = ({
   ];
 
   const [patientdata, setPatientdata] = useState([]);
+  const [patientloading, setPatientloading] = useState(true);
 
   const [showAlert, setshowAlert] = useState(false);
   const [alermessage, setAlertMessage] = useState("");
@@ -305,9 +306,11 @@ const Dailyactivity = ({
           };
         });
 
+        setPatientloading(false);
         setPatientdata(mapped);
         console.log("Mapped doctor", mapped);
       } catch (err) {
+        setPatientloading(false);
         console.error("❌ Error fetching patients:", err);
         if (err.response) {
           showWarning(err.response.data.detail || "Failed to fetch patients");
@@ -432,7 +435,7 @@ const Dailyactivity = ({
 
       // 3) Left surgery
       if (!allowed && p.doctor_left === adminUhid && leftSurgery === today) {
-        const exists = await checkGetSurgery(p.uhid, "op-"+leftSurgery); // surgery uses plain date key
+        const exists = await checkGetSurgery(p.uhid, "op-" + leftSurgery); // surgery uses plain date key
         if (!exists) {
           allowed = true;
           matchedSide = "left";
@@ -444,7 +447,7 @@ const Dailyactivity = ({
 
       // 4) Right surgery
       if (!allowed && p.doctor_right === adminUhid && rightSurgery === today) {
-        const exists = await checkGetSurgery(p.uhid, "op-"+rightSurgery);
+        const exists = await checkGetSurgery(p.uhid, "op-" + rightSurgery);
         if (!exists) {
           allowed = true;
           matchedSide = "right";
@@ -928,6 +931,21 @@ const Dailyactivity = ({
     }
   };
 
+   const messages = [
+  "Analyzing updates...",
+  "Hang tight! Preparing today's patients...",
+];
+
+
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col py-8 ${
@@ -1336,7 +1354,8 @@ const Dailyactivity = ({
                   width >= 400 ? "w-1/2" : "w-2/3"
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
-                } font-medium text-[15px] rounded-[10px] cursor-pointer`}
+                } font-medium text-[15px] rounded-[10px]
+                ${selectedPatient?.uhid?"cursor-pointer":""} `}
                 onClick={async () => {
                   const today = new Date().toISOString().split("T")[0];
                   const uhid = selectedPatient?.uhid?.toLowerCase();
@@ -1402,8 +1421,10 @@ const Dailyactivity = ({
                   width >= 400 ? "w-1/2" : "w-2/3"
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
-                } font-medium text-[15px] rounded-[10px] cursor-pointer`}
+                } font-medium text-[15px] rounded-[10px]
+                 ${selectedPatient?.uhid ? "cursor-pointer" : ""} `}
                 onClick={() => {
+                  if(selectedPatient.uhid){
                   handlenavigatereport();
                   if (typeof window !== "undefined") {
                     sessionStorage.setItem(
@@ -1411,6 +1432,7 @@ const Dailyactivity = ({
                       selectedPatient.uhid
                     );
                   }
+                }
                 }}
               >
                 View Report
@@ -1546,90 +1568,128 @@ const Dailyactivity = ({
 
       <div className="w-full h-fit">
         <div className="flex flex-row gap-13.5 whitespace-nowrap overflow-x-auto pb-4 inline-scroll">
-          {filteredPatients.map((patient) => {
-            const isSelected = selectedId === patient.uhid;
+          {patientloading ? (
+            <div className="flex space-x-2 w-full justify-center">
+                    <svg
+                      className="animate-spin h-5 w-5 text-black"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                      />
+                    </svg>
+                    <span
+                      className={`${poppins.className} text-black font-semibold`}
+                    >
+                      {messages[index]}
+                    </span>
+                  </div>
+          ) : filteredPatients.length > 0 ? (
+            filteredPatients.map((patient) => {
+              const isSelected = selectedId === patient.uhid;
 
-            return (
-              <div
-                key={patient.uhid}
-                onClick={() => setSelectedId(patient.uhid)}
-                className={`w-fit h-fit min-w-[220px] flex-shrink-0 flex flex-col rounded-lg py-3 px-4 gap-2 cursor-pointer transition-colors duration-200 ${
-                  isSelected
-                    ? "bg-[#2A343D]"
-                    : "bg-white border-[#EBEBEB] border-1"
-                }`}
-              >
-                {/* Top Row */}
-                <div className="w-full flex flex-row gap-6 items-center">
-                  <Image
-                    src={patient.avatar}
-                    alt="Avatar"
-                    className={`rounded-full w-[35px] h-[35px]`}
-                    width={35}
-                    height={35}
-                    onDoubleClick={() =>
-                      handlevipstatus(patient.uhid, patient.vip)
-                    }
-                  />
-                  <div className="flex flex-col gap-1">
+              return (
+                <div
+                  key={patient.uhid}
+                  onClick={() => setSelectedId(patient.uhid)}
+                  className={`w-fit h-fit min-w-[220px] flex-shrink-0 flex flex-col rounded-lg py-3 px-4 gap-2 cursor-pointer transition-colors duration-200 ${
+                    isSelected
+                      ? "bg-[#2A343D]"
+                      : "bg-white border-[#EBEBEB] border-1"
+                  }`}
+                >
+                  {/* Top Row */}
+                  <div className="w-full flex flex-row gap-6 items-center">
+                    <Image
+                      src={patient.avatar}
+                      alt="Avatar"
+                      className={`rounded-full w-[35px] h-[35px]`}
+                      width={35}
+                      height={35}
+                      onDoubleClick={() =>
+                        handlevipstatus(patient.uhid, patient.vip)
+                      }
+                    />
+                    <div className="flex flex-col gap-1">
+                      <p
+                        className={`${
+                          raleway.className
+                        } font-semibold text-lg ${
+                          isSelected ? "text-white" : "text-black"
+                        }`}
+                      >
+                        {patient.name}
+                      </p>
+                      <p
+                        className={`${poppins.className} font-normal text-sm ${
+                          isSelected ? "text-white" : "text-black"
+                        }`}
+                      >
+                        {patient.age}, {patient.gender}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Center ID */}
+                  <div className="w-full text-center">
                     <p
-                      className={`${raleway.className} font-semibold text-lg ${
+                      className={`uppercase ${
+                        poppins.className
+                      } font-medium text-base opacity-50 ${
                         isSelected ? "text-white" : "text-black"
                       }`}
                     >
-                      {patient.name}
+                      ID: {patient.uhid}
+                    </p>
+                  </div>
+
+                  {/* Bottom L/R */}
+                  <div
+                    className={`${inter.className} w-full flex flex-row justify-between pt-2`}
+                  >
+                    <p
+                      className={`font-semibold text-sm ${
+                        isSelected ? "text-white" : "text-black"
+                      }`}
+                    >
+                      L:{" "}
+                      {patient.doctor_left === patient.doctor
+                        ? patient.period
+                        : "NA"}
                     </p>
                     <p
-                      className={`${poppins.className} font-normal text-sm ${
+                      className={`font-semibold text-sm ${
                         isSelected ? "text-white" : "text-black"
                       }`}
                     >
-                      {patient.age}, {patient.gender}
+                      R:{" "}
+                      {patient.doctor_right === patient.doctor
+                        ? patient.period_right
+                        : "NA"}
                     </p>
                   </div>
                 </div>
-
-                {/* Center ID */}
-                <div className="w-full text-center">
-                  <p
-                    className={`uppercase ${
-                      poppins.className
-                    } font-medium text-base opacity-50 ${
-                      isSelected ? "text-white" : "text-black"
-                    }`}
-                  >
-                    ID: {patient.uhid}
-                  </p>
-                </div>
-
-                {/* Bottom L/R */}
-                <div
-                  className={`${inter.className} w-full flex flex-row justify-between pt-2`}
-                >
-                  <p
-                    className={`font-semibold text-sm ${
-                      isSelected ? "text-white" : "text-black"
-                    }`}
-                  >
-                    L:{" "}
-                    {patient.doctor_left === patient.doctor
-                      ? patient.period
-                      : "NA"}
-                  </p>
-                  <p
-                    className={`font-semibold text-sm ${
-                      isSelected ? "text-white" : "text-black"
-                    }`}
-                  >
-                    R:{" "}
-                    {patient.doctor_right === patient.doctor
-                      ? patient.period_right
-                      : "NA"}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <p
+              className={`w-full text-gray-400 text-center ${poppins.className}`}
+            >
+              No Patients Found for Today
+            </p>
+          )}
         </div>
       </div>
 

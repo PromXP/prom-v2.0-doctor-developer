@@ -99,6 +99,7 @@ const page = () => {
   };
 
   const handlelogout = () => {
+    console.clear();
     router.replace("/Login");
   };
 

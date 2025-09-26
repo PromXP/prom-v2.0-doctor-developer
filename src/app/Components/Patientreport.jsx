@@ -206,6 +206,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
   const [patientsquest, setpatientsques] = useState([]);
   const [surgerydatleft, setsurgeryDateleft] = useState("");
   const [surgerydatright, setsurgeryDateright] = useState("");
+  const [loading, setloading] = useState(true);
 
   let patientReportId = null;
 
@@ -336,13 +337,17 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
         const statusLeft = checkCompletion(patient.Medical_Left);
         const statusRight = checkCompletion(patient.Medical_Right);
 
-        const leftOverallScores = patient.Practitioners?.left_doctor === sessionStorage.getItem("doctor")
-          ? calculateOverallScores(patient.Medical_Left)
-          : {};
+        const leftOverallScores =
+          patient.Practitioners?.left_doctor ===
+          sessionStorage.getItem("doctor")
+            ? calculateOverallScores(patient.Medical_Left)
+            : {};
 
-        const rightOverallScores = patient.Practitioners?.right_doctor === sessionStorage.getItem("doctor")
-          ? calculateOverallScores(patient.Medical_Right)
-          : {};
+        const rightOverallScores =
+          patient.Practitioners?.right_doctor ===
+          sessionStorage.getItem("doctor")
+            ? calculateOverallScores(patient.Medical_Right)
+            : {};
 
         const overallCombined = getCombinedAverage(
           leftOverallScores,
@@ -416,6 +421,8 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
         setselectedpatientques(ques);
 
         setpatientbasic(pickedData);
+
+        setloading(false);
 
         console.log("Fetched patient reminder data:", pickedData);
       } catch (err) {
@@ -794,6 +801,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
 
       periodOffsets.forEach((p) => {
         const periodData = qPeriods?.[p.label];
+        // console.log("Questionnaire API Data outside:", periodData);
 
         if (!qPeriods?.[p.label]) {
           // Period itself not present
@@ -803,31 +811,25 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           // Period exists but score missing
           scores[p.key] = "NA";
 
+          // console.log("Questionnaire API Data inside:", periodData);
+
           // Notes
           const [first, second, third, fourth] = periodData.other_notes || [];
           const filtered = [];
-         if (first === "filledBy: Self") {
-            filtered.push(first);
-          } else {
-            filtered.push(first);
-            filtered.push(second);
-          }
-
-          if (third === "otherPain: No") {
-            filtered.push(third);
-          } else {
-            filtered.push(third);
-            filtered.push(fourth);
-          }
+          if (first === "filledBy: Self") filtered.push(first);
+          if (third === "otherPain: No") filtered.push(third);
           notesMap[p.key] = filtered.length ? filtered.join(", ") : "NA";
         } else {
           // Period exists and score exists
           const match = periodData.score.match(/:\s*(\d+)/);
           scores[p.key] = match ? match[1] : "NA";
-
+          // console.log(
+          //   "Questionnaire API Data all side:",
+          //   periodData.other_notes
+          // );
           const [first, second, third, fourth] = periodData.other_notes || [];
           const filtered = [];
-         if (first === "filledBy: Self") {
+          if (first === "filledBy: Self") {
             filtered.push(first);
           } else {
             filtered.push(first);
@@ -987,6 +989,8 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       ? buildChartData(leftScores)
       : buildChartData(rightScores);
 
+  console.log("Chart data",chartData);
+
   const periodOffsetssf12 = [
     { key: "pre_op", label: "-3" },
     { key: "surgery", label: "SURGERY" },
@@ -997,58 +1001,57 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     { key: "2y", label: "+730" },
   ];
 
-const extractSf12Scores = (sf12Data) => {
-  console.log("Extracting SF12 from:", sf12Data);
+  const extractSf12Scores = (sf12Data) => {
+    console.log("Extracting SF12 from:", sf12Data);
 
-  if (!sf12Data || Object.keys(sf12Data).length === 0) return [];
+    if (!sf12Data || Object.keys(sf12Data).length === 0) return [];
 
-  const map = {
-    "Pre Op": "-3",
-    "6W": "+42",
-    "3M": "+90",
-    "6M": "+180",
-    "1Y": "+365",
-    "2Y": "+730",
-  };
+    const map = {
+      "Pre Op": "-3",
+      "6W": "+42",
+      "3M": "+90",
+      "6M": "+180",
+      "1Y": "+365",
+      "2Y": "+730",
+    };
 
-  // ensure iteration in desired order
-  const periods = Object.keys(map);
+    // ensure iteration in desired order
+    const periods = Object.keys(map);
 
-  const result = periods.map((period, index) => {
-    const details = sf12Data[period];
+    const result = periods.map((period, index) => {
+      const details = sf12Data[period];
 
-    if (!details?.score) {
+      if (!details?.score) {
+        return {
+          x: index,
+          name: map[period],
+          pScore: null,
+          mScore: null,
+        };
+      }
+
+      // Example: "Scores (Pre Op): 48, 33, 15 (Recorded at ...)"
+      const match = details.score.match(
+        /Scores.*?:\s*([\d]+),\s*([\d]+),\s*([\d]+)/
+      );
+
+      const pScore = match ? Number(match[2]) : null; // 2nd
+      const mScore = match ? Number(match[3]) : null; // 3rd
+
       return {
         x: index,
         name: map[period],
-        pScore: null,
-        mScore: null,
+        pScore,
+        mScore,
       };
-    }
+    });
 
-    // Example: "Scores (Pre Op): 48, 33, 15 (Recorded at ...)"
-    const match = details.score.match(
-      /Scores.*?:\s*([\d]+),\s*([\d]+),\s*([\d]+)/
-    );
+    // Insert SURGERY marker right after Pre Op (-3)
+    result.splice(1, 0, { x: 1, name: "SURGERY", pScore: null, mScore: null });
 
-    const pScore = match ? Number(match[2]) : null; // 2nd
-    const mScore = match ? Number(match[3]) : null; // 3rd
-
-    return {
-      x: index,
-      name: map[period],
-      pScore,
-      mScore,
-    };
-  });
-
-  // Insert SURGERY marker right after Pre Op (-3)
-  result.splice(1, 0, { x: 1, name: "SURGERY", pScore: null, mScore: null });
-
-  // Recalculate x index
-  return result.map((r, i) => ({ ...r, x: i }));
-};
-
+    // Recalculate x index
+    return result.map((r, i) => ({ ...r, x: i }));
+  };
 
   // ✅ Now call with SF12 directly
   const leftSf12 = extractSf12Scores(
@@ -1105,2031 +1108,2124 @@ const extractSf12Scores = (sf12Data) => {
     }
   }, []);
 
+  const messages = [
+    "Fetching patient data...",
+    "Almost ready! Finalizing analysis...",
+  ];
+
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
         width >= 1000 ? "px-12" : "px-8"
       } rounded-4xl inline-scroll`}
     >
-      <div className={`w-full ${width >= 1100 ? "flex flex-row" : ""} `}>
-        <p
-          className={`${raleway.className} font-bold text-2xl text-black ${
-            width >= 700 ? "w-2/5" : "w-full"
-          }`}
+      {loading ?( <div className="flex space-x-2 py-2 w-full justify-center">
+        <svg
+          className="animate-spin h-5 w-5 text-black"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
         >
-          Patient Report
-        </p>
-        {width >= 1100 && (
-          <div
-            className={`flex flex-row ${
-              width >= 700 ? "w-3/5" : "w-full"
-            } justify-end gap-12`}
-          >
-            <div
-              className={`w-1/3 flex flex-row justify-between items-center gap-8`}
-            >
-              <Image src={Headset} alt="support" className={`w-5 h-5`} />
-              <p
-                className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
-              >
-                {doctorName}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+        <span className={`${poppins.className} text-black font-semibold`}>
+          {messages[index]}
+        </span>
+      </div>)
+      :(
 
-      <div
-        className={`w-full flex ${
-          width >= 800 ? "flex-row" : "flex-col gap-4"
-        }  pt-8`}
-      >
-        <div className={`${width >= 800 ? "w-1/2" : "w-full"}`}>
-          <div
-            className={`${
-              width >= 1000 ? "w-6/7" : "w-full"
-            } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
+
+     
+
+      <>
+        <div className={`w-full ${width >= 1100 ? "flex flex-row" : ""} `}>
+          <p
+            className={`${raleway.className} font-bold text-2xl text-black ${
+              width >= 700 ? "w-2/5" : "w-full"
+            }`}
           >
-            <Image
-              src={patientbasic?.avatar || ManAvatar}
-              alt="Patient"
-              className={`w-[60px] h-[60px]`}
-              width={60}
-              height={60}
-            />
+            Patient Report
+          </p>
+          {width >= 1100 && (
             <div
-              className={`w-full flex ${
-                width < 400 ? "flex-col" : "flex-row"
-              } gap-2`}
+              className={`flex flex-row ${
+                width >= 700 ? "w-3/5" : "w-full"
+              } justify-end gap-12`}
             >
               <div
-                className={`${width < 400 ? "w-full" : "w-1/2"} flex flex-col`}
+                className={`w-1/3 flex flex-row justify-between items-center gap-8`}
               >
+                <Image src={Headset} alt="support" className={`w-5 h-5`} />
                 <p
-                  className={`${raleway.className} font-semibold text-lg text-black`}
+                  className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
                 >
-                  {patientbasic?.name ?? "Patient Name"}
-                </p>
-                <p
-                  className={`${poppins.className} font-normal text-sm text-black`}
-                >
-                  {patientbasic?.age ?? "Age"},{" "}
-                  {patientbasic?.gender ?? "Gender"}
-                </p>
-              </div>
-              <div
-                className={`${
-                  width < 400 ? "w-full" : "w-1/2"
-                } flex flex-col justify-between`}
-              >
-                <p
-                  className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
-                >
-                  L:{" "}
-                  {patientbasic?.left_doctor === sessionStorage.getItem("doctor")
-                    ? patientbasic?.statusLeft
-                    : "NA"}
-                  <br />
-                  R:{" "}
-                  {patientbasic?.right_doctor === sessionStorage.getItem("doctor")
-                    ? patientbasic?.statusRight
-                    : "NA"}
-                </p>
-                <p
-                  className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
-                >
-                  {patientbasic.uhid ?? "Patient ID"}
+                  {doctorName}
                 </p>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <div
-          className={`${width >= 800 ? "w-1/2" : "w-full"} flex justify-end`}
+          className={`w-full flex ${
+            width >= 800 ? "flex-row" : "flex-col gap-4"
+          }  pt-8`}
         >
-          <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-2/3"
-            } flex flex-col justify-between`}
-          >
-            <div className={`w-full flex flex-row justify-end gap-4`}>
-              <div className={`bg-black rounded-lg w-3/7 py-1 px-3 flex`}>
-                <p
-                  className={`${inter.className} font-semibold text-sm text-white text-center w-full cursor-pointer`}
-                  onClick={() => {
-                    handlenavigateviewsurgeryreport();
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem("selectedUHID", patientbasic.uhid);
-                    }
-                  }}
+          <div className={`${width >= 800 ? "w-1/2" : "w-full"}`}>
+            <div
+              className={`${
+                width >= 1000 ? "w-6/7" : "w-full"
+              } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
+            >
+              <Image
+                src={patientbasic?.avatar || ManAvatar}
+                alt="Patient"
+                className={`w-[60px] h-[60px]`}
+                width={60}
+                height={60}
+              />
+              <div
+                className={`w-full flex ${
+                  width < 400 ? "flex-col" : "flex-row"
+                } gap-2`}
+              >
+                <div
+                  className={`${
+                    width < 400 ? "w-full" : "w-1/2"
+                  } flex flex-col`}
                 >
-                  View Surgery
-                </p>
+                  <p
+                    className={`${raleway.className} font-semibold text-lg text-black`}
+                  >
+                    {patientbasic?.name ?? "Patient Name"}
+                  </p>
+                  <p
+                    className={`${poppins.className} font-normal text-sm text-black`}
+                  >
+                    {patientbasic?.age ?? "Age"},{" "}
+                    {patientbasic?.gender ?? "Gender"}
+                  </p>
+                </div>
+                <div
+                  className={`${
+                    width < 400 ? "w-full" : "w-1/2"
+                  } flex flex-col justify-between`}
+                >
+                  <p
+                    className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
+                  >
+                    L:{" "}
+                    {patientbasic?.left_doctor ===
+                    sessionStorage.getItem("doctor")
+                      ? patientbasic?.statusLeft
+                      : "NA"}
+                    <br />
+                    R:{" "}
+                    {patientbasic?.right_doctor ===
+                    sessionStorage.getItem("doctor")
+                      ? patientbasic?.statusRight
+                      : "NA"}
+                  </p>
+                  <p
+                    className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
+                  >
+                    {patientbasic.uhid ?? "Patient ID"}
+                  </p>
+                </div>
               </div>
             </div>
+          </div>
 
-            <div className={`w-full flex flex-row justify-end gap-4`}>
-              <div
-                className={`w-3/7 flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
-              >
-                {/* <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
+          <div
+            className={`${width >= 800 ? "w-1/2" : "w-full"} flex justify-end`}
+          >
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-2/3"
+              } flex flex-col justify-between`}
+            >
+              <div className={`w-full flex flex-row justify-end gap-4`}>
+                <div className={`bg-black rounded-lg w-3/7 py-1 px-3 flex`}>
+                  <p
+                    className={`${inter.className} font-semibold text-sm text-white text-center w-full cursor-pointer`}
+                    onClick={() => {
+                      handlenavigateviewsurgeryreport();
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(
+                          "selectedUHID",
+                          patientbasic.uhid
+                        );
+                      }
+                    }}
+                  >
+                    View Surgery
+                  </p>
+                </div>
+              </div>
+
+              <div className={`w-full flex flex-row justify-end gap-4`}>
+                <div
+                  className={`w-3/7 flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
+                >
+                  {/* <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
                 <p
                   className={`${inter.className} font-medium text-[15px] text-[#DE8E8A]`}
                 >
                   23 %
                 </p> */}
 
-                <p
-                  className={`${inter.className} text-start font-semibold text-[15px] text-[#484848] w-full`}
-                >
-                  BMI: {patientbasic?.bmi || "NA"}
-                </p>
-              </div>
-              <div className={`w-3/7 flex flex-col items-center`}>
-                <div
-                  className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
-                >
                   <p
-                    className={`${inter.className} font-semibold text-sm text-[#484848]`}
+                    className={`${inter.className} text-start font-semibold text-[15px] text-[#484848] w-full`}
                   >
-                    {patientbasic?.total_combined || "NA"}
+                    BMI: {patientbasic?.bmi || "NA"}
                   </p>
+                </div>
+                <div className={`w-3/7 flex flex-col items-center`}>
+                  <div
+                    className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
+                  >
+                    <p
+                      className={`${inter.className} font-semibold text-sm text-[#484848]`}
+                    >
+                      {patientbasic?.total_combined || "NA"}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className={`w-full ${width >= 800 ? "pt-4" : "pt-8"} `}>
-        <div
-          className={`w-full flex flex-col gap-2 ${
-            width < 1300 ? "h-fit" : ""
-          }`}
-        >
+        <div className={`w-full ${width >= 800 ? "pt-4" : "pt-8"} `}>
           <div
-            className={`w-full flex px-2  ${
-              width >= 700
-                ? "flex-row justify-between"
-                : "flex-col items-center gap-8"
+            className={`w-full flex flex-col gap-2 ${
+              width < 1300 ? "h-fit" : ""
             }`}
           >
             <div
-              className={`flex items-center justify-end ${
-                width >= 1000
-                  ? "w-1/6 gap-4"
-                  : width < 1000 && width >= 700
-                  ? "w-1/2 gap-8"
-                  : " w-full gap-8"
-              }
-              `}
+              className={`w-full flex px-2  ${
+                width >= 700
+                  ? "flex-row justify-between"
+                  : "flex-col items-center gap-8"
+              }`}
             >
-              <button
-                className={`${
-                  raleway.className
-                } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
-                   (patientbasic?.left_doctor !== sessionStorage.getItem("doctor"))
-                    ? "cursor-not-allowed opacity-50"
-                    : "cursor-pointer"
+              <div
+                className={`flex items-center justify-end ${
+                  width >= 1000
+                    ? "w-1/6 gap-4"
+                    : width < 1000 && width >= 700
+                    ? "w-1/2 gap-8"
+                    : " w-full gap-8"
                 }
+              `}
+              >
+                <button
+                  className={`${
+                    raleway.className
+                  } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
+                    patientbasic?.left_doctor !==
+                    sessionStorage.getItem("doctor")
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer"
+                  }
                   ${
                     handlequestableswitch === "left"
                       ? "bg-[#2B333E] text-white"
                       : "bg-[#CAD9D6] text-black"
                   }
                   `}
-                onClick={
-                  (patientbasic?.left_doctor !== sessionStorage.getItem("doctor"))
-                    ? undefined
-                    : () => {
-                        sethandlequestableswitch("left");
-                      }
-                }
-              >
-                Left
-              </button>
-              <button
-                className={`${
-                  raleway.className
-                } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
-                  (patientbasic?.right_doctor !== sessionStorage.getItem("doctor"))
-                    ? "cursor-not-allowed opacity-50"
-                    : "cursor-pointer"
-                }
+                  onClick={
+                    patientbasic?.left_doctor !==
+                    sessionStorage.getItem("doctor")
+                      ? undefined
+                      : () => {
+                          sethandlequestableswitch("left");
+                        }
+                  }
+                >
+                  Left
+                </button>
+                <button
+                  className={`${
+                    raleway.className
+                  } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
+                    patientbasic?.right_doctor !==
+                    sessionStorage.getItem("doctor")
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer"
+                  }
                   ${
                     handlequestableswitch === "right"
                       ? "bg-[#2B333E] text-white"
                       : "bg-[#CAD9D6] text-black"
                   }`}
-                onClick={
-                  (patientbasic?.right_doctor !== sessionStorage.getItem("doctor"))
-                    ? undefined
-                    : () => {
-                        sethandlequestableswitch("right");
-                      }
-                }
-              >
-                Right
-              </button>
+                  onClick={
+                    patientbasic?.right_doctor !==
+                    sessionStorage.getItem("doctor")
+                      ? undefined
+                      : () => {
+                          sethandlequestableswitch("right");
+                        }
+                  }
+                >
+                  Right
+                </button>
+              </div>
+              <Image src={Heatmap} alt="heatmap" />
             </div>
-            <Image src={Heatmap} alt="heatmap" />
-          </div>
 
-          <div className="bg-white rounded-2xl px-2 py-1 flex flex-col gap-4  h-full w-full">
-            <div className="w-full overflow-x-auto h-full overflow-y-auto">
-              <table className="min-w-full table-fixed border-separate border-spacing-y-1">
-                <thead className="text-[#475467] text-[16px] font-medium text-center">
-                  <tr className="rounded-2xl">
-                    <th
-                      className={`${inter.className} font-bold text-white text-sm px-2 py-1 bg-gray-900 rounded-tl-2xl text-center whitespace-nowrap w-3/5`}
+            <div className="bg-white rounded-2xl px-2 py-1 flex flex-col gap-4  h-full w-full">
+              <div className="w-full overflow-x-auto h-full overflow-y-auto">
+                {!questionnaireData ||
+                !questionnaireData.questionnaires ||
+                !questionnaireData.questionnaires.length > 0 ? (
+                  <div className="flex space-x-2 py-2 w-full justify-center">
+                    <svg
+                      className="animate-spin h-5 w-5 text-black"
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="none"
+                      viewBox="0 0 24 24"
                     >
-                      <div className="flex flex-row justify-center items-center gap-4">
-                        <p>Questionnaire</p>
-                      </div>
-                    </th>
-                    {questionnaireData.periods.map((period, idx) => (
-                      <th
-                        key={period.key}
-                        className={`px-4 py-3  bg-gray-900 text-center whitespace-nowrap ${
-                          idx === questionnaireData.periods.length - 1
-                            ? "rounded-tr-2xl"
-                            : ""
-                        }`}
-                      >
-                        <div className="flex flex-row items-center gap-1 w-full">
-                          <div className={`w-fit flex flex-col`}>
-                            <span
-                              className={`${inter.className} text-[15px]  text-white font-bold`}
-                            >
-                              {period.label}
-                            </span>
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                      />
+                    </svg>
+                    <span
+                      className={`${poppins.className} text-black font-semibold`}
+                    >
+                      {messages[index]}
+                    </span>
+                  </div>
+                ) : (
+                  <table className="min-w-full table-fixed border-separate border-spacing-y-1">
+                    <thead className="text-[#475467] text-[16px] font-medium text-center">
+                      <tr className="rounded-2xl">
+                        <th
+                          className={`${inter.className} font-bold text-white text-sm px-2 py-1 bg-gray-900 rounded-tl-2xl text-center whitespace-nowrap w-3/7`}
+                        >
+                          <div className="flex flex-row justify-center items-center gap-4">
+                            <p>Questionnaire</p>
                           </div>
+                        </th>
+                        {questionnaireData.periods.map((period, idx) => (
+                          <th
+                            key={period.key}
+                            className={`px-4 py-3  bg-gray-900 text-center whitespace-nowrap ${
+                              idx === questionnaireData.periods.length - 1
+                                ? "rounded-tr-2xl"
+                                : ""
+                            }`}
+                          >
+                            <div className="flex flex-row items-center justify-center gap-1 w-full">
+                              <div className={`w-fit flex flex-col`}>
+                                <span
+                                  className={`${inter.className} text-[15px] text-center  text-white font-bold`}
+                                >
+                                  {period.label}
+                                </span>
+                              </div>
 
-                          {/* <div
+                              {/* <div
                                 className={`${inter.className} font-bold text-white text-sm flex items-center justify-between gap-2 w-full`}
                               >
                                 {" "}
                               </div> */}
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
 
-                <tbody className="bg-white text-[13px]">
-                  {questionnaireData.questionnaires.map((q, index) => (
-                    <tr key={index} className="">
-                      <td
-                        className={`${raleway.className} font-semibold px-4 py-2 text-[#1F2937]`}
-                      >
-                        {q.name}
-                      </td>
+                    <tbody className="bg-white text-[13px]">
+                      {questionnaireData.questionnaires.map((q, index) => (
+                        <tr key={index} className="">
+                          <td
+                            className={`${raleway.className} font-semibold px-4 py-2 text-[#1F2937] truncate`}
+                          >
+                            {q.name}
+                          </td>
 
-                      {Object.keys(q.scores || {}).length > 0 ? (
-                        questionnaireData.periods.map((period) => {
-                          const score = q.scores?.[period.key];
-                          const color = getTextColor(Number(score));
+                          {Object.keys(q.scores || {}).length > 0 ? (
+                            questionnaireData.periods.map((period) => {
+                              const score = q.scores?.[period.key];
+                              const color = getTextColor(Number(score));
 
-                          return (
+                              return (
+                                <td
+                                  key={period.key}
+                                  className={`relative px-4 py-2 font-bold text-center align-middle ${
+                                    q.notesMap[period.key] &&
+                                    q.notesMap[period.key] !== "NA"
+                                      ? "group cursor-pointer"
+                                      : ""
+                                  }`}
+                                  style={{ color }}
+                                >
+                                  {score || "—"}
+                                  {q.notesMap[period.key] &&
+                                    q.notesMap[period.key] !== "NA" && (
+                                      <div
+                                        className={` ${poppins.className} uppercase  absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden w-full whitespace-normal rounded-lg bg-gray-500 px-3 py-2 text-sm text-white shadow-lg group-hover:block z-50`}
+                                      >
+                                        {q.notesMap[period.key]}
+                                      </div>
+                                    )}
+                                </td>
+                              );
+                            })
+                          ) : (
                             <td
-                              key={period.key}
-                              className={`relative px-4 py-2 font-bold text-center align-middle ${
-                                q.notesMap[period.key] &&
-                                q.notesMap[period.key] !== "NA"
-                                  ? "group cursor-pointer"
-                                  : ""
-                              }`}
-                              style={{ color }}
-                             
+                              colSpan={6}
+                              className={`${inter.className} font-bold text-[13px] px-4 py-4 text-center text-[#3b3b3b]`}
                             >
-                              {score || "—"}
-                              {q.notesMap[period.key] &&
-                                  q.notesMap[period.key] !== "NA" && (
-                                    <div className={` ${poppins.className} uppercase  absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden w-full whitespace-normal rounded-lg bg-gray-500 px-3 py-2 text-sm text-white shadow-lg group-hover:block z-50`}>
-                                      {q.notesMap[period.key]}
-                                    </div>
-                                  )}
+                              No questionnaires assigned
                             </td>
-                          );
-                        })
-                      ) : (
-                        <td
-                          colSpan={6}
-                          className={`${inter.className} font-bold text-[13px] px-4 py-4 text-center text-[#3b3b3b]`}
-                        >
-                          No questionnaires assigned
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div
-        className={`w-full h-fit flex ${
-          width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-        }  gap-6`}
-      >
         <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          className={`w-full h-fit flex ${
+            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+          }  gap-6`}
         >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
           >
-            PROM ANALYSIS
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
             >
-              <CartesianGrid strokeDasharray="8 10" vertical={false} />
+              PROM ANALYSIS
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+              >
+                <CartesianGrid strokeDasharray="8 10" vertical={false} />
 
-              <XAxis
-                dataKey="name"
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                label={{
-                  value: "DAYS",
-                  position: "insideBottom",
-                  offset: -5,
-                  style: {
-                    fill: "#615E83", // label color
-                    fontSize: 14, // label font size
-                    fontWeight: 700,
+                <XAxis
+                  dataKey="name"
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  label={{
+                    value: "DAYS",
+                    position: "insideBottom",
+                    offset: -5,
+                    style: {
+                      fill: "#615E83", // label color
+                      fontSize: 14, // label font size
+                      fontWeight: 700,
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: 600,
                     fontFamily: "Poppins",
-                  },
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: "Poppins",
-                }} // tick values
-              />
+                  }} // tick values
+                />
 
-              <YAxis
-                axisLine={false}
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  style: {
-                    fill: "#615E83", // label color
-                    fontSize: 14, // label font size
-                    fontWeight: 700,
+                <YAxis
+                  axisLine={false}
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    style: {
+                      fill: "#615E83", // label color
+                      fontSize: 14, // label font size
+                      fontWeight: 700,
+                      fontFamily: "Poppins",
+                    },
+                    dx: 15,
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: 600,
                     fontFamily: "Poppins",
-                  },
-                  dx: 15,
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: "Poppins",
-                }} // tick values
-                domain={[0, 100]}
-              />
+                  }} // tick values
+                  domain={[0, 100]}
+                />
 
-              <Tooltip
-                isAnimationActive={false}
-                content={({ active, payload, label }) => {
-                  if (label === "SURGERY" || !active || !payload?.length)
-                    return null;
+                <Tooltip
+                  isAnimationActive={false}
+                  content={({ active, payload, label }) => {
+                    if (label === "SURGERY" || !active || !payload?.length)
+                      return null;
 
-                  return (
-                    <div className="bg-white p-2 border rounded shadow text-black">
-                      <p className="font-semibold">{label} Days</p>
-                      {payload.map((entry, index) => (
-                        <p key={index} style={{ color: entry.stroke }}>
-                          {entry.name}: {entry.value}
-                        </p>
-                      ))}
-                    </div>
-                  );
-                }}
-              />
-
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    oks: "OKS",
-                    sf12: "SF-12",
-                    koos: "KOOS",
-                    kss: "KSS",
-                    fjs: "FJS",
-                  };
-
-                  const colors = {
-                    oks: "#4F46E5",
-                    sf12: "#A855F7",
-                    koos: "#10B981",
-                    kss: "#F97316",
-                    fjs: "#3B82F6",
-                  };
-
-                  return (
-                    <ul className="flex gap-6 list-none m-0 p-0">
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`${poppins.className} font-medium text-[10px] flex items-center gap-2 cursor-pointer select-none`}
-                          onClick={() => toggleQuestionnaire(key)}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedQuestionnaires.includes(key)}
-                            readOnly
-                            className="accent-blue-600 w-3 h-3"
-                          />
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              fontSize: 12,
-                              color: selectedQuestionnaires.includes(key)
-                                ? colors[key] // Active → real color
-                                : "#A0AEC0", // Inactive → gray color
-                            }}
-                          >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-
-              <ReferenceLine
-                x="SURGERY"
-                stroke="#AAA7FF"
-                strokeWidth={1.5}
-                ifOverflow="visible"
-                isFront
-              />
-
-              {["oks", "sf12", "koos", "kss", "fjs"].map((key, i) => {
-                const colors = [
-                  "#4F46E5", // Indigo
-                  "#A855F7", // Purple
-                  "#10B981", // Emerald
-                  "#F97316", // Orange
-                  "#3B82F6", // Blue
-                ];
-
-                const labels = {
-                  oks: "Oxford Knee Score",
-                  sf12: "Short Form - 12",
-                  koos: "KOOS",
-                  kss: "Knee Society Score",
-                  fjs: "Forgotten Joint Score",
-                };
-
-                if (!selectedQuestionnaires.includes(key)) {
-                  return null; // Don't render if not selected
-                }
-
-                return (
-                  <Line
-                    key={key}
-                    type="monotone"
-                    dataKey={key}
-                    connectNulls={true} // Continue connecting lines even when there's no data
-                    name={labels[key]}
-                    stroke={colors[i]}
-                    strokeWidth={2}
-                    dot={({ cx, cy, payload, index }) => {
-                      // Check if the value exists before rendering the dot
-                      if (payload[key] == null || payload[key] === 0) {
-                        return null; // Don't render the dot if there's no data
-                      }
-
-                      return (
-                        <circle
-                          key={`dot-${index}`} // Ensure unique key
-                          cx={cx}
-                          cy={cy}
-                          r={3}
-                          stroke={colors[i]}
-                          strokeWidth={1}
-                          fill={colors[i]}
-                        />
-                      );
-                    }}
-                    activeDot={({ payload }) => {
-                      // Only show active dot if there's data
-                      if (payload[key] == null || payload[key] === 0) {
-                        return null; // Don't render active dot if there's no data
-                      }
-
-                      return (
-                        <circle
-                          r={6}
-                          stroke="black"
-                          strokeWidth={2}
-                          fill="white"
-                        />
-                      );
-                    }}
-                  />
-                );
-              })}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-        >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-          >
-            SHORT FORM 12 (PCS vs MCS)
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <ScatterChart margin={{ top: -20, right: 20, left: 0, bottom: 10 }}>
-              <CartesianGrid strokeDasharray="8 10" vertical={false} />
-
-              <XAxis
-                type="number"
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                dataKey="x"
-                domain={[-0.5, transformedData.length - 0.5]}
-                tickFormatter={(tick) => {
-                  const i = Math.round(tick);
-                  return transformedData[i]?.name || "";
-                }}
-                ticks={transformedData.map((_, index) => index)}
-                allowDecimals={false}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: "Poppins",
-                }}
-                label={{
-                  value: "DAYS",
-                  position: "insideBottom",
-                  offset: -5,
-                  fontWeight: "bold",
-                  fill: "#615E83",
-                  style: {
-                    fill: "#615E83", // label color
-                    fontSize: 14, // label font size
-                    fontWeight: 700,
-                    fontFamily: "Poppins",
-                  },
-                }}
-              />
-
-              <YAxis
-                type="number"
-                axisLine={false}
-                dataKey="y"
-                domain={["dataMin - 10", "dataMax + 10"]}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  fontFamily: "Poppins",
-                }}
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 10,
-                  fontWeight: "bold",
-                  fill: "#615E83",
-                  style: {
-                    fill: "#615E83", // label color
-                    fontSize: 14, // label font size
-                    fontWeight: 700,
-                    fontFamily: "Poppins",
-                  },
-                }}
-              />
-
-              <Tooltip
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
                     return (
-                      <div
-                        className={`${inter.className} flex flex-col font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1`}
-                      >
-                        {/* {payload.map((entry, index) =>
+                      <div className="bg-white p-2 border rounded shadow text-black">
+                        <p className="font-semibold">{label} Days</p>
+                        {payload.map((entry, index) => (
+                          <p key={index} style={{ color: entry.stroke }}>
+                            {entry.name}: {entry.value}
+                          </p>
+                        ))}
+                      </div>
+                    );
+                  }}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      oks: "OKS",
+                      sf12: "SF-12",
+                      koos: "KOOS",
+                      kss: "KSS",
+                      fjs: "FJS",
+                    };
+
+                    const colors = {
+                      oks: "#4F46E5",
+                      sf12: "#A855F7",
+                      koos: "#10B981",
+                      kss: "#F97316",
+                      fjs: "#3B82F6",
+                    };
+
+                    return (
+                      <ul className="flex gap-6 list-none m-0 p-0">
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`${poppins.className} font-medium text-[10px] flex items-center gap-2 cursor-pointer select-none`}
+                            onClick={() => toggleQuestionnaire(key)}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedQuestionnaires.includes(key)}
+                              readOnly
+                              className="accent-blue-600 w-3 h-3"
+                            />
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                fontSize: 12,
+                                color: selectedQuestionnaires.includes(key)
+                                  ? colors[key] // Active → real color
+                                  : "#A0AEC0", // Inactive → gray color
+                              }}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }}
+                />
+
+                <ReferenceLine
+                  x="SURGERY"
+                  stroke="#AAA7FF"
+                  strokeWidth={1.5}
+                  ifOverflow="visible"
+                  isFront
+                />
+
+                {["oks", "sf12", "koos", "kss", "fjs"].map((key, i) => {
+                  const colors = [
+                    "#4F46E5", // Indigo
+                    "#A855F7", // Purple
+                    "#10B981", // Emerald
+                    "#F97316", // Orange
+                    "#3B82F6", // Blue
+                  ];
+
+                  const labels = {
+                    oks: "Oxford Knee Score",
+                    sf12: "Short Form - 12",
+                    koos: "KOOS",
+                    kss: "Knee Society Score",
+                    fjs: "Forgotten Joint Score",
+                  };
+
+                  if (!selectedQuestionnaires.includes(key)) {
+                    return null; // Don't render if not selected
+                  }
+
+                  return (
+                    <Line
+                      key={key}
+                      type="monotone"
+                      dataKey={key}
+                      connectNulls={true} // Continue connecting lines even when there's no data
+                      name={labels[key]}
+                      stroke={colors[i]}
+                      strokeWidth={2}
+                      
+                      dot={({ cx, cy, payload, index }) => {
+                        // Check if the value exists before rendering the dot
+                        if (payload[key] == null ) {
+                          return null; // Don't render the dot if there's no data
+                        }
+
+                        return (
+                          <circle
+                            key={`dot-${index}`} // Ensure unique key
+                            cx={cx}
+                            cy={cy}
+                            r={3}
+                            stroke={colors[i]}
+                            strokeWidth={1}
+                            fill={colors[i]}
+                          />
+                        );
+                      }}
+                      activeDot={({ payload }) => {
+                        // Only show active dot if there's data
+                        if (payload[key] == null) {
+                          return null; // Don't render active dot if there's no data
+                        }
+
+                        return (
+                          <circle
+                            r={6}
+                            stroke="black"
+                            strokeWidth={2}
+                            fill="white"
+                          />
+                        );
+                      }}
+                    />
+                  );
+                })}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          >
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            >
+              SHORT FORM 12 (PCS vs MCS)
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <ScatterChart
+                margin={{ top: -20, right: 20, left: 0, bottom: 10 }}
+              >
+                <CartesianGrid strokeDasharray="8 10" vertical={false} />
+
+                <XAxis
+                  type="number"
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  dataKey="x"
+                  domain={[-0.5, transformedData.length - 0.5]}
+                  tickFormatter={(tick) => {
+                    const i = Math.round(tick);
+                    return transformedData[i]?.name || "";
+                  }}
+                  ticks={transformedData.map((_, index) => index)}
+                  allowDecimals={false}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: "Poppins",
+                  }}
+                  label={{
+                    value: "DAYS",
+                    position: "insideBottom",
+                    offset: -5,
+                    fontWeight: "bold",
+                    fill: "#615E83",
+                    style: {
+                      fill: "#615E83", // label color
+                      fontSize: 14, // label font size
+                      fontWeight: 700,
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                />
+
+                <YAxis
+                  type="number"
+                  axisLine={false}
+                  dataKey="y"
+                  domain={["dataMin - 10", "dataMax + 10"]}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: 600,
+                    fontFamily: "Poppins",
+                  }}
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 10,
+                    fontWeight: "bold",
+                    fill: "#615E83",
+                    style: {
+                      fill: "#615E83", // label color
+                      fontSize: 14, // label font size
+                      fontWeight: 700,
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                />
+
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      return (
+                        <div
+                          className={`${inter.className} flex flex-col font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1`}
+                        >
+                          {/* {payload.map((entry, index) =>
                           index % 2 !== 0 ? (
                             <div key={index}>{entry.name}: {entry.value}</div>
                           ) : null
                         )} */}
-                        PCS: {payload[1].value}
-                        <br></br>
-                        MCS: {payload[3].value}
-                      </div>
+                          PCS: {payload[1].value}
+                          <br></br>
+                          MCS: {payload[3].value}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      pcs: "Physical Component Summary (PCS)",
+                      mcs: "Mental Component Summary (MCS)",
+                    };
+
+                    const colors = {
+                      pcs: "#6888A1",
+                      mcs: "#2A333A",
+                    };
+
+                    return (
+                      <ul className={`flex flex-col items-end`}>
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`flex flex-row items-center gap-2 w-2/5`}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                backgroundColor: colors[key],
+                              }}
+                            />
+                            <span
+                              className={`${inter.className} font-medium text-[10px] text-black`}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
                     );
-                  }
-                  return null;
-                }}
-              />
-
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    pcs: "Physical Component Summary (PCS)",
-                    mcs: "Mental Component Summary (MCS)",
-                  };
-
-                  const colors = {
-                    pcs: "#6888A1",
-                    mcs: "#2A333A",
-                  };
-
-                  return (
-                    <ul className={`flex flex-col items-end`}>
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`flex flex-row items-center gap-2 w-2/5`}
-                        >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              backgroundColor: colors[key],
-                            }}
-                          />
-                          <span
-                            className={`${inter.className} font-medium text-[10px] text-black`}
-                          >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-
-              <ReferenceLine
-                x={surgeryIndex}
-                stroke="#AAA7FF"
-                strokeWidth={1.5}
-                label={{
-                  value: "Surgery",
-                  position: "top",
-                  fill: "limegreen",
-                  fontWeight: "bold",
-                  fontSize: 12,
-                }}
-              />
-
-              {/* Physical Component Summary (PCS) Scatter */}
-              <Scatter
-                name="Physical (PCS)"
-                data={dataPCS.filter(
-                  (point) => point.y != null && point.x != null
-                )} // Filter out invalid data
-                fill="#4071CA"
-              >
-                <ErrorBar
-                  dataKey="error"
-                  direction="y"
-                  width={4}
-                  stroke="#6888A1"
+                  }}
                 />
-              </Scatter>
 
-              {/* Mental Component Summary (MCS) Scatter */}
-              <Scatter
-                name="Mental (MCS)"
-                data={dataMCS.filter(
-                  (point) => point.y != null && point.x != null
-                )} // Filter out invalid data
-                fill="#4071CA"
-              >
-                <ErrorBar
-                  dataKey="error"
-                  direction="y"
-                  width={4}
-                  stroke="#2A333A"
+                <ReferenceLine
+                  x={surgeryIndex}
+                  stroke="#AAA7FF"
+                  strokeWidth={1.5}
+                  label={{
+                    value: "Surgery",
+                    position: "top",
+                    fill: "limegreen",
+                    fontWeight: "bold",
+                    fontSize: 12,
+                  }}
                 />
-              </Scatter>
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
 
-      <div
-        className={`w-full h-fit flex ${
-          width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-        } gap-6`}
-      >
-        <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-        >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-          >
-            OXFORD KNEE SCORE
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={oksDatabox.filter(
-                (item) =>
-                  item.min !== undefined &&
-                  item._median !== undefined &&
-                  item._min !== undefined &&
-                  item._max !== undefined
-              )} // Filter out undefined data
-              barCategoryGap="70%"
-              margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <Tooltip
-                content={({ active, label }) => {
-                  if (!active) return null;
-
-                  const item = oksDatabox.find((d) => d.name === label);
-                  if (!item) return null;
-
-                  const renameMap = {
-                    bottomWhisker: "poorestFunctionObserved",
-                    bottomBox: "belowAverageFunctionRange",
-                    topBox: "aboveAverageFunctionRange",
-                    topWhisker: "bestFunctionObserved",
-                    _median: "groupMedianFunctionScore",
-                    _min: "lowestFunctionScore",
-                    _max: "highestFunctionScore",
-                    Patient: "patientScore",
-                  };
-
-                  // Chart colors for each key
-                  const colorMap = {
-                    patientScore: "#04CE00", // green
-                    highestFunctionScore: "#1F77B4", // blue
-                    lowestFunctionScore: "#1F77B4", // blue (paired)
-                    bestFunctionObserved: "#9467BD", // purple
-                    poorestFunctionObserved: "#9467BD", // purple (paired)
-                    aboveAverageFunctionRange: "#FF7F0E", // orange
-                    belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                    groupMedianFunctionScore: "#000000", // white
-                  };
-                  const displayOrder = [
-                    "patientScore",
-                    "highestFunctionScore",
-                    "bestFunctionObserved",
-                    "aboveAverageFunctionRange",
-                    "groupMedianFunctionScore",
-                    "belowAverageFunctionRange",
-                    "poorestFunctionObserved",
-                    "lowestFunctionScore",
-                  ];
-
-                  return (
-                    <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                      <p
-                        className={`${poppins.className} font-bold text-black text-sm`}
-                      >
-                        {`Timepoint: ${label}`}
-                      </p>
-                      {displayOrder.map((key) => {
-                        const originalKey = Object.keys(renameMap).find(
-                          (k) => renameMap[k] === key
-                        );
-                        if (!originalKey || item[originalKey] == null)
-                          return null;
-
-                        return (
-                          <p
-                            key={key}
-                            className={`${poppins.className} font-medium text-sm`}
-                            style={{ color: colorMap[key] }}
-                          >
-                            {key}:{" "}
-                            <span
-                              className="font-semibold"
-                              style={{ color: colorMap[key] }}
-                            >
-                              {typeof item[originalKey] === "number"
-                                ? item[originalKey].toFixed(2)
-                                : item[originalKey]}
-                            </span>
-                          </p>
-                        );
-                      })}
-                    </div>
-                  );
-                }}
-              />
-
-              <Bar stackId="a" dataKey="min" fill="none" />
-              <Bar
-                stackId="a"
-                dataKey="bottomWhisker"
-                shape={<DotBar stroke="#2A333A" />}
-              />
-              <Bar
-                stackId="a"
-                dataKey="bottomBox"
-                fill="#2A333A"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topBox"
-                fill="#2A333A"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topWhisker"
-                shape={<DotBar stroke="#2A333A" />}
-              />
-              {/* Median Line */}
-              <Scatter
-                data={oksDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                )}
-                dataKey="_median"
-              />
-              {/* Min Line */}
-              <Scatter
-                data={oksDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_min" stroke="#2A333A" />
-                )}
-                dataKey="_min"
-              />
-              {/* Max Line */}
-              <Scatter
-                data={oksDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar
-                    {...props}
-                    dataKey="_max"
-                    fill="#2A333A"
-                    stroke="#2A333A"
-                  />
-                )}
-                dataKey="_max"
-              />
-              <ZAxis type="number" dataKey="size" range={[0, 250]} />
-              <Scatter
-                data={oksDatabox.filter(
-                  (item) =>
-                    item.Patient !== undefined &&
-                    item.Patient !== null &&
-                    !isNaN(item.Patient) &&
-                    item.Patient < 100 // optional: clamp to realistic max
-                )}
-                dataKey="Patient"
-                fill="#2A333A"
-                stroke="#2A333A"
-                shape={(props) => (
-                  <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                )}
-              />
-              <XAxis
-                dataKey="name"
-                type="category"
-                allowDuplicatedCategory={false}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                tickLine={{ stroke: "#615E83" }}
-              />
-              <YAxis
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 20,
-                  style: {
-                    textAnchor: "middle",
-                    fill: "#615E83",
-                    fontSize: 14,
-                    fontWeight: "700",
-                    fontFamily: "Poppins",
-                  },
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={false}
-                tickLine={{ stroke: "#615E83" }}
-                domain={[0, 48]}
-              />
-
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    pcs: "Oxford Knee Score (OKS)",
-                    mcs: "Other Patients",
-                  };
-
-                  const colors = {
-                    pcs: "#04CE00",
-                    mcs: "#2A333A",
-                  };
-
-                  return (
-                    <ul className={`flex flex-col items-end`}>
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`flex flex-row items-center gap-2 w-2/5`}
-                        >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              backgroundColor: colors[key],
-                            }}
-                          />
-                          <span
-                            className={`${inter.className} font-medium text-[10px] text-black`}
-                          >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-        >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-          >
-            SHORT FORM 12
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={s12Databox.filter(
-                (item) =>
-                  item.min !== undefined &&
-                  item._median !== undefined &&
-                  item._min !== undefined &&
-                  item._max !== undefined
-              )} // Filter out undefined data
-              barCategoryGap="70%"
-              margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <Tooltip
-                content={({ active, label }) => {
-                  if (!active) return null;
-
-                  const item = s12Databox.find((d) => d.name === label);
-                  if (!item) return null;
-
-                  const renameMap = {
-                    bottomWhisker: "poorestFunctionObserved",
-                    bottomBox: "belowAverageFunctionRange",
-                    topBox: "aboveAverageFunctionRange",
-                    topWhisker: "bestFunctionObserved",
-                    _median: "groupMedianFunctionScore",
-                    _min: "lowestFunctionScore",
-                    _max: "highestFunctionScore",
-                    Patient: "patientScore",
-                  };
-
-                  // Chart colors for each key
-                  const colorMap = {
-                    patientScore: "#04CE00", // green
-                    highestFunctionScore: "#1F77B4", // blue
-                    lowestFunctionScore: "#1F77B4", // blue (paired)
-                    bestFunctionObserved: "#9467BD", // purple
-                    poorestFunctionObserved: "#9467BD", // purple (paired)
-                    aboveAverageFunctionRange: "#FF7F0E", // orange
-                    belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                    groupMedianFunctionScore: "#000000", // white
-                  };
-                  const displayOrder = [
-                    "patientScore",
-                    "highestFunctionScore",
-                    "bestFunctionObserved",
-                    "aboveAverageFunctionRange",
-                    "groupMedianFunctionScore",
-                    "belowAverageFunctionRange",
-                    "poorestFunctionObserved",
-                    "lowestFunctionScore",
-                  ];
-
-                  return (
-                    <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                      <p
-                        className={`${poppins.className} font-bold text-black text-sm`}
-                      >
-                        {`Timepoint: ${label}`}
-                      </p>
-                      {displayOrder.map((key) => {
-                        const originalKey = Object.keys(renameMap).find(
-                          (k) => renameMap[k] === key
-                        );
-                        if (!originalKey || item[originalKey] == null)
-                          return null;
-
-                        return (
-                          <p
-                            key={key}
-                            className={`${poppins.className} font-medium text-sm`}
-                            style={{ color: colorMap[key] }}
-                          >
-                            {key}:{" "}
-                            <span
-                              className="font-semibold"
-                              style={{ color: colorMap[key] }}
-                            >
-                              {typeof item[originalKey] === "number"
-                                ? item[originalKey].toFixed(2)
-                                : item[originalKey]}
-                            </span>
-                          </p>
-                        );
-                      })}
-                    </div>
-                  );
-                }}
-              />
-
-              <Bar stackId="a" dataKey="min" fill="none" />
-              <Bar
-                stackId="a"
-                dataKey="bottomWhisker"
-                shape={<DotBar stroke="#6888A1" />}
-              />
-              <Bar
-                stackId="a"
-                dataKey="bottomBox"
-                fill="#6888A1"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topBox"
-                fill="#6888A1"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topWhisker"
-                shape={<DotBar stroke="#6888A1" />}
-              />
-              {/* Median Line */}
-              <Scatter
-                data={s12Databox.filter((item) => item._median !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                )}
-                dataKey="_median"
-              />
-              {/* Min Line */}
-              <Scatter
-                data={s12Databox.filter((item) => item._min !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_min" stroke="#6888A1" />
-                )}
-                dataKey="_min"
-              />
-              {/* Max Line */}
-              <Scatter
-                data={s12Databox.filter((item) => item._max !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar
-                    {...props}
-                    dataKey="_max"
-                    fill="#6888A1"
+                {/* Physical Component Summary (PCS) Scatter */}
+                <Scatter
+                  name="Physical (PCS)"
+                  data={dataPCS.filter(
+                    (point) => point.y != null && point.x != null
+                  )} // Filter out invalid data
+                  fill="#4071CA"
+                >
+                  <ErrorBar
+                    dataKey="error"
+                    direction="y"
+                    width={4}
                     stroke="#6888A1"
                   />
-                )}
-                dataKey="_max"
-              />
-              <ZAxis type="number" dataKey="size" range={[0, 250]} />
-              <Scatter
+                </Scatter>
+
+                {/* Mental Component Summary (MCS) Scatter */}
+                <Scatter
+                  name="Mental (MCS)"
+                  data={dataMCS.filter(
+                    (point) => point.y != null && point.x != null
+                  )} // Filter out invalid data
+                  fill="#4071CA"
+                >
+                  <ErrorBar
+                    dataKey="error"
+                    direction="y"
+                    width={4}
+                    stroke="#2A333A"
+                  />
+                </Scatter>
+              </ScatterChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div
+          className={`w-full h-fit flex ${
+            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+          } gap-6`}
+        >
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          >
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            >
+              OXFORD KNEE SCORE
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
+                data={oksDatabox.filter(
+                  (item) =>
+                    item.min !== undefined &&
+                    item._median !== undefined &&
+                    item._min !== undefined &&
+                    item._max !== undefined
+                )} // Filter out undefined data
+                barCategoryGap="70%"
+                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <Tooltip
+                  content={({ active, label }) => {
+                    if (!active) return null;
+
+                    const item = oksDatabox.find((d) => d.name === label);
+                    if (!item) return null;
+
+                    const renameMap = {
+                      bottomWhisker: "poorestFunctionObserved",
+                      bottomBox: "belowAverageFunctionRange",
+                      topBox: "aboveAverageFunctionRange",
+                      topWhisker: "bestFunctionObserved",
+                      _median: "groupMedianFunctionScore",
+                      _min: "lowestFunctionScore",
+                      _max: "highestFunctionScore",
+                      Patient: "patientScore",
+                    };
+
+                    // Chart colors for each key
+                    const colorMap = {
+                      patientScore: "#04CE00", // green
+                      highestFunctionScore: "#1F77B4", // blue
+                      lowestFunctionScore: "#1F77B4", // blue (paired)
+                      bestFunctionObserved: "#9467BD", // purple
+                      poorestFunctionObserved: "#9467BD", // purple (paired)
+                      aboveAverageFunctionRange: "#FF7F0E", // orange
+                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                      groupMedianFunctionScore: "#000000", // white
+                    };
+                    const displayOrder = [
+                      "patientScore",
+                      "highestFunctionScore",
+                      "bestFunctionObserved",
+                      "aboveAverageFunctionRange",
+                      "groupMedianFunctionScore",
+                      "belowAverageFunctionRange",
+                      "poorestFunctionObserved",
+                      "lowestFunctionScore",
+                    ];
+
+                    return (
+                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                        <p
+                          className={`${poppins.className} font-bold text-black text-sm`}
+                        >
+                          {`Timepoint: ${label}`}
+                        </p>
+                        {displayOrder.map((key) => {
+                          const originalKey = Object.keys(renameMap).find(
+                            (k) => renameMap[k] === key
+                          );
+                          if (!originalKey || item[originalKey] == null)
+                            return null;
+
+                          return (
+                            <p
+                              key={key}
+                              className={`${poppins.className} font-medium text-sm`}
+                              style={{ color: colorMap[key] }}
+                            >
+                              {key}:{" "}
+                              <span
+                                className="font-semibold"
+                                style={{ color: colorMap[key] }}
+                              >
+                                {typeof item[originalKey] === "number"
+                                  ? item[originalKey].toFixed(2)
+                                  : item[originalKey]}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    );
+                  }}
+                />
+
+                <Bar stackId="a" dataKey="min" fill="none" />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomWhisker"
+                  shape={<DotBar stroke="#2A333A" />}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomBox"
+                  fill="#2A333A"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topBox"
+                  fill="#2A333A"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topWhisker"
+                  shape={<DotBar stroke="#2A333A" />}
+                />
+                {/* Median Line */}
+                <Scatter
+                  data={oksDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
+                  )}
+                  dataKey="_median"
+                />
+                {/* Min Line */}
+                <Scatter
+                  data={oksDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_min" stroke="#2A333A" />
+                  )}
+                  dataKey="_min"
+                />
+                {/* Max Line */}
+                <Scatter
+                  data={oksDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar
+                      {...props}
+                      dataKey="_max"
+                      fill="#2A333A"
+                      stroke="#2A333A"
+                    />
+                  )}
+                  dataKey="_max"
+                />
+                <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                <Scatter
+                  data={oksDatabox.filter(
+                    (item) =>
+                      item.Patient !== undefined &&
+                      item.Patient !== null &&
+                      !isNaN(item.Patient) &&
+                      item.Patient < 100 // optional: clamp to realistic max
+                  )}
+                  dataKey="Patient"
+                  fill="#2A333A"
+                  stroke="#2A333A"
+                  shape={(props) => (
+                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
+                  )}
+                />
+                <XAxis
+                  dataKey="name"
+                  type="category"
+                  allowDuplicatedCategory={false}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  tickLine={{ stroke: "#615E83" }}
+                />
+                <YAxis
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 20,
+                    style: {
+                      textAnchor: "middle",
+                      fill: "#615E83",
+                      fontSize: 14,
+                      fontWeight: "700",
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={false}
+                  tickLine={{ stroke: "#615E83" }}
+                  domain={[0, 48]}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      pcs: "Oxford Knee Score (OKS)",
+                      mcs: "Other Patients",
+                    };
+
+                    const colors = {
+                      pcs: "#04CE00",
+                      mcs: "#2A333A",
+                    };
+
+                    return (
+                      <ul className={`flex flex-col items-end`}>
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`flex flex-row items-center gap-2 w-2/5`}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                backgroundColor: colors[key],
+                              }}
+                            />
+                            <span
+                              className={`${inter.className} font-medium text-[10px] text-black`}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          >
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            >
+              SHORT FORM 12
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
                 data={s12Databox.filter(
                   (item) =>
-                    item.Patient !== undefined &&
-                    item.Patient !== null &&
-                    !isNaN(item.Patient) &&
-                    item.Patient < 100 // optional: clamp to realistic max
-                )}
-                dataKey="Patient"
-                fill="#2A333A"
-                stroke="#2A333A"
-                shape={(props) => (
-                  <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                )}
-              />
-              <XAxis
-                dataKey="name"
-                type="category"
-                allowDuplicatedCategory={false}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                tickLine={{ stroke: "#615E83" }}
-              />
-              <YAxis
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 20,
-                  style: {
-                    textAnchor: "middle",
-                    fill: "#615E83",
-                    fontSize: 14,
-                    fontWeight: "700",
-                    fontFamily: "Poppins",
-                  },
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={false}
-                tickLine={{ stroke: "#615E83" }}
-                domain={[0, 48]}
-              />
+                    item.min !== undefined &&
+                    item._median !== undefined &&
+                    item._min !== undefined &&
+                    item._max !== undefined
+                )} // Filter out undefined data
+                barCategoryGap="70%"
+                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <Tooltip
+                  content={({ active, label }) => {
+                    if (!active) return null;
 
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    pcs: "Short Form - 12 (SF-12)",
-                    mcs: "Other Patients",
-                  };
+                    const item = s12Databox.find((d) => d.name === label);
+                    if (!item) return null;
 
-                  const colors = {
-                    pcs: "#04CE00",
-                    mcs: "#6888A1",
-                  };
+                    const renameMap = {
+                      bottomWhisker: "poorestFunctionObserved",
+                      bottomBox: "belowAverageFunctionRange",
+                      topBox: "aboveAverageFunctionRange",
+                      topWhisker: "bestFunctionObserved",
+                      _median: "groupMedianFunctionScore",
+                      _min: "lowestFunctionScore",
+                      _max: "highestFunctionScore",
+                      Patient: "patientScore",
+                    };
 
-                  return (
-                    <ul className={`flex flex-col items-end`}>
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`flex flex-row items-center gap-2 w-2/5`}
+                    // Chart colors for each key
+                    const colorMap = {
+                      patientScore: "#04CE00", // green
+                      highestFunctionScore: "#1F77B4", // blue
+                      lowestFunctionScore: "#1F77B4", // blue (paired)
+                      bestFunctionObserved: "#9467BD", // purple
+                      poorestFunctionObserved: "#9467BD", // purple (paired)
+                      aboveAverageFunctionRange: "#FF7F0E", // orange
+                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                      groupMedianFunctionScore: "#000000", // white
+                    };
+                    const displayOrder = [
+                      "patientScore",
+                      "highestFunctionScore",
+                      "bestFunctionObserved",
+                      "aboveAverageFunctionRange",
+                      "groupMedianFunctionScore",
+                      "belowAverageFunctionRange",
+                      "poorestFunctionObserved",
+                      "lowestFunctionScore",
+                    ];
+
+                    return (
+                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                        <p
+                          className={`${poppins.className} font-bold text-black text-sm`}
                         >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              backgroundColor: colors[key],
-                            }}
-                          />
-                          <span
-                            className={`${inter.className} font-medium text-[10px] text-black`}
-                          >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+                          {`Timepoint: ${label}`}
+                        </p>
+                        {displayOrder.map((key) => {
+                          const originalKey = Object.keys(renameMap).find(
+                            (k) => renameMap[k] === key
+                          );
+                          if (!originalKey || item[originalKey] == null)
+                            return null;
 
-      <div
-        className={`w-full h-fit flex ${
-          width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-        } gap-6`}
-      >
-        <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-        >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-          >
-            KNEE SOCIETY SCORE
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={kssDatabox.filter(
-                (item) =>
-                  item.min !== undefined &&
-                  item._median !== undefined &&
-                  item._min !== undefined &&
-                  item._max !== undefined
-              )} // Filter out undefined data
-              barCategoryGap="70%"
-              margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <Tooltip
-                content={({ active, label }) => {
-                  if (!active) return null;
-
-                  const item = kssDatabox.find((d) => d.name === label);
-                  if (!item) return null;
-
-                  const renameMap = {
-                    bottomWhisker: "poorestFunctionObserved",
-                    bottomBox: "belowAverageFunctionRange",
-                    topBox: "aboveAverageFunctionRange",
-                    topWhisker: "bestFunctionObserved",
-                    _median: "groupMedianFunctionScore",
-                    _min: "lowestFunctionScore",
-                    _max: "highestFunctionScore",
-                    Patient: "patientScore",
-                  };
-
-                  // Chart colors for each key
-                  const colorMap = {
-                    patientScore: "#04CE00", // green
-                    highestFunctionScore: "#1F77B4", // blue
-                    lowestFunctionScore: "#1F77B4", // blue (paired)
-                    bestFunctionObserved: "#9467BD", // purple
-                    poorestFunctionObserved: "#9467BD", // purple (paired)
-                    aboveAverageFunctionRange: "#FF7F0E", // orange
-                    belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                    groupMedianFunctionScore: "#000000", // white
-                  };
-                  const displayOrder = [
-                    "patientScore",
-                    "highestFunctionScore",
-                    "bestFunctionObserved",
-                    "aboveAverageFunctionRange",
-                    "groupMedianFunctionScore",
-                    "belowAverageFunctionRange",
-                    "poorestFunctionObserved",
-                    "lowestFunctionScore",
-                  ];
-
-                  return (
-                    <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                      <p
-                        className={`${poppins.className} font-bold text-black text-sm`}
-                      >
-                        {`Timepoint: ${label}`}
-                      </p>
-                      {displayOrder.map((key) => {
-                        const originalKey = Object.keys(renameMap).find(
-                          (k) => renameMap[k] === key
-                        );
-                        if (!originalKey || item[originalKey] == null)
-                          return null;
-
-                        return (
-                          <p
-                            key={key}
-                            className={`${poppins.className} font-medium text-sm`}
-                            style={{ color: colorMap[key] }}
-                          >
-                            {key}:{" "}
-                            <span
-                              className="font-semibold"
+                          return (
+                            <p
+                              key={key}
+                              className={`${poppins.className} font-medium text-sm`}
                               style={{ color: colorMap[key] }}
                             >
-                              {typeof item[originalKey] === "number"
-                                ? item[originalKey].toFixed(2)
-                                : item[originalKey]}
-                            </span>
-                          </p>
-                        );
-                      })}
-                    </div>
-                  );
-                }}
-              />
+                              {key}:{" "}
+                              <span
+                                className="font-semibold"
+                                style={{ color: colorMap[key] }}
+                              >
+                                {typeof item[originalKey] === "number"
+                                  ? item[originalKey].toFixed(2)
+                                  : item[originalKey]}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    );
+                  }}
+                />
 
-              <Bar stackId="a" dataKey="min" fill="none" />
-              <Bar
-                stackId="a"
-                dataKey="bottomWhisker"
-                shape={<DotBar stroke="#9EB5B5" />}
-              />
-              <Bar
-                stackId="a"
-                dataKey="bottomBox"
-                fill="#9EB5B5"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topBox"
-                fill="#9EB5B5"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topWhisker"
-                shape={<DotBar stroke="#9EB5B5" />}
-              />
-              {/* Median Line */}
-              <Scatter
-                data={kssDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                )}
-                dataKey="_median"
-              />
-              {/* Min Line */}
-              <Scatter
-                data={kssDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_min" stroke="#9EB5B5" />
-                )}
-                dataKey="_min"
-              />
-              {/* Max Line */}
-              <Scatter
-                data={kssDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar
-                    {...props}
-                    dataKey="_max"
-                    fill="#9EB5B5"
-                    stroke="#9EB5B5"
-                  />
-                )}
-                dataKey="_max"
-              />
-              <ZAxis type="number" dataKey="size" range={[0, 250]} />
-              <Scatter
+                <Bar stackId="a" dataKey="min" fill="none" />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomWhisker"
+                  shape={<DotBar stroke="#6888A1" />}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomBox"
+                  fill="#6888A1"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topBox"
+                  fill="#6888A1"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topWhisker"
+                  shape={<DotBar stroke="#6888A1" />}
+                />
+                {/* Median Line */}
+                <Scatter
+                  data={s12Databox.filter((item) => item._median !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
+                  )}
+                  dataKey="_median"
+                />
+                {/* Min Line */}
+                <Scatter
+                  data={s12Databox.filter((item) => item._min !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_min" stroke="#6888A1" />
+                  )}
+                  dataKey="_min"
+                />
+                {/* Max Line */}
+                <Scatter
+                  data={s12Databox.filter((item) => item._max !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar
+                      {...props}
+                      dataKey="_max"
+                      fill="#6888A1"
+                      stroke="#6888A1"
+                    />
+                  )}
+                  dataKey="_max"
+                />
+                <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                <Scatter
+                  data={s12Databox.filter(
+                    (item) =>
+                      item.Patient !== undefined &&
+                      item.Patient !== null &&
+                      !isNaN(item.Patient) &&
+                      item.Patient < 100 // optional: clamp to realistic max
+                  )}
+                  dataKey="Patient"
+                  fill="#2A333A"
+                  stroke="#2A333A"
+                  shape={(props) => (
+                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
+                  )}
+                />
+                <XAxis
+                  dataKey="name"
+                  type="category"
+                  allowDuplicatedCategory={false}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  tickLine={{ stroke: "#615E83" }}
+                />
+                <YAxis
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 20,
+                    style: {
+                      textAnchor: "middle",
+                      fill: "#615E83",
+                      fontSize: 14,
+                      fontWeight: "700",
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={false}
+                  tickLine={{ stroke: "#615E83" }}
+                  domain={[0, 48]}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      pcs: "Short Form - 12 (SF-12)",
+                      mcs: "Other Patients",
+                    };
+
+                    const colors = {
+                      pcs: "#04CE00",
+                      mcs: "#6888A1",
+                    };
+
+                    return (
+                      <ul className={`flex flex-col items-end`}>
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`flex flex-row items-center gap-2 w-2/5`}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                backgroundColor: colors[key],
+                              }}
+                            />
+                            <span
+                              className={`${inter.className} font-medium text-[10px] text-black`}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div
+          className={`w-full h-fit flex ${
+            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+          } gap-6`}
+        >
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          >
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            >
+              KNEE SOCIETY SCORE
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
                 data={kssDatabox.filter(
                   (item) =>
-                    item.Patient !== undefined &&
-                    item.Patient !== null &&
-                    !isNaN(item.Patient) &&
-                    item.Patient < 100 // optional: clamp to realistic max
-                )}
-                dataKey="Patient"
-                fill="#2A333A"
-                stroke="#2A333A"
-                shape={(props) => (
-                  <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                )}
-              />
-              <XAxis
-                dataKey="name"
-                type="category"
-                allowDuplicatedCategory={false}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                tickLine={{ stroke: "#615E83" }}
-              />
-              <YAxis
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 20,
-                  style: {
-                    textAnchor: "middle",
-                    fill: "#615E83",
-                    fontSize: 14,
-                    fontWeight: "700",
-                    fontFamily: "Poppins",
-                  },
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={false}
-                tickLine={{ stroke: "#615E83" }}
-                domain={[0, 48]}
-              />
+                    item.min !== undefined &&
+                    item._median !== undefined &&
+                    item._min !== undefined &&
+                    item._max !== undefined
+                )} // Filter out undefined data
+                barCategoryGap="70%"
+                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <Tooltip
+                  content={({ active, label }) => {
+                    if (!active) return null;
 
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    pcs: "Knee Society Score (KSS)",
-                    mcs: "Other Patients",
-                  };
+                    const item = kssDatabox.find((d) => d.name === label);
+                    if (!item) return null;
 
-                  const colors = {
-                    pcs: "#04CE00",
-                    mcs: "#9EB5B5",
-                  };
+                    const renameMap = {
+                      bottomWhisker: "poorestFunctionObserved",
+                      bottomBox: "belowAverageFunctionRange",
+                      topBox: "aboveAverageFunctionRange",
+                      topWhisker: "bestFunctionObserved",
+                      _median: "groupMedianFunctionScore",
+                      _min: "lowestFunctionScore",
+                      _max: "highestFunctionScore",
+                      Patient: "patientScore",
+                    };
 
-                  return (
-                    <ul className={`flex flex-col items-end`}>
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`flex flex-row items-center gap-2 w-2/5`}
+                    // Chart colors for each key
+                    const colorMap = {
+                      patientScore: "#04CE00", // green
+                      highestFunctionScore: "#1F77B4", // blue
+                      lowestFunctionScore: "#1F77B4", // blue (paired)
+                      bestFunctionObserved: "#9467BD", // purple
+                      poorestFunctionObserved: "#9467BD", // purple (paired)
+                      aboveAverageFunctionRange: "#FF7F0E", // orange
+                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                      groupMedianFunctionScore: "#000000", // white
+                    };
+                    const displayOrder = [
+                      "patientScore",
+                      "highestFunctionScore",
+                      "bestFunctionObserved",
+                      "aboveAverageFunctionRange",
+                      "groupMedianFunctionScore",
+                      "belowAverageFunctionRange",
+                      "poorestFunctionObserved",
+                      "lowestFunctionScore",
+                    ];
+
+                    return (
+                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                        <p
+                          className={`${poppins.className} font-bold text-black text-sm`}
                         >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              backgroundColor: colors[key],
-                            }}
-                          />
-                          <span
-                            className={`${inter.className} font-medium text-[10px] text-black`}
-                          >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+                          {`Timepoint: ${label}`}
+                        </p>
+                        {displayOrder.map((key) => {
+                          const originalKey = Object.keys(renameMap).find(
+                            (k) => renameMap[k] === key
+                          );
+                          if (!originalKey || item[originalKey] == null)
+                            return null;
 
-        <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-        >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-          >
-            KNEE INJURY AND OSTHEOARTHRITIS OUTCOME SCORE, JOINT REPLACEMENT
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={koosjrDatabox.filter(
-                (item) =>
-                  item.min !== undefined &&
-                  item._median !== undefined &&
-                  item._min !== undefined &&
-                  item._max !== undefined
-              )} // Filter out undefined data
-              barCategoryGap="70%"
-              margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <Tooltip
-                content={({ active, label }) => {
-                  if (!active) return null;
-
-                  const item = koosjrDatabox.find((d) => d.name === label);
-                  if (!item) return null;
-
-                  const renameMap = {
-                    bottomWhisker: "poorestFunctionObserved",
-                    bottomBox: "belowAverageFunctionRange",
-                    topBox: "aboveAverageFunctionRange",
-                    topWhisker: "bestFunctionObserved",
-                    _median: "groupMedianFunctionScore",
-                    _min: "lowestFunctionScore",
-                    _max: "highestFunctionScore",
-                    Patient: "patientScore",
-                  };
-
-                  // Chart colors for each key
-                  const colorMap = {
-                    patientScore: "#04CE00", // green
-                    highestFunctionScore: "#1F77B4", // blue
-                    lowestFunctionScore: "#1F77B4", // blue (paired)
-                    bestFunctionObserved: "#9467BD", // purple
-                    poorestFunctionObserved: "#9467BD", // purple (paired)
-                    aboveAverageFunctionRange: "#FF7F0E", // orange
-                    belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                    groupMedianFunctionScore: "#000000", // white
-                  };
-                  const displayOrder = [
-                    "patientScore",
-                    "highestFunctionScore",
-                    "bestFunctionObserved",
-                    "aboveAverageFunctionRange",
-                    "groupMedianFunctionScore",
-                    "belowAverageFunctionRange",
-                    "poorestFunctionObserved",
-                    "lowestFunctionScore",
-                  ];
-
-                  return (
-                    <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                      <p
-                        className={`${poppins.className} font-bold text-black text-sm`}
-                      >
-                        {`Timepoint: ${label}`}
-                      </p>
-                      {displayOrder.map((key) => {
-                        const originalKey = Object.keys(renameMap).find(
-                          (k) => renameMap[k] === key
-                        );
-                        if (!originalKey || item[originalKey] == null)
-                          return null;
-
-                        return (
-                          <p
-                            key={key}
-                            className={`${poppins.className} font-medium text-sm`}
-                            style={{ color: colorMap[key] }}
-                          >
-                            {key}:{" "}
-                            <span
-                              className="font-semibold"
+                          return (
+                            <p
+                              key={key}
+                              className={`${poppins.className} font-medium text-sm`}
                               style={{ color: colorMap[key] }}
                             >
-                              {typeof item[originalKey] === "number"
-                                ? item[originalKey].toFixed(2)
-                                : item[originalKey]}
-                            </span>
-                          </p>
-                        );
-                      })}
-                    </div>
-                  );
-                }}
-              />
+                              {key}:{" "}
+                              <span
+                                className="font-semibold"
+                                style={{ color: colorMap[key] }}
+                              >
+                                {typeof item[originalKey] === "number"
+                                  ? item[originalKey].toFixed(2)
+                                  : item[originalKey]}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    );
+                  }}
+                />
 
-              <Bar stackId="a" dataKey="min" fill="none" />
-              <Bar
-                stackId="a"
-                dataKey="bottomWhisker"
-                shape={<DotBar stroke="#D88C8A" />}
-              />
-              <Bar
-                stackId="a"
-                dataKey="bottomBox"
-                fill="#D88C8A"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topBox"
-                fill="#D88C8A"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topWhisker"
-                shape={<DotBar stroke="#D88C8A" />}
-              />
-              {/* Median Line */}
-              <Scatter
-                data={koosjrDatabox.filter(
-                  (item) => item._median !== undefined
-                )} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                )}
-                dataKey="_median"
-              />
-              {/* Min Line */}
-              <Scatter
-                data={koosjrDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_min" stroke="#D88C8A" />
-                )}
-                dataKey="_min"
-              />
-              {/* Max Line */}
-              <Scatter
-                data={koosjrDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar
-                    {...props}
-                    dataKey="_max"
-                    fill="#D88C8A"
-                    stroke="#D88C8A"
-                  />
-                )}
-                dataKey="_max"
-              />
-              <ZAxis type="number" dataKey="size" range={[0, 250]} />
-              <Scatter
+                <Bar stackId="a" dataKey="min" fill="none" />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomWhisker"
+                  shape={<DotBar stroke="#9EB5B5" />}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomBox"
+                  fill="#9EB5B5"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topBox"
+                  fill="#9EB5B5"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topWhisker"
+                  shape={<DotBar stroke="#9EB5B5" />}
+                />
+                {/* Median Line */}
+                <Scatter
+                  data={kssDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
+                  )}
+                  dataKey="_median"
+                />
+                {/* Min Line */}
+                <Scatter
+                  data={kssDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_min" stroke="#9EB5B5" />
+                  )}
+                  dataKey="_min"
+                />
+                {/* Max Line */}
+                <Scatter
+                  data={kssDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar
+                      {...props}
+                      dataKey="_max"
+                      fill="#9EB5B5"
+                      stroke="#9EB5B5"
+                    />
+                  )}
+                  dataKey="_max"
+                />
+                <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                <Scatter
+                  data={kssDatabox.filter(
+                    (item) =>
+                      item.Patient !== undefined &&
+                      item.Patient !== null &&
+                      !isNaN(item.Patient) &&
+                      item.Patient < 100 // optional: clamp to realistic max
+                  )}
+                  dataKey="Patient"
+                  fill="#2A333A"
+                  stroke="#2A333A"
+                  shape={(props) => (
+                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
+                  )}
+                />
+                <XAxis
+                  dataKey="name"
+                  type="category"
+                  allowDuplicatedCategory={false}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  tickLine={{ stroke: "#615E83" }}
+                />
+                <YAxis
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 20,
+                    style: {
+                      textAnchor: "middle",
+                      fill: "#615E83",
+                      fontSize: 14,
+                      fontWeight: "700",
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={false}
+                  tickLine={{ stroke: "#615E83" }}
+                  domain={[0, 48]}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      pcs: "Knee Society Score (KSS)",
+                      mcs: "Other Patients",
+                    };
+
+                    const colors = {
+                      pcs: "#04CE00",
+                      mcs: "#9EB5B5",
+                    };
+
+                    return (
+                      <ul className={`flex flex-col items-end`}>
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`flex flex-row items-center gap-2 w-2/5`}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                backgroundColor: colors[key],
+                              }}
+                            />
+                            <span
+                              className={`${inter.className} font-medium text-[10px] text-black`}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          >
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            >
+              KNEE INJURY AND OSTHEOARTHRITIS OUTCOME SCORE, JOINT REPLACEMENT
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
                 data={koosjrDatabox.filter(
                   (item) =>
-                    item.Patient !== undefined &&
-                    item.Patient !== null &&
-                    !isNaN(item.Patient) &&
-                    item.Patient < 100 // optional: clamp to realistic max
-                )}
-                dataKey="Patient"
-                fill="#2A333A"
-                stroke="#2A333A"
-                shape={(props) => (
-                  <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                )}
-              />
-              <XAxis
-                dataKey="name"
-                type="category"
-                allowDuplicatedCategory={false}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                tickLine={{ stroke: "#615E83" }}
-              />
-              <YAxis
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 20,
-                  style: {
-                    textAnchor: "middle",
-                    fill: "#615E83",
-                    fontSize: 14,
-                    fontWeight: "700",
-                    fontFamily: "Poppins",
-                  },
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={false}
-                tickLine={{ stroke: "#615E83" }}
-                domain={[0, 28]}
-              />
+                    item.min !== undefined &&
+                    item._median !== undefined &&
+                    item._min !== undefined &&
+                    item._max !== undefined
+                )} // Filter out undefined data
+                barCategoryGap="70%"
+                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <Tooltip
+                  content={({ active, label }) => {
+                    if (!active) return null;
 
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    pcs: "KOOS, JR",
-                    mcs: "Other Patients",
-                  };
+                    const item = koosjrDatabox.find((d) => d.name === label);
+                    if (!item) return null;
 
-                  const colors = {
-                    pcs: "#04CE00",
-                    mcs: "#D88C8A",
-                  };
+                    const renameMap = {
+                      bottomWhisker: "poorestFunctionObserved",
+                      bottomBox: "belowAverageFunctionRange",
+                      topBox: "aboveAverageFunctionRange",
+                      topWhisker: "bestFunctionObserved",
+                      _median: "groupMedianFunctionScore",
+                      _min: "lowestFunctionScore",
+                      _max: "highestFunctionScore",
+                      Patient: "patientScore",
+                    };
 
-                  return (
-                    <ul className={`flex flex-col items-end`}>
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`flex flex-row items-center gap-2 w-2/5`}
+                    // Chart colors for each key
+                    const colorMap = {
+                      patientScore: "#04CE00", // green
+                      highestFunctionScore: "#1F77B4", // blue
+                      lowestFunctionScore: "#1F77B4", // blue (paired)
+                      bestFunctionObserved: "#9467BD", // purple
+                      poorestFunctionObserved: "#9467BD", // purple (paired)
+                      aboveAverageFunctionRange: "#FF7F0E", // orange
+                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                      groupMedianFunctionScore: "#000000", // white
+                    };
+                    const displayOrder = [
+                      "patientScore",
+                      "highestFunctionScore",
+                      "bestFunctionObserved",
+                      "aboveAverageFunctionRange",
+                      "groupMedianFunctionScore",
+                      "belowAverageFunctionRange",
+                      "poorestFunctionObserved",
+                      "lowestFunctionScore",
+                    ];
+
+                    return (
+                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                        <p
+                          className={`${poppins.className} font-bold text-black text-sm`}
                         >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              backgroundColor: colors[key],
-                            }}
-                          />
-                          <span
-                            className={`${inter.className} font-medium text-[10px] text-black`}
-                          >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+                          {`Timepoint: ${label}`}
+                        </p>
+                        {displayOrder.map((key) => {
+                          const originalKey = Object.keys(renameMap).find(
+                            (k) => renameMap[k] === key
+                          );
+                          if (!originalKey || item[originalKey] == null)
+                            return null;
 
-      <div
-        className={`w-full h-fit flex ${
-          width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-        } gap-6`}
-      >
-        <div
-          className={`${
-            width >= 1000 ? "w-1/2" : "w-full"
-          } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-        >
-          <p
-            className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-          >
-            FORGOTTEN JOINT SCORE
-          </p>
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={fjsDatabox.filter(
-                (item) =>
-                  item.min !== undefined &&
-                  item._median !== undefined &&
-                  item._min !== undefined &&
-                  item._max !== undefined
-              )} // Filter out undefined data
-              barCategoryGap="70%"
-              margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <Tooltip
-                content={({ active, label }) => {
-                  if (!active) return null;
-
-                  const item = fjsDatabox.find((d) => d.name === label);
-                  if (!item) return null;
-
-                  const renameMap = {
-                    bottomWhisker: "poorestFunctionObserved",
-                    bottomBox: "belowAverageFunctionRange",
-                    topBox: "aboveAverageFunctionRange",
-                    topWhisker: "bestFunctionObserved",
-                    _median: "groupMedianFunctionScore",
-                    _min: "lowestFunctionScore",
-                    _max: "highestFunctionScore",
-                    Patient: "patientScore",
-                  };
-
-                  // Chart colors for each key
-                  const colorMap = {
-                    patientScore: "#04CE00", // green
-                    highestFunctionScore: "#1F77B4", // blue
-                    lowestFunctionScore: "#1F77B4", // blue (paired)
-                    bestFunctionObserved: "#9467BD", // purple
-                    poorestFunctionObserved: "#9467BD", // purple (paired)
-                    aboveAverageFunctionRange: "#FF7F0E", // orange
-                    belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                    groupMedianFunctionScore: "#000000", // white
-                  };
-                  const displayOrder = [
-                    "patientScore",
-                    "highestFunctionScore",
-                    "bestFunctionObserved",
-                    "aboveAverageFunctionRange",
-                    "groupMedianFunctionScore",
-                    "belowAverageFunctionRange",
-                    "poorestFunctionObserved",
-                    "lowestFunctionScore",
-                  ];
-
-                  return (
-                    <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                      <p
-                        className={`${poppins.className} font-bold text-black text-sm`}
-                      >
-                        {`Timepoint: ${label}`}
-                      </p>
-                      {displayOrder.map((key) => {
-                        const originalKey = Object.keys(renameMap).find(
-                          (k) => renameMap[k] === key
-                        );
-                        if (!originalKey || item[originalKey] == null)
-                          return null;
-
-                        return (
-                          <p
-                            key={key}
-                            className={`${poppins.className} font-medium text-sm`}
-                            style={{ color: colorMap[key] }}
-                          >
-                            {key}:{" "}
-                            <span
-                              className="font-semibold"
+                          return (
+                            <p
+                              key={key}
+                              className={`${poppins.className} font-medium text-sm`}
                               style={{ color: colorMap[key] }}
                             >
-                              {typeof item[originalKey] === "number"
-                                ? item[originalKey].toFixed(2)
-                                : item[originalKey]}
-                            </span>
-                          </p>
-                        );
-                      })}
-                    </div>
-                  );
-                }}
-              />
+                              {key}:{" "}
+                              <span
+                                className="font-semibold"
+                                style={{ color: colorMap[key] }}
+                              >
+                                {typeof item[originalKey] === "number"
+                                  ? item[originalKey].toFixed(2)
+                                  : item[originalKey]}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    );
+                  }}
+                />
 
-              <Bar stackId="a" dataKey="min" fill="none" />
-              <Bar
-                stackId="a"
-                dataKey="bottomWhisker"
-                shape={<DotBar stroke="#9EA6B5" />}
-              />
-              <Bar
-                stackId="a"
-                dataKey="bottomBox"
-                fill="#9EA6B5"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topBox"
-                fill="#9EA6B5"
-                radius={[4, 0, 0, 4]}
-              />
-              <Bar
-                stackId="a"
-                dataKey="topWhisker"
-                shape={<DotBar stroke="#9EA6B5" />}
-              />
-              {/* Median Line */}
-              <Scatter
-                data={fjsDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                )}
-                dataKey="_median"
-              />
-              {/* Min Line */}
-              <Scatter
-                data={fjsDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar {...props} dataKey="_min" stroke="#9EA6B5" />
-                )}
-                dataKey="_min"
-              />
-              {/* Max Line */}
-              <Scatter
-                data={fjsDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                shape={(props) => (
-                  <HorizonBar
-                    {...props}
-                    dataKey="_max"
-                    fill="#9EA6B5"
-                    stroke="#9EA6B5"
-                  />
-                )}
-                dataKey="_max"
-              />
-              <ZAxis type="number" dataKey="size" range={[0, 250]} />
-              <Scatter
+                <Bar stackId="a" dataKey="min" fill="none" />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomWhisker"
+                  shape={<DotBar stroke="#D88C8A" />}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomBox"
+                  fill="#D88C8A"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topBox"
+                  fill="#D88C8A"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topWhisker"
+                  shape={<DotBar stroke="#D88C8A" />}
+                />
+                {/* Median Line */}
+                <Scatter
+                  data={koosjrDatabox.filter(
+                    (item) => item._median !== undefined
+                  )} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
+                  )}
+                  dataKey="_median"
+                />
+                {/* Min Line */}
+                <Scatter
+                  data={koosjrDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_min" stroke="#D88C8A" />
+                  )}
+                  dataKey="_min"
+                />
+                {/* Max Line */}
+                <Scatter
+                  data={koosjrDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar
+                      {...props}
+                      dataKey="_max"
+                      fill="#D88C8A"
+                      stroke="#D88C8A"
+                    />
+                  )}
+                  dataKey="_max"
+                />
+                <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                <Scatter
+                  data={koosjrDatabox.filter(
+                    (item) =>
+                      item.Patient !== undefined &&
+                      item.Patient !== null &&
+                      !isNaN(item.Patient) &&
+                      item.Patient < 100 // optional: clamp to realistic max
+                  )}
+                  dataKey="Patient"
+                  fill="#2A333A"
+                  stroke="#2A333A"
+                  shape={(props) => (
+                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
+                  )}
+                />
+                <XAxis
+                  dataKey="name"
+                  type="category"
+                  allowDuplicatedCategory={false}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  tickLine={{ stroke: "#615E83" }}
+                />
+                <YAxis
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 20,
+                    style: {
+                      textAnchor: "middle",
+                      fill: "#615E83",
+                      fontSize: 14,
+                      fontWeight: "700",
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={false}
+                  tickLine={{ stroke: "#615E83" }}
+                  domain={[0, 28]}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      pcs: "KOOS, JR",
+                      mcs: "Other Patients",
+                    };
+
+                    const colors = {
+                      pcs: "#04CE00",
+                      mcs: "#D88C8A",
+                    };
+
+                    return (
+                      <ul className={`flex flex-col items-end`}>
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`flex flex-row items-center gap-2 w-2/5`}
+                          >
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                backgroundColor: colors[key],
+                              }}
+                            />
+                            <span
+                              className={`${inter.className} font-medium text-[10px] text-black`}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div
+          className={`w-full h-fit flex ${
+            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+          } gap-6`}
+        >
+          <div
+            className={`${
+              width >= 1000 ? "w-1/2" : "w-full"
+            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+          >
+            <p
+              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            >
+              FORGOTTEN JOINT SCORE
+            </p>
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart
                 data={fjsDatabox.filter(
                   (item) =>
-                    item.Patient !== undefined &&
-                    item.Patient !== null &&
-                    !isNaN(item.Patient) &&
-                    item.Patient < 100 // optional: clamp to realistic max
-                )}
-                dataKey="Patient"
-                fill="#2A333A"
-                stroke="#2A333A"
-                shape={(props) => (
-                  <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                )}
-              />
-              <XAxis
-                dataKey="name"
-                type="category"
-                allowDuplicatedCategory={false}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={{ stroke: "#99a1af " }} // gray-500
-                tickLine={{ stroke: "#615E83" }}
-              />
-              <YAxis
-                label={{
-                  value: "SCORE",
-                  angle: -90,
-                  position: "insideLeft",
-                  offset: 20,
-                  style: {
-                    textAnchor: "middle",
-                    fill: "#615E83",
-                    fontSize: 14,
-                    fontWeight: "700",
-                    fontFamily: "Poppins",
-                  },
-                }}
-                tick={{
-                  fill: "#615E83",
-                  fontSize: 12,
-                  fontWeight: "600",
-                  fontFamily: "Poppins",
-                }}
-                axisLine={false}
-                tickLine={{ stroke: "#615E83" }}
-                domain={[0, 48]}
-              />
+                    item.min !== undefined &&
+                    item._median !== undefined &&
+                    item._min !== undefined &&
+                    item._max !== undefined
+                )} // Filter out undefined data
+                barCategoryGap="70%"
+                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <Tooltip
+                  content={({ active, label }) => {
+                    if (!active) return null;
 
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                iconSize={10}
-                wrapperStyle={{ paddingBottom: 20 }}
-                content={() => {
-                  const labels = {
-                    pcs: "Forgotten Joint Score (FJS)",
-                    mcs: "Other Patients",
-                  };
+                    const item = fjsDatabox.find((d) => d.name === label);
+                    if (!item) return null;
 
-                  const colors = {
-                    pcs: "#04CE00",
-                    mcs: "#9EA6B5",
-                  };
+                    const renameMap = {
+                      bottomWhisker: "poorestFunctionObserved",
+                      bottomBox: "belowAverageFunctionRange",
+                      topBox: "aboveAverageFunctionRange",
+                      topWhisker: "bestFunctionObserved",
+                      _median: "groupMedianFunctionScore",
+                      _min: "lowestFunctionScore",
+                      _max: "highestFunctionScore",
+                      Patient: "patientScore",
+                    };
 
-                  return (
-                    <ul className={`flex flex-col items-end`}>
-                      {Object.entries(labels).map(([key, label]) => (
-                        <li
-                          key={key}
-                          className={`flex flex-row items-center gap-2 w-2/5`}
+                    // Chart colors for each key
+                    const colorMap = {
+                      patientScore: "#04CE00", // green
+                      highestFunctionScore: "#1F77B4", // blue
+                      lowestFunctionScore: "#1F77B4", // blue (paired)
+                      bestFunctionObserved: "#9467BD", // purple
+                      poorestFunctionObserved: "#9467BD", // purple (paired)
+                      aboveAverageFunctionRange: "#FF7F0E", // orange
+                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                      groupMedianFunctionScore: "#000000", // white
+                    };
+                    const displayOrder = [
+                      "patientScore",
+                      "highestFunctionScore",
+                      "bestFunctionObserved",
+                      "aboveAverageFunctionRange",
+                      "groupMedianFunctionScore",
+                      "belowAverageFunctionRange",
+                      "poorestFunctionObserved",
+                      "lowestFunctionScore",
+                    ];
+
+                    return (
+                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                        <p
+                          className={`${poppins.className} font-bold text-black text-sm`}
                         >
-                          <span
-                            style={{
-                              display: "inline-block",
-                              width: 7,
-                              height: 7,
-                              borderRadius: "50%",
-                              backgroundColor: colors[key],
-                            }}
-                          />
-                          <span
-                            className={`${inter.className} font-medium text-[10px] text-black`}
+                          {`Timepoint: ${label}`}
+                        </p>
+                        {displayOrder.map((key) => {
+                          const originalKey = Object.keys(renameMap).find(
+                            (k) => renameMap[k] === key
+                          );
+                          if (!originalKey || item[originalKey] == null)
+                            return null;
+
+                          return (
+                            <p
+                              key={key}
+                              className={`${poppins.className} font-medium text-sm`}
+                              style={{ color: colorMap[key] }}
+                            >
+                              {key}:{" "}
+                              <span
+                                className="font-semibold"
+                                style={{ color: colorMap[key] }}
+                              >
+                                {typeof item[originalKey] === "number"
+                                  ? item[originalKey].toFixed(2)
+                                  : item[originalKey]}
+                              </span>
+                            </p>
+                          );
+                        })}
+                      </div>
+                    );
+                  }}
+                />
+
+                <Bar stackId="a" dataKey="min" fill="none" />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomWhisker"
+                  shape={<DotBar stroke="#9EA6B5" />}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="bottomBox"
+                  fill="#9EA6B5"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topBox"
+                  fill="#9EA6B5"
+                  radius={[4, 0, 0, 4]}
+                />
+                <Bar
+                  stackId="a"
+                  dataKey="topWhisker"
+                  shape={<DotBar stroke="#9EA6B5" />}
+                />
+                {/* Median Line */}
+                <Scatter
+                  data={fjsDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
+                  )}
+                  dataKey="_median"
+                />
+                {/* Min Line */}
+                <Scatter
+                  data={fjsDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar {...props} dataKey="_min" stroke="#9EA6B5" />
+                  )}
+                  dataKey="_min"
+                />
+                {/* Max Line */}
+                <Scatter
+                  data={fjsDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
+                  shape={(props) => (
+                    <HorizonBar
+                      {...props}
+                      dataKey="_max"
+                      fill="#9EA6B5"
+                      stroke="#9EA6B5"
+                    />
+                  )}
+                  dataKey="_max"
+                />
+                <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                <Scatter
+                  data={fjsDatabox.filter(
+                    (item) =>
+                      item.Patient !== undefined &&
+                      item.Patient !== null &&
+                      !isNaN(item.Patient) &&
+                      item.Patient < 100 // optional: clamp to realistic max
+                  )}
+                  dataKey="Patient"
+                  fill="#2A333A"
+                  stroke="#2A333A"
+                  shape={(props) => (
+                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
+                  )}
+                />
+                <XAxis
+                  dataKey="name"
+                  type="category"
+                  allowDuplicatedCategory={false}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={{ stroke: "#99a1af " }} // gray-500
+                  tickLine={{ stroke: "#615E83" }}
+                />
+                <YAxis
+                  label={{
+                    value: "SCORE",
+                    angle: -90,
+                    position: "insideLeft",
+                    offset: 20,
+                    style: {
+                      textAnchor: "middle",
+                      fill: "#615E83",
+                      fontSize: 14,
+                      fontWeight: "700",
+                      fontFamily: "Poppins",
+                    },
+                  }}
+                  tick={{
+                    fill: "#615E83",
+                    fontSize: 12,
+                    fontWeight: "600",
+                    fontFamily: "Poppins",
+                  }}
+                  axisLine={false}
+                  tickLine={{ stroke: "#615E83" }}
+                  domain={[0, 48]}
+                />
+
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  iconSize={10}
+                  wrapperStyle={{ paddingBottom: 20 }}
+                  content={() => {
+                    const labels = {
+                      pcs: "Forgotten Joint Score (FJS)",
+                      mcs: "Other Patients",
+                    };
+
+                    const colors = {
+                      pcs: "#04CE00",
+                      mcs: "#9EA6B5",
+                    };
+
+                    return (
+                      <ul className={`flex flex-col items-end`}>
+                        {Object.entries(labels).map(([key, label]) => (
+                          <li
+                            key={key}
+                            className={`flex flex-row items-center gap-2 w-2/5`}
                           >
-                            {label}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  );
-                }}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
+                            <span
+                              style={{
+                                display: "inline-block",
+                                width: 7,
+                                height: 7,
+                                borderRadius: "50%",
+                                backgroundColor: colors[key],
+                              }}
+                            />
+                            <span
+                              className={`${inter.className} font-medium text-[10px] text-black`}
+                            >
+                              {label}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    );
+                  }}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className={`${width >= 1000 ? "w-1/2" : "w-full"}`}> </div>
         </div>
-
-        <div className={`${width >= 1000 ? "w-1/2" : "w-full"}`}> </div>
-      </div>
-
+      </>
+            )}
       <style>
         {`
       .inline-scroll::-webkit-scrollbar {

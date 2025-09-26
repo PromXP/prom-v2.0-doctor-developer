@@ -99,6 +99,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
     return today.toISOString().split("T")[0]; // format: yyyy-mm-dd
   });
   const [sortOrder, setSortOrder] = useState("low_to_high");
+  const [patientloading, setPatientloading] = useState(true);
 
   // Handlers
   const handleClearAll = () => {
@@ -108,29 +109,13 @@ const Markedpatient = ({ handlenavigatereport }) => {
     setCompletionStatus("all");
     setSortOrder("low_to_high");
     setSelectedDate(" ");
+    setSearchTerm("");
   };
 
   const handleApply = () => {
     // You can do any filtering/apply logic here if needed
 
     setDropdownOpen(false);
-  };
-
-  const generatePageOptions = (total) => {
-    const options = [];
-    const commonSteps = [50, 100, 150, 200];
-
-    for (let step of commonSteps) {
-      if (step < total) {
-        options.push(step);
-      }
-    }
-
-    if (!options.includes(total)) {
-      options.push(total); // Add total as last option
-    }
-
-    return options;
   };
 
   const [patientdata, setPatientdata] = useState([]);
@@ -259,7 +244,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                 : Womanavatar,
           };
         });
-
+        setPatientloading(false);
         setPatientdata(mapped);
         console.log("Patient dat", apiPatients);
       } catch (err) {
@@ -278,14 +263,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
-  const searchedPatients = patientdata.filter((patient) => {
-    if (!searchTerm) return true; // no search applied
-    const term = searchTerm.toLowerCase();
-    return (
-      patient.name.toLowerCase().includes(term) ||
-      patient.uhid.toLowerCase().includes(term)
-    );
-  });
+
 
   const getOverallScore = (patient, side) => {
     if (!patient.overall_scores) return 0;
@@ -304,6 +282,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
       return sum + (isNaN(num) ? 0 : num);
     }, 0);
   };
+
 
   const filteredPatients = patientdata.filter((patient) => {
     // 1️⃣ Side filter
@@ -371,15 +350,43 @@ const Markedpatient = ({ handlenavigatereport }) => {
   });
 
   // Use searchedPatients if searchTerm exists, otherwise filteredPatients
-  const displayedPatients = searchTerm ? searchedPatients : sortedPatients;
+  const displayedPatients = searchTerm
+    ? sortedPatients.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.uhid.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : sortedPatients;
 
-  const totalPages = Math.ceil(displayedPatients.length / rowsPerPage);
+  // Whenever data or rowsPerPage change, reset page
+  // Reset current page when searchTerm, filteredPatients, or rowsPerPage changes
+  // Reset current page when searchTerm or filteredPatients length changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filteredPatients.length]);
 
-  // Slice the data
+  // Optional: adjust rowsPerPage if it exceeds array length
+  useEffect(() => {
+    if (rowsPerPage > displayedPatients.length) {
+      setRowsPerPage(Math.max(5, displayedPatients.length));
+    }
+  }, [displayedPatients.length]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedPatients.length / rowsPerPage)
+  );
+
   const paginatedPatients = displayedPatients.slice(
     (currentPage - 1) * rowsPerPage,
     currentPage * rowsPerPage
   );
+
+  const generatePageOptions = (total) => {
+    const options = [5, 10, 25, 50].filter((n) => n < total);
+    if (!options.includes(total)) options.push(total);
+    return options;
+  };
 
   // Utility: get heatmap color for score (0–100)
   const getHeatmapColor = (score) => {
@@ -464,7 +471,23 @@ const Markedpatient = ({ handlenavigatereport }) => {
           console.error("❌ Error fetching doctor name:", err);
         });
     }
-  }, []); 
+  }, []);
+
+   const messages = [
+    "Fetching patients from the database...",
+    "Almost there, preparing data...",
+    "Optimizing results...",
+    "Hang tight! Just a moment...",
+  ];
+
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div
@@ -499,6 +522,8 @@ const Markedpatient = ({ handlenavigatereport }) => {
             <Image src={Search} alt="Search" className={`w-4 h-4`} />
             <input
               placeholder="Search ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className={`${raleway.className} font-normal text-black w-full px-2 py-1`}
             />
           </div>
@@ -510,7 +535,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-               {doctorName || "Doctor Name"}
+                {doctorName || "Doctor Name"}
               </p>
             </div>
           )}
@@ -653,17 +678,6 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   )}
                 </div>
 
-                {/* Calendar Date Picker */}
-                <div className="mb-4">
-                  <p className="font-semibold mb-1 ">Select Date</p>
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                  />
-                </div>
-
                 {/* Sort */}
                 <div>
                   <p className="font-semibold mb-1">Sort</p>
@@ -707,7 +721,8 @@ const Markedpatient = ({ handlenavigatereport }) => {
           </div>
 
           <p
-            className={`${raleway.className} text-[#2B2B2B] font-semibold text-sm w-1/2`}
+            onClick={handleClearAll}
+            className={`${raleway.className} text-[#2B2B2B] font-semibold text-sm w-1/2 cursor-pointer`}
           >
             Clear All
           </p>
@@ -732,7 +747,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               setCurrentPage(1); // Reset to first page
             }}
           >
-            {generatePageOptions(patientdata.length).map((count) => (
+            {generatePageOptions(displayedPatients.length).map((count) => (
               <option key={count} value={count}>
                 {count}
               </option>
@@ -798,7 +813,34 @@ const Markedpatient = ({ handlenavigatereport }) => {
             width >= 1000 ? "overflow-y-auto" : ""
           }`}
         >
-          {paginatedPatients.length !== 0 ? (
+           {patientloading ? (
+            <div className="flex space-x-2 w-full justify-center">
+              <svg
+                className="animate-spin h-5 w-5 text-black"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+              <span className={`${poppins.className} text-black font-semibold`}>
+                {messages[index]}
+              </span>
+            </div>
+          ) :
+          paginatedPatients.length > 0 ? (
             paginatedPatients.map((patient, index) => (
               <div
                 key={index}

@@ -108,6 +108,7 @@ const Patientlist = ({ handlenavigatereport }) => {
     setCompletionStatus("all");
     setSortOrder("low_to_high");
     setSelectedDate(" ");
+    setSearchTerm("");
   };
 
   const handleApply = () => {
@@ -116,22 +117,7 @@ const Patientlist = ({ handlenavigatereport }) => {
     setDropdownOpen(false);
   };
 
-  const generatePageOptions = (total) => {
-    const options = [];
-    const commonSteps = [50, 100, 150, 200];
 
-    for (let step of commonSteps) {
-      if (step < total) {
-        options.push(step);
-      }
-    }
-
-    if (!options.includes(total)) {
-      options.push(total); // Add total as last option
-    }
-
-    return options;
-  };
 
   const [patientdata, setPatientdata] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -180,11 +166,11 @@ const Patientlist = ({ handlenavigatereport }) => {
 
   let adminUhid = null;
 
+  const [patientloading, setPatientloading] = useState(true);
 
   useEffect(() => {
     const fetchPatients = async () => {
       try {
-        
         if (typeof window !== "undefined") {
           adminUhid = sessionStorage.getItem("doctor"); // 👈 safe access
         }
@@ -257,7 +243,7 @@ const Patientlist = ({ handlenavigatereport }) => {
                 : Womanavatar,
           };
         });
-
+        setPatientloading(false);
         setPatientdata(mapped);
         console.log("Patient dat", mapped);
       } catch (err) {
@@ -369,16 +355,44 @@ const Patientlist = ({ handlenavigatereport }) => {
   });
 
   // Use searchedPatients if searchTerm exists, otherwise filteredPatients
-  const displayedPatients = searchTerm ? searchedPatients : sortedPatients;
+   const displayedPatients = searchTerm
+  ? sortedPatients.filter(p => 
+      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      p.uhid.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  : sortedPatients;
 
-  const totalPages = Math.ceil(displayedPatients.length / rowsPerPage);
 
-  // Slice the data
-  const paginatedPatients = displayedPatients.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
-  );
+  // Whenever data or rowsPerPage change, reset page
+  // Reset current page when searchTerm, filteredPatients, or rowsPerPage changes
+// Reset current page when searchTerm or filteredPatients length changes
+useEffect(() => {
+  setCurrentPage(1);
+}, [searchTerm, filteredPatients.length]);
 
+// Optional: adjust rowsPerPage if it exceeds array length
+useEffect(() => {
+  if (rowsPerPage > displayedPatients.length) {
+    setRowsPerPage(Math.max(5, displayedPatients.length));
+  }
+}, [displayedPatients.length]);
+
+
+
+  const totalPages = Math.max(1, Math.ceil(displayedPatients.length / rowsPerPage));
+
+
+
+const paginatedPatients = displayedPatients.slice(
+  (currentPage - 1) * rowsPerPage,
+  currentPage * rowsPerPage
+);
+
+  const generatePageOptions = (total) => {
+    const options = [5, 10, 25, 50].filter((n) => n < total);
+    if (!options.includes(total)) options.push(total);
+    return options;
+  };
   // Utility: get heatmap color for score (0–100)
   const getHeatmapColor = (score) => {
     const r = score < 50 ? 255 : Math.floor(255 - (score - 50) * 5.1); // red fades after 50
@@ -444,7 +458,7 @@ const Patientlist = ({ handlenavigatereport }) => {
     }
   };
 
-    const [doctorName, setDoctorName] = useState("");
+  const [doctorName, setDoctorName] = useState("");
 
   useEffect(() => {
     const doctorUhid = sessionStorage.getItem("doctor");
@@ -462,7 +476,23 @@ const Patientlist = ({ handlenavigatereport }) => {
           console.error("❌ Error fetching doctor name:", err);
         });
     }
-  }, []); 
+  }, []);
+
+  const messages = [
+    "Fetching patients from the database...",
+    "Almost there, preparing data...",
+    "Optimizing results...",
+    "Hang tight! Just a moment...",
+  ];
+
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div
@@ -497,6 +527,8 @@ const Patientlist = ({ handlenavigatereport }) => {
             <Image src={Search} alt="Search" className={`w-4 h-4`} />
             <input
               placeholder="Search ..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className={`${raleway.className} font-normal text-black w-full px-2 py-1`}
             />
           </div>
@@ -693,7 +725,7 @@ const Patientlist = ({ handlenavigatereport }) => {
               setCurrentPage(1); // Reset to first page
             }}
           >
-            {generatePageOptions(paginatedPatients.length).map((count) => (
+            {generatePageOptions(displayedPatients.length).map((count) => (
               <option key={count} value={count}>
                 {count}
               </option>
@@ -759,178 +791,212 @@ const Patientlist = ({ handlenavigatereport }) => {
             width >= 1000 ? "overflow-y-auto" : ""
           }`}
         >
-          {paginatedPatients.map((patient, index) => (
-            <div
-              key={index}
-              className={`w-full rounded-lg flex  px-3 bg-white border-1 border-[#EBEBEB] ${
-                width < 530
-                  ? "flex-col justify-center items-center gap-2 py-3"
-                  : "flex-row justify-between items-center py-1.5"
-              } ${width < 1000 ? "mb-2" : "mb-4"}`}
-            >
-              {/* LEFT - Avatar + Name + Age */}
-              <div
-                className={`${
-                  width < 640 && width >= 530
-                    ? "w-3/5"
-                    : width < 530
-                    ? "w-full"
-                    : "w-[30%]"
-                }`}
+          {patientloading ? (
+            <div className="flex space-x-2 w-full justify-center">
+              <svg
+                className="animate-spin h-5 w-5 text-black"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
               >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+              <span className={`${poppins.className} text-black font-semibold`}>
+                {messages[index]}
+              </span>
+            </div>
+          ) : paginatedPatients.length > 0 ? (
+            paginatedPatients.map((patient, index) => (
+              <div
+                key={index}
+                className={`w-full rounded-lg flex  px-3 bg-white border-1 border-[#EBEBEB] ${
+                  width < 530
+                    ? "flex-col justify-center items-center gap-2 py-3"
+                    : "flex-row justify-between items-center py-1.5"
+                } ${width < 1000 ? "mb-2" : "mb-4"}`}
+              >
+                {/* LEFT - Avatar + Name + Age */}
                 <div
-                  className={`flex gap-4 py-0 items-center ${
-                    width < 710 && width >= 640
-                      ? "px-0 flex-row"
+                  className={`${
+                    width < 640 && width >= 530
+                      ? "w-3/5"
                       : width < 530
-                      ? "flex-col justify-center items-center"
-                      : "px-2 flex-row"
+                      ? "w-full"
+                      : "w-[30%]"
                   }`}
                 >
-                  <Image
-                    src={patient.avatar}
-                    alt="Avatar"
-                    width={40}
-                    height={40}
-                    className={`rounded-full cursor-pointer ${
-                      width < 530 ? "w-11 h-11" : "w-10 h-10"
-                    }`}
-                    onClick={() => {
-                      setshowprof(true);
-                      setshowprofpat(patient);
-                    }}
-                    onDoubleClick={() =>
-                      handlevipstatus(patient.uhid, String(patient.vip))
-                    }
-                  />
                   <div
-                    className={`w-full flex items-center ${
-                      width < 710 ? "flex-col" : "flex-row"
+                    className={`flex gap-4 py-0 items-center ${
+                      width < 710 && width >= 640
+                        ? "px-0 flex-row"
+                        : width < 530
+                        ? "flex-col justify-center items-center"
+                        : "px-2 flex-row"
                     }`}
                   >
+                    <Image
+                      src={patient.avatar}
+                      alt="Avatar"
+                      width={40}
+                      height={40}
+                      className={`rounded-full cursor-pointer ${
+                        width < 530 ? "w-11 h-11" : "w-10 h-10"
+                      }`}
+                      onClick={() => {
+                        setshowprof(true);
+                        setshowprofpat(patient);
+                      }}
+                      onDoubleClick={() =>
+                        handlevipstatus(patient.uhid, String(patient.vip))
+                      }
+                    />
                     <div
-                      className={`flex flex-col ${
-                        width < 710 ? "w-full gap-2" : "w-[70%] gap-4"
+                      className={`w-full flex items-center ${
+                        width < 710 ? "flex-col" : "flex-row"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <p
-                          className={`${
-                            raleway.className
-                          } text-[#475467] font-semibold text-lg ${
-                            width < 530 ? "w-full text-center" : ""
-                          }`}
-                        >
-                          {patient.name}
-                        </p>
-                      </div>
-                      <p
-                        className={`${
-                          poppins.className
-                        } font-normal text-sm text-[#475467] ${
-                          width < 530 ? "text-center" : "text-start"
+                      <div
+                        className={`flex flex-col ${
+                          width < 710 ? "w-full gap-2" : "w-[70%] gap-4"
                         }`}
                       >
-                        {patient.age}, {patient.gender}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* RIGHT - UHID + Period + Status + Report Icon */}
-              <div
-                className={`flex items-center ${
-                  width < 640 && width >= 530
-                    ? "w-2/5 flex-col text-center gap-4"
-                    : width < 530
-                    ? "w-full flex-col text-center gap-4"
-                    : "w-[70%] flex-row justify-between"
-                }`}
-              >
-                <div
-                  className={`${
-                    poppins.className
-                  } text-base font-medium text-[#475467] ${
-                    width < 710 ? "w-full text-center" : "w-1/5 text-center"
-                  }`}
-                >
-                  UHID {patient.uhid}
-                </div>
-
-                <div
-                  className={`${
-                    inter.className
-                  } text-[15px] font-semibold text-[#373737] ${
-                    width < 750 ? "w-3/4 text-center" : "w-1/4 text-center"
-                  }`}
-                >
-                  {patient.period}
-                </div>
-
-                <div
-                  className={`flex flex-col items-center justify-center ${
-                    width < 750 ? "w-3/4 text-center" : "w-1/4 text-center"
-                  }`}
-                >
-                  <div className="w-full flex flex-col items-center relative group">
-                    {/* Hover Percentage Text */}
-                    <div className="absolute -top-7 left-0 transform translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out text-sm font-semibold text-black border-2 border-black px-3 rounded-lg">
-                      {`${getOverallScore(patient, side) ?? 0}%`}
-                    </div>
-
-                    {/* Progress Bar Container */}
-                    <div
-                      className="relative w-full h-1.5 overflow-hidden bg-[#E5E5E5] cursor-pointer"
-                      onClick={() => {
-                        setisOpencompliance(true);
-                      }}
-                    >
-                      <div
-                        className="h-full rounded"
-                        style={{
-                          width: `${Number(
-                            getOverallScore(patient, side) ?? 0
-                          )}%`,
-                          background: getHeatmapColor(
-                            Number(getOverallScore(patient, side) ?? 0)
-                          ),
-                          backgroundSize: "200% 100%",
-                        }}
-                      ></div>
+                        <div className="flex items-center justify-between">
+                          <p
+                            className={`${
+                              raleway.className
+                            } text-[#475467] font-semibold text-lg ${
+                              width < 530 ? "w-full text-center" : ""
+                            }`}
+                          >
+                            {patient.name}
+                          </p>
+                        </div>
+                        <p
+                          className={`${
+                            poppins.className
+                          } font-normal text-sm text-[#475467] ${
+                            width < 530 ? "text-center" : "text-start"
+                          }`}
+                        >
+                          {patient.age}, {patient.gender}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
 
+                {/* RIGHT - UHID + Period + Status + Report Icon */}
                 <div
-                  className={`flex flex-row gap-4 items-center ${
-                    width < 750 ? "w-3/4 text-center" : "w-1/4"
+                  className={`flex items-center ${
+                    width < 640 && width >= 530
+                      ? "w-2/5 flex-col text-center gap-4"
+                      : width < 530
+                      ? "w-full flex-col text-center gap-4"
+                      : "w-[70%] flex-row justify-between"
                   }`}
                 >
                   <div
                     className={`${
-                      width < 750 ? "w-full text-center" : "w-full"
+                      poppins.className
+                    } text-base font-medium text-[#475467] ${
+                      width < 710 ? "w-full text-center" : "w-1/5 text-center"
                     }`}
                   >
-                    <Image
-                      src={Reportimg}
-                      className={`w-8 h-8 mx-auto cursor-pointer`}
-                      alt="Report"
-                      onClick={() => {
-                        handlenavigatereport();
-                        if (typeof window !== "undefined") {
-                          sessionStorage.setItem(
-                            "patientreportid",
-                            patient.uhid
-                          );
-                        }
-                      }}
-                    />
+                    UHID {patient.uhid}
+                  </div>
+
+                  <div
+                    className={`${
+                      inter.className
+                    } text-[15px] font-semibold text-[#373737] ${
+                      width < 750 ? "w-3/4 text-center" : "w-1/4 text-center"
+                    }`}
+                  >
+                    {patient.period}
+                  </div>
+
+                  <div
+                    className={`flex flex-col items-center justify-center ${
+                      width < 750 ? "w-3/4 text-center" : "w-1/4 text-center"
+                    }`}
+                  >
+                    <div className="w-full flex flex-col items-center relative group">
+                      {/* Hover Percentage Text */}
+                      <div className="absolute -top-7 left-0 transform translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out text-sm font-semibold text-black border-2 border-black px-3 rounded-lg">
+                        {`${getOverallScore(patient, side) ?? 0}%`}
+                      </div>
+
+                      {/* Progress Bar Container */}
+                      <div
+                        className="relative w-full h-1.5 overflow-hidden bg-[#E5E5E5] cursor-pointer"
+                        onClick={() => {
+                          setisOpencompliance(true);
+                        }}
+                      >
+                        <div
+                          className="h-full rounded"
+                          style={{
+                            width: `${Number(
+                              getOverallScore(patient, side) ?? 0
+                            )}%`,
+                            background: getHeatmapColor(
+                              Number(getOverallScore(patient, side) ?? 0)
+                            ),
+                            backgroundSize: "200% 100%",
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    className={`flex flex-row gap-4 items-center ${
+                      width < 750 ? "w-3/4 text-center" : "w-1/4"
+                    }`}
+                  >
+                    <div
+                      className={`${
+                        width < 750 ? "w-full text-center" : "w-full"
+                      }`}
+                    >
+                      <Image
+                        src={Reportimg}
+                        className={`w-8 h-8 mx-auto cursor-pointer`}
+                        alt="Report"
+                        onClick={() => {
+                          handlenavigatereport();
+                          if (typeof window !== "undefined") {
+                            sessionStorage.setItem(
+                              "patientreportid",
+                              patient.uhid
+                            );
+                          }
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          ) : (
+            <p
+              className={`w-full text-gray-400 text-center ${poppins.className}`}
+            >
+              No Patients Found for Today
+            </p>
+          )}
         </div>
       </div>
 
