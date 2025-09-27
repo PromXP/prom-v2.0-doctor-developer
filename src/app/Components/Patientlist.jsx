@@ -825,7 +825,8 @@ const Patientlist = ({ handlenavigatereport }) => {
                   width < 530
                     ? "flex-col justify-center items-center gap-2 py-3"
                     : "flex-row justify-between items-center py-1.5"
-                } ${width < 1000 ? "mb-2" : "mb-4"}`}
+                } ${width < 1000 ? "mb-2" : "mb-4"}
+                ${patient.activation_status === false ? "pointer-events-none opacity-50" : ""}`}
               >
                 {/* LEFT - Avatar + Name + Age */}
                 <div

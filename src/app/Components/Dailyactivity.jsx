@@ -401,6 +401,8 @@ const Dailyactivity = ({
 
     const allowedPatients = [];
 
+
+
     for (const p of patients) {
       let allowed = false;
       let matchedSide = null;
@@ -437,6 +439,12 @@ const Dailyactivity = ({
           matchedReason = "opd";
         } else {
           allowed = false;
+        }
+
+        if(p.activation_status){
+          allowed=true;
+        }else{
+          allowed=false;
         }
       }
 
@@ -737,7 +745,7 @@ const Dailyactivity = ({
   const [postRight, setPostRight] = useState(0);
 
   useEffect(() => {
-    if (!filteredPatients || filteredPatients.length === 0) return;
+    if (!patientdata || patientdata.length === 0) return;
 
     let pre = 0;
     let post = 0;
@@ -746,7 +754,7 @@ const Dailyactivity = ({
     let pre_right = 0;
     let post_right = 0;
 
-    filteredPatients.forEach((p) => {
+    patientdata.forEach((p) => {
       // ✅ Left side condition
       if (p.doctor_left === p.doctor && p.period) {
         if (p.period === "Pre Op") pre_left++;
@@ -764,7 +772,7 @@ const Dailyactivity = ({
     setPreRight(pre_right);
     setPostLeft(post_left);
     setPostRight(post_right);
-  }, [filteredPatients]); // recalc when patients or doctor changes
+  }, [patientdata]); // recalc when patients or doctor changes
 
   const [profpat, setshowprofpat] = useState([]);
   const [showprof, setshowprof] = useState(false);
@@ -793,14 +801,15 @@ const Dailyactivity = ({
     }
     const payload = {field: "vip_status", value: vip1 };
     // console.log("Status payload", payload + " " + vip1);
+    // return;
     try {
       // ✅ API call
       const response = await axios.patch(
-        `${API_URL}patients/update/${uhid}`,
+        `${API_URL}patients/update-field/${uhid}`,
         payload
       );
 
-      showWarning("Patient status update successfull");
+      showWarning("Patient vip status update successfull");
     } catch (error) {
       console.error("Error updating status:", error);
       showWarning("Failed to update status");
@@ -1585,7 +1594,7 @@ const Dailyactivity = ({
 
       <div className="w-full h-fit">
         <div className="flex flex-row gap-13.5 whitespace-nowrap overflow-x-auto pb-4 inline-scroll">
-          {patientloading ? (
+          {patientloading || filteredPatients.length === 0 ? (
             <div className="flex space-x-2 w-full justify-center">
               <svg
                 className="animate-spin h-5 w-5 text-black"

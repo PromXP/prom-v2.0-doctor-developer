@@ -589,64 +589,64 @@ const AddSurgeryreport = ({ handleclosereport }) => {
           PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
         },
         bone_resection: {
-  acl: "NA",
-  distal_medial: {
-    wear: "NA",
-    initial_thickness: "NA",
-    recut: "NA",
-    recutvalue: "NA",
-    washer: "NA",
-    washervalue: "NA",
-    final_thickness: "NA",
-  },
-  distal_lateral: {
-    wear: "NA",
-    initial_thickness: "NA",
-    recut: "NA",
-    recutvalue: "NA",
-    washer: "NA",
-    washervalue: "NA",
-    final_thickness: "NA",
-  },
-  posterial_medial: {
-    wear: "NA",
-    initial_thickness: "NA",
-    recut: "NA",
-    recutvalue: "NA",
-    final_thickness: "NA",
-  },
-  posterial_lateral: {
-    wear: "NA",
-    initial_thickness: "NA",
-    recut: "NA",
-    recutvalue: "NA",
-    final_thickness: "NA",
-  },
-  tibial_resection_left: {
-    wear: "NA",
-    value: "NA",
-  },
-  tibial_resection_right: {
-    wear: "NA",
-    value: "NA",
-  },
-  pcl: "NA",
-  tibialvvrecut: {
-    wear: "NA",
-    value: "NA",
-  },
-  tibialsloperecut: {
-    wear: "NA",
-    value: "NA",
-  },
-  final_check: "NA",
-  thickness_table: initialThicknessTable, // ✅ keep your imported table
-  pfj_resurfacing: "NA",
-  trachela_resection: "NA",
-  patella: "NA",
-  preresurfacing: "NA",
-  postresurfacing: "NA",
-},
+          acl: "NA",
+          distal_medial: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            washer: "NA",
+            washervalue: "NA",
+            final_thickness: "NA",
+          },
+          distal_lateral: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            washer: "NA",
+            washervalue: "NA",
+            final_thickness: "NA",
+          },
+          posterial_medial: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            final_thickness: "NA",
+          },
+          posterial_lateral: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            final_thickness: "NA",
+          },
+          tibial_resection_left: {
+            wear: "NA",
+            value: "NA",
+          },
+          tibial_resection_right: {
+            wear: "NA",
+            value: "NA",
+          },
+          pcl: "NA",
+          tibialvvrecut: {
+            wear: "NA",
+            value: "NA",
+          },
+          tibialsloperecut: {
+            wear: "NA",
+            value: "NA",
+          },
+          final_check: "NA",
+          thickness_table: initialThicknessTable, // ✅ keep your imported table
+          pfj_resurfacing: "NA",
+          trachela_resection: "NA",
+          patella: "NA",
+          preresurfacing: "NA",
+          postresurfacing: "NA",
+        },
         posting_timestamp: "NA",
       },
     ],
@@ -960,7 +960,8 @@ const AddSurgeryreport = ({ handleclosereport }) => {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) return (
+  if (loading)
+    return (
       <div className="flex space-x-2 py-4 items-center w-full justify-center">
         <svg
           className="animate-spin h-5 w-5 text-black"
@@ -1082,9 +1083,10 @@ const AddSurgeryreport = ({ handleclosereport }) => {
             } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
           >
             <Image
-              src={ManAvatar}
+              src={patientData?.avatar || ManAvatar}
               alt="Patient"
-              className={`w-[60px] h-[60px]`}
+              width={60}
+              height={60}
             />
             <div
               className={`w-full flex ${
@@ -2653,7 +2655,9 @@ const AddSurgeryreport = ({ handleclosereport }) => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-4 w-full items-center`}
+                      >
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                         >
@@ -2699,8 +2703,12 @@ const AddSurgeryreport = ({ handleclosereport }) => {
                       </div>
                     </div>
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-full items-center`}>
-                        <div className={`flex flex-row gap-4 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-4 w-full items-center`}
+                      >
+                        <div
+                          className={`flex flex-row gap-4 w-full items-center`}
+                        >
                           <div className="flex flex-row gap-4 items-center w-1/2">
                             <label
                               className={`${raleway.className} font-semibold text-xs text-[#484848]`}
@@ -2794,7 +2802,9 @@ const AddSurgeryreport = ({ handleclosereport }) => {
 
                     <div className={`flex flex-row gap-4`}>
                       <div className={`flex flex-row gap-4 w-full`}>
-                        <div className={`flex flex-row gap-4 w-full items-center`}>
+                        <div
+                          className={`flex flex-row gap-4 w-full items-center`}
+                        >
                           <label
                             className={`${raleway.className} font-semibold text-xs w-1/2 text-[#484848]`}
                           >
@@ -3144,7 +3154,9 @@ const AddSurgeryreport = ({ handleclosereport }) => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-1 w-full items-center`}
+                      >
                         <select
                           className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
@@ -3227,7 +3239,9 @@ const AddSurgeryreport = ({ handleclosereport }) => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-1 w-full items-center`}
+                      >
                         <select
                           className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
@@ -3972,7 +3986,7 @@ const AddSurgeryreport = ({ handleclosereport }) => {
                                 [col]: {
                                   ...selections[col],
                                   [row]: value,
-                                  ...(row === "MANUFACTURER" &&  {
+                                  ...(row === "MANUFACTURER" && {
                                     MODEL: "NA",
                                     SIZE: "NA",
                                   }),

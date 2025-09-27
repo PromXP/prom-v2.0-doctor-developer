@@ -2461,10 +2461,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   const saveTibialLeftWorn = async () => {
     setTibialLeftWorn(tempTibialLeftWorn);
     setIsEditingTibialLeftWorn(false);
-    await saveTibialLeftField(
-      "tibial_resection_left,wear",
-      tempTibialLeftWorn
-    );
+    await saveTibialLeftField("tibial_resection_left,wear", tempTibialLeftWorn);
   };
   const cancelTibialLeftWorn = () => {
     setTempTibialLeftWorn(tibialLeftWorn);
@@ -3124,9 +3121,10 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
             } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
           >
             <Image
-              src={ManAvatar}
+              src={patientData?.avatar || ManAvatar}
               alt="Patient"
-              className={`w-[60px] h-[60px]`}
+              width={60}
+              height={60}
             />
             <div
               className={`w-full flex ${

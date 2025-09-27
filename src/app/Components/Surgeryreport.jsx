@@ -65,7 +65,7 @@ const poppins = Poppins({
   variable: "--font-inter", // optional CSS variable name
 });
 
-const Surgeryreport = ({handleclosereport}) => {
+const Surgeryreport = ({ handleclosereport }) => {
   const [uhid, setUhid] = useState(null);
 
   const useWindowSize = () => {
@@ -487,7 +487,7 @@ const Surgeryreport = ({handleclosereport}) => {
     liftOff: "NA",
   }));
 
-  const romTimepoints  = [
+  const romTimepoints = [
     "Preop",
     "1Month",
     "3Month",
@@ -500,111 +500,110 @@ const Surgeryreport = ({handleclosereport}) => {
     "10Year",
   ];
 
-   const [showAlert, setshowAlert] = useState(false);
-    const [alermessage, setAlertMessage] = useState("");
-  
-    const showWarning = (message) => {
-      setAlertMessage(message);
-      setshowAlert(true);
-      setTimeout(() => setshowAlert(false), 4000);
-    };
+  const [showAlert, setshowAlert] = useState(false);
+  const [alermessage, setAlertMessage] = useState("");
+
+  const showWarning = (message) => {
+    setAlertMessage(message);
+    setshowAlert(true);
+    setTimeout(() => setshowAlert(false), 4000);
+  };
 
   const [surgeryData, setSurgeryData] = useState(() => ({
-      uhid: "NA",
-      side: "NA",
-      patient_records: [
-        {
-          patuhid: "NA",
-          hospital_name: "NA",
-          anaesthetic_type: "NA",
-          asa_grade: "NA",
-          rom: romTimepoints.map((period) => ({
-        period,
-        flexion: "NA",
-        extension: "NA",
-      })),
-          consultant_incharge: consultantOptions[0] || "NA",
-          operating_surgeon: surgeonOptions[0] || "NA",
-          first_assistant: firstAssistantOptions[0] || "NA",
-          second_assistant: secondAssistantOptions[0] || "NA",
-          mag_proc: "NA",
-          side: "NA",
-          surgery_indication: "NA",
-          tech_assist: "NA",
-          align_phil: "NA",
-          torq_used: "NA",
-          op_date: "NA",
-          op_time: "NA",
-          components_details: {
-            FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-            TIBIA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-            INSERT: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-            PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-          },
-          bone_resection: {
-    acl: "NA",
-    distal_medial: {
-      wear: "NA",
-      initial_thickness: "NA",
-      recut: "NA",
-      recutvalue: "NA",
-      washer: "NA",
-      washervalue: "NA",
-      final_thickness: "NA",
-    },
-    distal_lateral: {
-      wear: "NA",
-      initial_thickness: "NA",
-      recut: "NA",
-      recutvalue: "NA",
-      washer: "NA",
-      washervalue: "NA",
-      final_thickness: "NA",
-    },
-    posterial_medial: {
-      wear: "NA",
-      initial_thickness: "NA",
-      recut: "NA",
-      recutvalue: "NA",
-      final_thickness: "NA",
-    },
-    posterial_lateral: {
-      wear: "NA",
-      initial_thickness: "NA",
-      recut: "NA",
-      recutvalue: "NA",
-      final_thickness: "NA",
-    },
-    tibial_resection_left: {
-      wear: "NA",
-      value: "NA",
-    },
-    tibial_resection_right: {
-      wear: "NA",
-      value: "NA",
-    },
-    pcl: "NA",
-    tibialvvrecut: {
-      wear: "NA",
-      value: "NA",
-    },
-    tibialsloperecut: {
-      wear: "NA",
-      value: "NA",
-    },
-    final_check: "NA",
-    thickness_table: initialThicknessTable, // ✅ keep your imported table
-    pfj_resurfacing: "NA",
-    trachela_resection: "NA",
-    patella: "NA",
-    preresurfacing: "NA",
-    postresurfacing: "NA",
-  },
-          posting_timestamp: "NA",
+    uhid: "NA",
+    side: "NA",
+    patient_records: [
+      {
+        patuhid: "NA",
+        hospital_name: "NA",
+        anaesthetic_type: "NA",
+        asa_grade: "NA",
+        rom: romTimepoints.map((period) => ({
+          period,
+          flexion: "NA",
+          extension: "NA",
+        })),
+        consultant_incharge: consultantOptions[0] || "NA",
+        operating_surgeon: surgeonOptions[0] || "NA",
+        first_assistant: firstAssistantOptions[0] || "NA",
+        second_assistant: secondAssistantOptions[0] || "NA",
+        mag_proc: "NA",
+        side: "NA",
+        surgery_indication: "NA",
+        tech_assist: "NA",
+        align_phil: "NA",
+        torq_used: "NA",
+        op_date: "NA",
+        op_time: "NA",
+        components_details: {
+          FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+          TIBIA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+          INSERT: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+          PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
         },
-      ],
-    }));
-  
+        bone_resection: {
+          acl: "NA",
+          distal_medial: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            washer: "NA",
+            washervalue: "NA",
+            final_thickness: "NA",
+          },
+          distal_lateral: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            washer: "NA",
+            washervalue: "NA",
+            final_thickness: "NA",
+          },
+          posterial_medial: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            final_thickness: "NA",
+          },
+          posterial_lateral: {
+            wear: "NA",
+            initial_thickness: "NA",
+            recut: "NA",
+            recutvalue: "NA",
+            final_thickness: "NA",
+          },
+          tibial_resection_left: {
+            wear: "NA",
+            value: "NA",
+          },
+          tibial_resection_right: {
+            wear: "NA",
+            value: "NA",
+          },
+          pcl: "NA",
+          tibialvvrecut: {
+            wear: "NA",
+            value: "NA",
+          },
+          tibialsloperecut: {
+            wear: "NA",
+            value: "NA",
+          },
+          final_check: "NA",
+          thickness_table: initialThicknessTable, // ✅ keep your imported table
+          pfj_resurfacing: "NA",
+          trachela_resection: "NA",
+          patella: "NA",
+          preresurfacing: "NA",
+          postresurfacing: "NA",
+        },
+        posting_timestamp: "NA",
+      },
+    ],
+  }));
 
   useEffect(() => {
     const storedUHID = sessionStorage.getItem("selectedUHID");
@@ -627,7 +626,6 @@ const Surgeryreport = ({handleclosereport}) => {
       setLoading(false);
     }
   }, []);
-  
 
   const [thicknessTable, setThicknessTable] = useState(
     [10, 11, 12, 13, 14].map((val) => ({
@@ -702,15 +700,14 @@ const Surgeryreport = ({handleclosereport}) => {
         const surgeryLeft = patient?.Medical?.surgery_date_left;
         const surgeryRight = patient?.Medical?.surgery_date_right;
 
-
         // ✅ Determine side
         let side = "left";
-                  const todayLocal = new Date();
-                  const yyyy = todayLocal.getFullYear();
-                  const mm = String(todayLocal.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
-                  const dd = String(todayLocal.getDate()).padStart(2, "0");
+        const todayLocal = new Date();
+        const yyyy = todayLocal.getFullYear();
+        const mm = String(todayLocal.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+        const dd = String(todayLocal.getDate()).padStart(2, "0");
 
-                  const today = `${yyyy}-${mm}-${dd}`;
+        const today = `${yyyy}-${mm}-${dd}`;
         let op_date = "";
         if (surgeryLeft === today && surgeryRight !== today) {
           side = "left";
@@ -727,57 +724,57 @@ const Surgeryreport = ({handleclosereport}) => {
         }
 
         // ✅ Optionally pick op_date
-        
+
         const apiPatients = response.data.patient || [];
         // ✅ Update state
-         const mapped = {
-                  // ✅ Only calculate if doctor is assigned
-                  // assume doctorUhid = res.data[0]?.uhid
-                  
-                    name: apiPatients.Patient?.name || "Unknown",
-                    age: apiPatients.Patient?.birthDate
-                      ? new Date().getFullYear() -
-                        new Date(apiPatients.Patient.birthDate).getFullYear()
-                      : "NA",
-                    gender:
-                      apiPatients.Patient?.gender?.toLowerCase() === "male"
-                        ? "Male"
-                        : "Female",
-                    uhid: apiPatients.Patient?.uhid,
-                    period: apiPatients.Patient_Status_Left || "NA",
-                    period_right: apiPatients.Patient_Status_Right || "NA",
-                    activation_status: apiPatients.Activation_Status ?? "True",
-                    patient_initial_status: apiPatients.patient_current_status ?? "NA",
-                    surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
-                    surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
-                    doctor_left: apiPatients.Practitioners?.left_doctor,
-                    doctor_right: apiPatients.Practitioners?.right_doctor,
-                    vip: apiPatients.VIP_Status ?? false,
-                    opd: apiPatients.Appointments?.[0].start ?? "NA",
+        const mapped = {
+          // ✅ Only calculate if doctor is assigned
+          // assume doctorUhid = res.data[0]?.uhid
 
-                    avatar:
-                      apiPatients.Patient?.photo && apiPatients.Patient?.photo !== "NA"
-                        ? apiPatients.Patient.photo
-                        : apiPatients.Patient?.gender?.toLowerCase() === "male"
-                        ? ManAvatar
-                        : Womanavatar,
+          name: apiPatients.Patient?.name || "Unknown",
+          age: apiPatients.Patient?.birthDate
+            ? new Date().getFullYear() -
+              new Date(apiPatients.Patient.birthDate).getFullYear()
+            : "NA",
+          gender:
+            apiPatients.Patient?.gender?.toLowerCase() === "male"
+              ? "Male"
+              : "Female",
+          uhid: apiPatients.Patient?.uhid,
+          period: apiPatients.Patient_Status_Left || "NA",
+          period_right: apiPatients.Patient_Status_Right || "NA",
+          activation_status: apiPatients.Activation_Status ?? "True",
+          patient_initial_status: apiPatients.patient_current_status ?? "NA",
+          surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
+          surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
+          doctor_left: apiPatients.Practitioners?.left_doctor,
+          doctor_right: apiPatients.Practitioners?.right_doctor,
+          vip: apiPatients.VIP_Status ?? false,
+          opd: apiPatients.Appointments?.[0].start ?? "NA",
 
-                    bmi:
-                      apiPatients.Medical?.height && apiPatients.Medical?.weight
-                        ? (() => {
-                            const h = parseFloat(apiPatients.Medical.height.match(/[\d.]+/)?.[0]);
-                            const w = parseFloat(apiPatients.Medical.weight.match(/[\d.]+/)?.[0]);
-                            return h && w
-                              ? (w / Math.pow(h / 100, 2)).toFixed(1)
-                              : "NA";
-                          })()
-                        : "NA",
+          avatar:
+            apiPatients.Patient?.photo && apiPatients.Patient?.photo !== "NA"
+              ? apiPatients.Patient.photo
+              : apiPatients.Patient?.gender?.toLowerCase() === "male"
+              ? ManAvatar
+              : Womanavatar,
 
-                  };
-              
-        
-                setPatientData(mapped);
-                // console.log("Mapped Patient Data:", mapped);
+          bmi:
+            apiPatients.Medical?.height && apiPatients.Medical?.weight
+              ? (() => {
+                  const h = parseFloat(
+                    apiPatients.Medical.height.match(/[\d.]+/)?.[0]
+                  );
+                  const w = parseFloat(
+                    apiPatients.Medical.weight.match(/[\d.]+/)?.[0]
+                  );
+                  return h && w ? (w / Math.pow(h / 100, 2)).toFixed(1) : "NA";
+                })()
+              : "NA",
+        };
+
+        setPatientData(mapped);
+        // console.log("Mapped Patient Data:", mapped);
         setSurgeryData((prev) => ({
           ...prev,
           uhid,
@@ -803,21 +800,22 @@ const Surgeryreport = ({handleclosereport}) => {
     }
   };
 
-    const messages = [
-      "Almost there, preparing patient surgery report...",
-      "Hang tight! almost done...",
-    ];
-  
-    const [index, setIndex] = useState(0);
-  
-    useEffect(() => {
-      const interval = setInterval(() => {
-        setIndex((prev) => (prev + 1) % messages.length);
-      }, 3000);
-      return () => clearInterval(interval);
-    }, []);
+  const messages = [
+    "Almost there, preparing patient surgery report...",
+    "Hang tight! almost done...",
+  ];
 
-  if (loading)     return (
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading)
+    return (
       <div className="flex space-x-2 py-4 items-center w-full justify-center">
         <svg
           className="animate-spin h-5 w-5 text-black"
@@ -845,15 +843,11 @@ const Surgeryreport = ({handleclosereport}) => {
       </div>
     );
 
-
-
   if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
 
   const personal = patientData.Patient || {};
   const medical = patientData.Medical || {};
   const practitioners = patientData.Practitioners || {};
-
-
 
   // Capitalize gender
   const capitalizeFirstLetter = (string) => {
@@ -922,9 +916,10 @@ const Surgeryreport = ({handleclosereport}) => {
             } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
           >
             <Image
-              src={ManAvatar}
+              src={patientData?.avatar || ManAvatar}
               alt="Patient"
-              className={`w-[60px] h-[60px]`}
+              width={60}
+              height={60}
             />
             <div
               className={`w-full flex ${
@@ -942,8 +937,7 @@ const Surgeryreport = ({handleclosereport}) => {
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  {patientData?.age
-                    ?? "N/A"}
+                  {patientData?.age ?? "N/A"}
                 </p>
               </div>
               <div
@@ -960,7 +954,8 @@ const Surgeryreport = ({handleclosereport}) => {
                     : "NA"}
                   <br />
                   R:{" "}
-                  {patientData?.doctor_right === sessionStorage.getItem("doctor")
+                  {patientData?.doctor_right ===
+                  sessionStorage.getItem("doctor")
                     ? patientData?.period_right
                     : "NA"}
                 </p>
@@ -976,7 +971,6 @@ const Surgeryreport = ({handleclosereport}) => {
                 } text-end font-semibold text-[15px] text-[#484848]`}
               >
                 BMI:{patientData?.bmi ?? "N/A"}
-                
               </p>
             </div>
           </div>
@@ -1139,46 +1133,43 @@ const Surgeryreport = ({handleclosereport}) => {
               4. Pre OP - ROM
             </label>
             {["flexion", "extension"].map((motion) => (
-            <div
-              className={`${raleway.className} pt-5 flex flex-row font-semibold w- gap-6 pl-4`}
-            >
-
-  <span
-                        className={`${raleway.className} font-semibold w-20 uppercase text-xs text-[#272727]`}
-                      >
-                        {motion}
-                      </span>
-  <input
-    key={motion}
-    className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
-    type="text"
-    value={
-      surgeryData.patient_records[0].rom[0][motion] === "NA"
-        ? ""
-        : surgeryData.patient_records[0].rom[0][motion]
-    }
-    onChange={(e) =>
-      setSurgeryData((prev) => {
-        const updatedROM = [...prev.patient_records[0].rom];
-        updatedROM[0] = {
-          ...updatedROM[0],
-          [motion]: e.target.value || "NA", // fallback to NA if cleared
-        };
-        return {
-          ...prev,
-          patient_records: [
-            {
-              ...prev.patient_records[0],
-              rom: updatedROM,
-            },
-          ],
-        };
-      })
-    }
-  />
-
-
-            </div>
+              <div
+                className={`${raleway.className} pt-5 flex flex-row font-semibold w- gap-6 pl-4`}
+              >
+                <span
+                  className={`${raleway.className} font-semibold w-20 uppercase text-xs text-[#272727]`}
+                >
+                  {motion}
+                </span>
+                <input
+                  key={motion}
+                  className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
+                  type="text"
+                  value={
+                    surgeryData.patient_records[0].rom[0][motion] === "NA"
+                      ? ""
+                      : surgeryData.patient_records[0].rom[0][motion]
+                  }
+                  onChange={(e) =>
+                    setSurgeryData((prev) => {
+                      const updatedROM = [...prev.patient_records[0].rom];
+                      updatedROM[0] = {
+                        ...updatedROM[0],
+                        [motion]: e.target.value || "NA", // fallback to NA if cleared
+                      };
+                      return {
+                        ...prev,
+                        patient_records: [
+                          {
+                            ...prev.patient_records[0],
+                            rom: updatedROM,
+                          },
+                        ],
+                      };
+                    })
+                  }
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -1363,7 +1354,7 @@ const Surgeryreport = ({handleclosereport}) => {
             <label
               className={`${raleway.className} text-base font-semibold text-black`}
             >
-              {opside??"NA"}
+              {opside ?? "NA"}
             </label>
           </div>
 
@@ -1605,15 +1596,21 @@ const Surgeryreport = ({handleclosereport}) => {
             <div className={`space-x-12 flex flex-row`}>
               {/* ✅ Display surgery date from patientData */}
               <div className="relative w-52">
-                <p className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}>
+                <p
+                  className={`${poppins.className} font-medium text-black text-sm px-4 py-2`}
+                >
                   {patientData?.surgery_left === today
                     ? patientData.surgery_left
                     : patientData?.surgery_right === today
                     ? patientData.surgery_right
                     : patientData?.surgery_left
-                    ? new Date(patientData.surgery_left).toLocaleDateString("en-GB")
+                    ? new Date(patientData.surgery_left).toLocaleDateString(
+                        "en-GB"
+                      )
                     : patientData?.surgery_right
-                    ? new Date(patientData.surgery_right).toLocaleDateString("en-GB")
+                    ? new Date(patientData.surgery_right).toLocaleDateString(
+                        "en-GB"
+                      )
                     : "N/A"}
                 </p>
 
@@ -1626,33 +1623,33 @@ const Surgeryreport = ({handleclosereport}) => {
 
               {/* ✅ Time input */}
               <div className="relative w-52">
-                              <input
-                                type="text"
-                                placeholder="HH:MM"
-                                maxLength={5} // 2 digits + ":" + 2 digits
-                                className={`${poppins.className} font-medium border border-gray-300 rounded px-4 py-2 pr-10 w-full text-sm text-black`}
-                                value={surgeryData.patient_records[0].op_time || ""}
-                                onChange={(e) => {
-                                  let val = e.target.value.replace(/\D/g, ""); // remove non-digits
-                                  if (val.length >= 3) {
-                                    val = val.slice(0, 2) + ":" + val.slice(2, 4);
-                                  }
-                                  setSurgeryData((prev) => {
-                                    const updatedRecords = [...prev.patient_records];
-                                    updatedRecords[0].op_time = val;
-                                    return {
-                                      ...prev,
-                                      patient_records: updatedRecords,
-                                    };
-                                  });
-                                }}
-                              />
-                              <Image
-                                src={Clock}
-                                alt="Clock"
-                                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
-                              />
-                            </div>
+                <input
+                  type="text"
+                  placeholder="HH:MM"
+                  maxLength={5} // 2 digits + ":" + 2 digits
+                  className={`${poppins.className} font-medium border border-gray-300 rounded px-4 py-2 pr-10 w-full text-sm text-black`}
+                  value={surgeryData.patient_records[0].op_time || ""}
+                  onChange={(e) => {
+                    let val = e.target.value.replace(/\D/g, ""); // remove non-digits
+                    if (val.length >= 3) {
+                      val = val.slice(0, 2) + ":" + val.slice(2, 4);
+                    }
+                    setSurgeryData((prev) => {
+                      const updatedRecords = [...prev.patient_records];
+                      updatedRecords[0].op_time = val;
+                      return {
+                        ...prev,
+                        patient_records: updatedRecords,
+                      };
+                    });
+                  }}
+                />
+                <Image
+                  src={Clock}
+                  alt="Clock"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -2456,7 +2453,9 @@ const Surgeryreport = ({handleclosereport}) => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-4 w-full items-center`}
+                      >
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                         >
@@ -2502,8 +2501,12 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-full items-center`}>
-                        <div className={`flex flex-row gap-4 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-4 w-full items-center`}
+                      >
+                        <div
+                          className={`flex flex-row gap-4 w-full items-center`}
+                        >
                           <div className="flex flex-row gap-4 items-center w-1/2">
                             <label
                               className={`${raleway.className} font-semibold text-xs text-[#484848]`}
@@ -2597,7 +2600,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                     <div className={`flex flex-row gap-4`}>
                       <div className={`flex flex-row gap-4 w-full`}>
-                        <div className={`flex flex-row gap-4 w-full items-center`}>
+                        <div
+                          className={`flex flex-row gap-4 w-full items-center`}
+                        >
                           <label
                             className={`${raleway.className} font-semibold text-xs w-1/2 text-[#484848]`}
                           >
@@ -2887,8 +2892,7 @@ const Surgeryreport = ({handleclosereport}) => {
             </div>
           </div>
 
-
-<div className={`flex flex-col gap-2 items-center pt-10`}>
+          <div className={`flex flex-col gap-2 items-center pt-10`}>
             <p
               className={`${inter.className} text-base font-extrabold text-[#484848]`}
             >
@@ -2948,7 +2952,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-1 w-full items-center`}
+                      >
                         <select
                           className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
@@ -3031,7 +3037,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-full items-center`}>
+                      <div
+                        className={`flex flex-row gap-1 w-full items-center`}
+                      >
                         <select
                           className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
@@ -3777,7 +3785,7 @@ const Surgeryreport = ({handleclosereport}) => {
                                 [col]: {
                                   ...selections[col],
                                   [row]: value,
-                                  ...(row === "MANUFACTURER" &&  {
+                                  ...(row === "MANUFACTURER" && {
                                     MODEL: "NA",
                                     SIZE: "NA",
                                   }),
