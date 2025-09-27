@@ -487,7 +487,7 @@ const Surgeryreport = ({handleclosereport}) => {
     liftOff: "NA",
   }));
 
-  const timepoints = [
+  const romTimepoints  = [
     "Preop",
     "1Month",
     "3Month",
@@ -510,64 +510,105 @@ const Surgeryreport = ({handleclosereport}) => {
     };
 
   const [surgeryData, setSurgeryData] = useState(() => ({
-    uhid: "NA",
-    side: "NA",
-    patient_records: [
-      {
-        patuhid: "NA",
-        hospital_name: "NA",
-        anaesthetic_type: "NA",
-        asa_grade: "NA",
-        rom: timepoints.map((tp) => ({
-          period: tp, // ✅ Correct period name
-          flexion: "NA",
-          extension: "NA",
-        })),
-        consultant_incharge: consultantOptions[0] || "NA",
-        operating_surgeon: surgeonOptions[0] || "NA",
-        first_assistant: firstAssistantOptions[0] || "NA",
-        second_assistant: secondAssistantOptions[0] || "NA",
-        mag_proc: "NA",
-        side: "NA",
-        surgery_indication: "NA",
-        tech_assist: "NA",
-        align_phil: "NA",
-        torq_used: "NA",
-        op_date: "NA",
-        op_time: "NA",
-        components_details: {
-          FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-          TIBIA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-          INSERT: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
-          PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+      uhid: "NA",
+      side: "NA",
+      patient_records: [
+        {
+          patuhid: "NA",
+          hospital_name: "NA",
+          anaesthetic_type: "NA",
+          asa_grade: "NA",
+          rom: romTimepoints.map((period) => ({
+        period,
+        flexion: "NA",
+        extension: "NA",
+      })),
+          consultant_incharge: consultantOptions[0] || "NA",
+          operating_surgeon: surgeonOptions[0] || "NA",
+          first_assistant: firstAssistantOptions[0] || "NA",
+          second_assistant: secondAssistantOptions[0] || "NA",
+          mag_proc: "NA",
+          side: "NA",
+          surgery_indication: "NA",
+          tech_assist: "NA",
+          align_phil: "NA",
+          torq_used: "NA",
+          op_date: "NA",
+          op_time: "NA",
+          components_details: {
+            FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+            TIBIA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+            INSERT: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+            PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+          },
+          bone_resection: {
+    acl: "NA",
+    distal_medial: {
+      wear: "NA",
+      initial_thickness: "NA",
+      recut: "NA",
+      recutvalue: "NA",
+      washer: "NA",
+      washervalue: "NA",
+      final_thickness: "NA",
+    },
+    distal_lateral: {
+      wear: "NA",
+      initial_thickness: "NA",
+      recut: "NA",
+      recutvalue: "NA",
+      washer: "NA",
+      washervalue: "NA",
+      final_thickness: "NA",
+    },
+    posterial_medial: {
+      wear: "NA",
+      initial_thickness: "NA",
+      recut: "NA",
+      recutvalue: "NA",
+      final_thickness: "NA",
+    },
+    posterial_lateral: {
+      wear: "NA",
+      initial_thickness: "NA",
+      recut: "NA",
+      recutvalue: "NA",
+      final_thickness: "NA",
+    },
+    tibial_resection_left: {
+      wear: "NA",
+      value: "NA",
+    },
+    tibial_resection_right: {
+      wear: "NA",
+      value: "NA",
+    },
+    pcl: "NA",
+    tibialvvrecut: {
+      wear: "NA",
+      value: "NA",
+    },
+    tibialsloperecut: {
+      wear: "NA",
+      value: "NA",
+    },
+    final_check: "NA",
+    thickness_table: initialThicknessTable, // ✅ keep your imported table
+    pfj_resurfacing: "NA",
+    trachela_resection: "NA",
+    patella: "NA",
+    preresurfacing: "NA",
+    postresurfacing: "NA",
+  },
+          posting_timestamp: "NA",
         },
-        bone_resection: {
-          acl: "NA",
-          distal_medial: {},
-          distal_lateral: {},
-          posterial_medial: {},
-          posterial_lateral: {},
-          tibial_resection_left: {},
-          tibial_resection_right: {},
-          pcl: "NA",
-          tibialvvrecut: {},
-          tibialsloperecut: {},
-          final_check: "NA",
-          thickness_table: initialThicknessTable,
-          pfj_resurfacing: "NA",
-          trachela_resection: "NA",
-          patella: "NA",
-          preresurfacing: "NA",
-          postresurfacing: "NA",
-        },
-        posting_timestamp: "NA",
-      },
-    ],
-  }));
+      ],
+    }));
+  
 
   useEffect(() => {
     const storedUHID = sessionStorage.getItem("selectedUHID");
-    console.log(storedUHID);
+    // console.log(storedUHID);
     if (storedUHID) {
       // ✅ Update both uhid and patient_records[0].patuhid
       setSurgeryData((prevData) => ({
@@ -586,6 +627,7 @@ const Surgeryreport = ({handleclosereport}) => {
       setLoading(false);
     }
   }, []);
+  
 
   const [thicknessTable, setThicknessTable] = useState(
     [10, 11, 12, 13, 14].map((val) => ({
@@ -647,7 +689,7 @@ const Surgeryreport = ({handleclosereport}) => {
 
   const fetchPatientData = async (uhid) => {
     try {
-      console.log("Fetching patient data for UHID:", uhid);
+      // console.log("Fetching patient data for UHID:", uhid);
       const response = await axios.get(`${API_URL}patients/${uhid}`);
       // console.log("API Full Response:", response);
       // console.log("API Response Data:", response.data);
@@ -660,9 +702,15 @@ const Surgeryreport = ({handleclosereport}) => {
         const surgeryLeft = patient?.Medical?.surgery_date_left;
         const surgeryRight = patient?.Medical?.surgery_date_right;
 
+
         // ✅ Determine side
         let side = "left";
-        const today = new Date().toISOString().split("T")[0];
+                  const todayLocal = new Date();
+                  const yyyy = todayLocal.getFullYear();
+                  const mm = String(todayLocal.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+                  const dd = String(todayLocal.getDate()).padStart(2, "0");
+
+                  const today = `${yyyy}-${mm}-${dd}`;
         let op_date = "";
         if (surgeryLeft === today && surgeryRight !== today) {
           side = "left";
@@ -729,7 +777,7 @@ const Surgeryreport = ({handleclosereport}) => {
               
         
                 setPatientData(mapped);
-                console.log("Mapped Patient Data:", mapped);
+                // console.log("Mapped Patient Data:", mapped);
         setSurgeryData((prev) => ({
           ...prev,
           uhid,
@@ -755,7 +803,49 @@ const Surgeryreport = ({handleclosereport}) => {
     }
   };
 
-  if (loading) return <p>Loading patient data...</p>;
+    const messages = [
+      "Almost there, preparing patient surgery report...",
+      "Hang tight! almost done...",
+    ];
+  
+    const [index, setIndex] = useState(0);
+  
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setIndex((prev) => (prev + 1) % messages.length);
+      }, 3000);
+      return () => clearInterval(interval);
+    }, []);
+
+  if (loading)     return (
+      <div className="flex space-x-2 py-4 items-center w-full justify-center">
+        <svg
+          className="animate-spin h-5 w-5 text-black"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+        <span className={`${poppins.className} text-black font-semibold`}>
+          {messages[index]}
+        </span>
+      </div>
+    );
+
+
 
   if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
 
@@ -796,8 +886,7 @@ const Surgeryreport = ({handleclosereport}) => {
         ),
       };
 
-      console.log("📦 Sending Draft Data:", updatedData);
-
+      // console.log("📦 Sending Draft Data:", updatedData);
       const response = await axios.post(
         `${API_URL}post-surgery/fhir
 `,
@@ -809,7 +898,7 @@ const Surgeryreport = ({handleclosereport}) => {
         }
       );
 
-      console.log("✅ Draft saved successfully:", response.data);
+      // console.log("✅ Draft saved successfully:", response.data);
       return response.data;
     } catch (error) {
       console.error("❌ Error saving draft:", error);
@@ -1049,46 +1138,48 @@ const Surgeryreport = ({handleclosereport}) => {
             >
               4. Pre OP - ROM
             </label>
+            {["flexion", "extension"].map((motion) => (
             <div
-              className={`${raleway.className} pt-5 flex font-semibold flex-col gap-6 pl-4`}
+              className={`${raleway.className} pt-5 flex flex-row font-semibold w- gap-6 pl-4`}
             >
-              {["flexion", "extension"].map((motion) => (
-                <div key={motion} className="flex items-center space-x-4">
-                  <span
-                    className={`${raleway.className} font-semibold w-20 text-xs text-[#272727]`}
-                  >
-                    {motion.charAt(0).toUpperCase() + motion.slice(1)}
-                  </span>
-                  <input
-                    type="text"
-                    value={
-                      surgeryData.patient_records[0].rom[0][motion] === "NA"
-                        ? ""
-                        : surgeryData.patient_records[0].rom[0][motion]
-                    }
-                    onChange={(e) =>
-                      setSurgeryData((prev) => {
-                        const updatedROM = [...prev.patient_records[0].rom];
-                        updatedROM[0] = {
-                          ...updatedROM[0],
-                          [motion]: e.target.value,
-                        };
-                        return {
-                          ...prev,
-                          patient_records: [
-                            {
-                              ...prev.patient_records[0],
-                              rom: updatedROM,
-                            },
-                          ],
-                        };
-                      })
-                    }
-                    className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
-                  />
-                </div>
-              ))}
+
+  <span
+                        className={`${raleway.className} font-semibold w-20 uppercase text-xs text-[#272727]`}
+                      >
+                        {motion}
+                      </span>
+  <input
+    key={motion}
+    className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
+    type="text"
+    value={
+      surgeryData.patient_records[0].rom[0][motion] === "NA"
+        ? ""
+        : surgeryData.patient_records[0].rom[0][motion]
+    }
+    onChange={(e) =>
+      setSurgeryData((prev) => {
+        const updatedROM = [...prev.patient_records[0].rom];
+        updatedROM[0] = {
+          ...updatedROM[0],
+          [motion]: e.target.value || "NA", // fallback to NA if cleared
+        };
+        return {
+          ...prev,
+          patient_records: [
+            {
+              ...prev.patient_records[0],
+              rom: updatedROM,
+            },
+          ],
+        };
+      })
+    }
+  />
+
+
             </div>
+            ))}
           </div>
         </div>
       </div>
@@ -1535,24 +1626,33 @@ const Surgeryreport = ({handleclosereport}) => {
 
               {/* ✅ Time input */}
               <div className="relative w-52">
-                <input
-                  type="time"
-                  placeholder="HH:MM"
-                  className={`${poppins.className} font-medium border border-gray-300 rounded px-4 py-2 pr-10 w-full text-sm text-black`}
-                  value={surgeryData.patient_records[0].op_time || ""}
-                  onChange={(e) => {
-                    const newTime = e.target.value;
-                    setSurgeryData((prev) => {
-                      const updatedRecords = [...prev.patient_records];
-                      updatedRecords[0].op_time = newTime;
-                      return {
-                        ...prev,
-                        patient_records: updatedRecords,
-                      };
-                    });
-                  }}
-                />
-              </div>
+                              <input
+                                type="text"
+                                placeholder="HH:MM"
+                                maxLength={5} // 2 digits + ":" + 2 digits
+                                className={`${poppins.className} font-medium border border-gray-300 rounded px-4 py-2 pr-10 w-full text-sm text-black`}
+                                value={surgeryData.patient_records[0].op_time || ""}
+                                onChange={(e) => {
+                                  let val = e.target.value.replace(/\D/g, ""); // remove non-digits
+                                  if (val.length >= 3) {
+                                    val = val.slice(0, 2) + ":" + val.slice(2, 4);
+                                  }
+                                  setSurgeryData((prev) => {
+                                    const updatedRecords = [...prev.patient_records];
+                                    updatedRecords[0].op_time = val;
+                                    return {
+                                      ...prev,
+                                      patient_records: updatedRecords,
+                                    };
+                                  });
+                                }}
+                              />
+                              <Image
+                                src={Clock}
+                                alt="Clock"
+                                className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
+                              />
+                            </div>
             </div>
           </div>
         </div>
@@ -1665,7 +1765,7 @@ const Surgeryreport = ({handleclosereport}) => {
                                 const updatedRecords = [
                                   ...prev.patient_records,
                                 ];
-                                updatedRecords[0].bone_resection.distal_medial.status =
+                                updatedRecords[0].bone_resection.distal_medial.wear =
                                   status;
                                 return {
                                   ...prev,
@@ -1675,7 +1775,7 @@ const Surgeryreport = ({handleclosereport}) => {
                             }}
                             checked={
                               surgeryData.patient_records[0].bone_resection
-                                .distal_medial.status === status
+                                .distal_medial.wear === status
                             }
                           />
                         </div>
@@ -1693,7 +1793,7 @@ const Surgeryreport = ({handleclosereport}) => {
 
                       <div className="flex flex-row gap-1 w-1/2 items-center">
                         <select
-                          className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                          className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                           value={
                             surgeryData.patient_records[0].bone_resection
                               .distal_medial.initial_thickness
@@ -1724,7 +1824,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row items-center gap-4">
                       {/* Recut Radio Buttons */}
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
@@ -1778,9 +1878,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                       {/* Recut Value Select */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_medial.recutvalue
@@ -1814,7 +1914,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row gap-4 items-center">
                       {/* Washer Radio Buttons */}
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
@@ -1868,9 +1968,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                       {/* Washer Value Select */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_medial.washervalue
@@ -1904,7 +2004,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row gap-4 items-center">
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848]`}
@@ -1914,9 +2014,9 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
 
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_medial.final_thickness
@@ -1986,7 +2086,7 @@ const Surgeryreport = ({handleclosereport}) => {
                                 const updatedRecords = [
                                   ...prev.patient_records,
                                 ];
-                                updatedRecords[0].bone_resection.distal_lateral.status =
+                                updatedRecords[0].bone_resection.distal_lateral.wear =
                                   status;
                                 return {
                                   ...prev,
@@ -1996,14 +2096,14 @@ const Surgeryreport = ({handleclosereport}) => {
                             }}
                             checked={
                               surgeryData.patient_records[0].bone_resection
-                                .distal_lateral.status === status
+                                .distal_lateral.wear === status
                             }
                           />
                         </div>
                       ))}
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row gap-4 items-center`}>
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848]`}
@@ -2013,10 +2113,10 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.initial_thickness
@@ -2050,7 +2150,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row items-center gap-4`}>
                       {/* Recut radio buttons */}
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
@@ -2101,10 +2201,10 @@ const Surgeryreport = ({handleclosereport}) => {
                       {/* Recut value select */}
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.recutvalue
@@ -2138,7 +2238,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row items-center gap-4`}>
                       {/* Washer radio buttons */}
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
@@ -2189,10 +2289,10 @@ const Surgeryreport = ({handleclosereport}) => {
                       {/* Washer value select */}
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.washervalue
@@ -2226,7 +2326,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row items-center gap-4`}>
                       {/* Label */}
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
@@ -2239,10 +2339,10 @@ const Surgeryreport = ({handleclosereport}) => {
                       {/* Select input */}
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.final_thickness
@@ -2356,18 +2456,18 @@ const Surgeryreport = ({handleclosereport}) => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-1/2`}>
+                      <div className={`flex flex-row gap-4 w-full items-center`}>
                         <label
-                          className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                          className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                         >
                           Initial Thickness
                         </label>
                         <div className={`flex flex-row gap-1 w-1/2`}>
                           <div
-                            className={`flex flex-row gap-1 w-1/2 items-center`}
+                            className={`flex flex-row gap-1 w-full items-center`}
                           >
                             <select
-                              className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded text-black`}
+                              className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
                               value={
                                 surgeryData.patient_records[0].bone_resection
                                   .posterial_medial.initial_thickness || "0 mm"
@@ -2402,63 +2502,64 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-1/2`}>
-                        <div className={`flex flex-row gap-4 w-1/2`}>
-                          <label
-                            className={`${raleway.className} font-semibold text-xs text-[#484848]`}
-                          >
-                            Recut
-                          </label>
-                          <div className={`space-x-3 flex flex-row pl-2.5`}>
-                            {["N", "Y"].map((grade) => {
-                              const id = `medcondrecut-${grade}`;
-                              return (
-                                <label
-                                  key={id}
-                                  htmlFor={id}
-                                  className="flex items-center space-x-2 cursor-pointer"
-                                >
-                                  <input
-                                    id={id}
-                                    type="radio"
-                                    name="post-medial-recut"
-                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
-                                    checked={
-                                      surgeryData.patient_records[0]
-                                        .bone_resection.posterial_medial
-                                        .recut === grade
-                                    }
-                                    onChange={() => {
-                                      const selected = grade;
-                                      setSurgeryData((prev) => {
-                                        const updatedRecords = [
-                                          ...prev.patient_records,
-                                        ];
-                                        updatedRecords[0].bone_resection.posterial_medial.recut =
-                                          selected;
-                                        return {
-                                          ...prev,
-                                          patient_records: updatedRecords,
-                                        };
-                                      });
-                                    }}
-                                  />
-                                  <span
-                                    className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                      <div className={`flex flex-row gap-4 w-full items-center`}>
+                        <div className={`flex flex-row gap-4 w-full items-center`}>
+                          <div className="flex flex-row gap-4 items-center w-1/2">
+                            <label
+                              className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                            >
+                              Recut
+                            </label>
+                            <div className={`space-x-3 flex flex-row pl-2.5 `}>
+                              {["N", "Y"].map((grade) => {
+                                const id = `medcondrecut-${grade}`;
+                                return (
+                                  <label
+                                    key={id}
+                                    htmlFor={id}
+                                    className="flex items-center space-x-2 cursor-pointer"
                                   >
-                                    {grade}
-                                  </span>
-                                </label>
-                              );
-                            })}
+                                    <input
+                                      id={id}
+                                      type="radio"
+                                      name="post-medial-recut"
+                                      className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                      checked={
+                                        surgeryData.patient_records[0]
+                                          .bone_resection.posterial_medial
+                                          .recut === grade
+                                      }
+                                      onChange={() => {
+                                        const selected = grade;
+                                        setSurgeryData((prev) => {
+                                          const updatedRecords = [
+                                            ...prev.patient_records,
+                                          ];
+                                          updatedRecords[0].bone_resection.posterial_medial.recut =
+                                            selected;
+                                          return {
+                                            ...prev,
+                                            patient_records: updatedRecords,
+                                          };
+                                        });
+                                      }}
+                                    />
+                                    <span
+                                      className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                                    >
+                                      {grade}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
                           </div>
-
                           <div className={`flex flex-row gap-1 w-1/2`}>
                             <div
-                              className={`flex flex-row gap-1 w-1/2 items-center`}
+                              className={`flex flex-row gap-1 w-full items-center`}
                             >
                               <select
-                                className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded text-black`}
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
                                 value={
                                   surgeryData.patient_records[0].bone_resection
                                     .posterial_medial.recutvalue || "0 mm"
@@ -2495,19 +2596,19 @@ const Surgeryreport = ({handleclosereport}) => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-1/2`}>
-                        <div className={`flex flex-row gap-4 w-1/2`}>
+                      <div className={`flex flex-row gap-4 w-full`}>
+                        <div className={`flex flex-row gap-4 w-full items-center`}>
                           <label
-                            className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                            className={`${raleway.className} font-semibold text-xs w-1/2 text-[#484848]`}
                           >
                             Final Thickness
                           </label>
                           <div className={`flex flex-row gap-1 w-1/2`}>
                             <div
-                              className={`flex flex-row gap-1 w-1/2 items-center`}
+                              className={`flex flex-row gap-1 w-full items-center`}
                             >
                               <select
-                                className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded text-black`}
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
                                 value={
                                   surgeryData.patient_records[0].bone_resection
                                     .posterial_medial.final_thickness || "0 mm"
@@ -2579,7 +2680,7 @@ const Surgeryreport = ({handleclosereport}) => {
                                 const updatedRecords = [
                                   ...prev.patient_records,
                                 ];
-                                updatedRecords[0].bone_resection.posterial_lateral.status =
+                                updatedRecords[0].bone_resection.posterial_lateral.wear =
                                   status;
                                 return {
                                   ...prev,
@@ -2589,7 +2690,7 @@ const Surgeryreport = ({handleclosereport}) => {
                             }}
                             checked={
                               surgeryData.patient_records[0].bone_resection
-                                .posterial_lateral.status === status
+                                .posterial_lateral.wear === status
                             }
                           />
                         </div>
@@ -2597,15 +2698,15 @@ const Surgeryreport = ({handleclosereport}) => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                      <div className="flex flex-row gap-1 w-full">
+                        <div className="flex flex-row w-full gap-4 items-center">
                           <label
-                            className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                            className={`${raleway.className} font-semibold text-xs w-1/2 text-[#484848]`}
                           >
                             Initial Thickness
                           </label>
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-1/2 text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .posterial_lateral.initial_thickness || "0 mm"
@@ -2640,7 +2741,7 @@ const Surgeryreport = ({handleclosereport}) => {
                     </div>
                     <div className="flex flex-row gap-4">
                       {/* Recut Y/N */}
-                      <div className="flex flex-row gap-4 w-1/2">
+                      <div className="flex flex-row gap-4 items-center w-1/2">
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848]`}
                         >
@@ -2692,9 +2793,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                       {/* Recut Value */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .posterial_lateral.recutvalue || "0 mm"
@@ -2728,7 +2829,7 @@ const Surgeryreport = ({handleclosereport}) => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row gap-4 items-center">
                       {/* Label */}
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
@@ -2740,9 +2841,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                       {/* Select Final Thickness */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .posterial_lateral.final_thickness || "0 mm"
@@ -2786,7 +2887,8 @@ const Surgeryreport = ({handleclosereport}) => {
             </div>
           </div>
 
-          <div className={`flex flex-col gap-2 items-center pt-10`}>
+
+<div className={`flex flex-col gap-2 items-center pt-10`}>
             <p
               className={`${inter.className} text-base font-extrabold text-[#484848]`}
             >
@@ -2818,14 +2920,14 @@ const Surgeryreport = ({handleclosereport}) => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibial_resection_left.status === grade
+                                  .tibial_resection_left.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
                                   const updatedRecords = [
                                     ...prev.patient_records,
                                   ];
-                                  updatedRecords[0].bone_resection.tibial_resection_left.status =
+                                  updatedRecords[0].bone_resection.tibial_resection_left.wear =
                                     grade;
                                   return {
                                     ...prev,
@@ -2846,9 +2948,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-1/2 items-center`}>
+                      <div className={`flex flex-row gap-1 w-full items-center`}>
                         <select
-                          className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                          className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
                             surgeryData.patient_records[0].bone_resection
                               .tibial_resection_left.value
@@ -2880,7 +2982,7 @@ const Surgeryreport = ({handleclosereport}) => {
                     </div>
                   </div>
 
-                  <div className={`w-5/7 flex items-center`}>
+                  <div className={`w-5/7 flex items-center justify-center`}>
                     <Image src={Tibia} alt="Bone Left" className="w-6/7 pt-3" />
                   </div>
                   <div className={`w-1/7 h-full flex flex-col justify-between`}>
@@ -2901,14 +3003,14 @@ const Surgeryreport = ({handleclosereport}) => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibial_resection_right.status === grade
+                                  .tibial_resection_right.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
                                   const updatedRecords = [
                                     ...prev.patient_records,
                                   ];
-                                  updatedRecords[0].bone_resection.tibial_resection_right.status =
+                                  updatedRecords[0].bone_resection.tibial_resection_right.wear =
                                     grade;
                                   return {
                                     ...prev,
@@ -2929,9 +3031,9 @@ const Surgeryreport = ({handleclosereport}) => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-1/2 items-center`}>
+                      <div className={`flex flex-row gap-1 w-full items-center`}>
                         <select
-                          className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                          className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
                             surgeryData.patient_records[0].bone_resection
                               .tibial_resection_right.value
@@ -3011,6 +3113,7 @@ const Surgeryreport = ({handleclosereport}) => {
                   </div>
                 </div>
               </div>
+
               <div className={`w-1/2 flex flex-col`}>
                 <div className={`flex flex-col gap-8`}>
                   <div className={`flex flex-row gap-12 items-center pl-20`}>
@@ -3037,7 +3140,7 @@ const Surgeryreport = ({handleclosereport}) => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibialvvrecut.status === grade
+                                  .tibialvvrecut.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
@@ -3048,7 +3151,7 @@ const Surgeryreport = ({handleclosereport}) => {
                                     {
                                       ...updatedRecords[0].bone_resection
                                         .tibialvvrecut,
-                                      status: grade,
+                                      wear: grade,
                                     };
                                   return {
                                     ...prev,
@@ -3123,7 +3226,7 @@ const Surgeryreport = ({handleclosereport}) => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibialsloperecut.status === grade
+                                  .tibialsloperecut.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
@@ -3134,7 +3237,7 @@ const Surgeryreport = ({handleclosereport}) => {
                                     {
                                       ...updatedRecords[0].bone_resection
                                         .tibialsloperecut,
-                                      status: grade,
+                                      wear: grade,
                                     };
                                   return {
                                     ...prev,
@@ -3674,11 +3777,11 @@ const Surgeryreport = ({handleclosereport}) => {
                                 [col]: {
                                   ...selections[col],
                                   [row]: value,
-                                  ...(row === "MANUFACTURER" && {
-                                    MODEL: "",
-                                    SIZE: "",
+                                  ...(row === "MANUFACTURER" &&  {
+                                    MODEL: "NA",
+                                    SIZE: "NA",
                                   }),
-                                  ...(row === "MODEL" && { SIZE: "" }),
+                                  ...(row === "MODEL" && { SIZE: "NA" }),
                                 },
                               });
 
@@ -3693,22 +3796,22 @@ const Surgeryreport = ({handleclosereport}) => {
                                 if (row === "MANUFACTURER") {
                                   updated.patient_records[0].components_details[
                                     col
-                                  ].MODEL = "";
+                                  ].MODEL = "NA";
                                   updated.patient_records[0].components_details[
                                     col
-                                  ].SIZE = "";
+                                  ].SIZE = "NA";
                                 }
                                 if (row === "MODEL") {
                                   updated.patient_records[0].components_details[
                                     col
-                                  ].SIZE = "";
+                                  ].SIZE = "NA";
                                 }
 
                                 return updated;
                               });
                             }}
                           >
-                            <option value="" disabled>
+                            <option value="NA" disabled>
                               Select
                             </option>
 
@@ -3760,7 +3863,7 @@ const Surgeryreport = ({handleclosereport}) => {
         <p
           className={`${raleway.className} text-center bg-[#2A343D] px-6 py-2 text-white ${inter.className} font-medium text-lg cursor-pointer`}
           onClick={async () => {
-            console.log("Surgery Report Data:", surgeryData);
+            // console.log("Surgery Report Data:", surgeryData);
 
             try {
               const result = await saveDraft(surgeryData);

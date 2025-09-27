@@ -308,7 +308,7 @@ const Dailyactivity = ({
 
         setPatientloading(false);
         setPatientdata(mapped);
-        console.log("Mapped doctor", mapped);
+        // console.log("Mapped doctor", mapped);
       } catch (err) {
         setPatientloading(false);
         console.error("❌ Error fetching patients:", err);
@@ -391,7 +391,14 @@ const Dailyactivity = ({
   const filterPatients = async (patients = []) => {
     const adminUhid =
       typeof window !== "undefined" ? sessionStorage.getItem("doctor") : null;
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+    const todayLocal = new Date();
+    const yyyy = todayLocal.getFullYear();
+    const mm = String(todayLocal.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+    const dd = String(todayLocal.getDate()).padStart(2, "0");
+
+    const today = `${yyyy}-${mm}-${dd}`;
+    // console.log("Today", today);
+
     const allowedPatients = [];
 
     for (const p of patients) {
@@ -633,7 +640,7 @@ const Dailyactivity = ({
   };
 
   const generateBarDataselected = (p) => {
-    console.log("Selected for bardata", p);
+    // console.log("Selected for bardata", p);
     // Totals
     let oksLeft = 0,
       oksRight = 0,
@@ -777,18 +784,18 @@ const Dailyactivity = ({
   const sides = ["left", "right"];
 
   const handlevipstatus = async (uhid, vip) => {
-    console.log("Status", vip);
+    // console.log("Status", vip);
     let vip1 = "";
     if (String(vip) === "true") {
       vip1 = "false";
     } else {
       vip1 = "true";
     }
-    const payload = { vip_status: vip1 };
-    console.log("Status payload", payload + " " + vip1);
+    const payload = {field: "vip_status", value: vip1 };
+    // console.log("Status payload", payload + " " + vip1);
     try {
       // ✅ API call
-      const response = await axios.put(
+      const response = await axios.patch(
         `${API_URL}patients/update/${uhid}`,
         payload
       );
@@ -888,7 +895,7 @@ const Dailyactivity = ({
         value: "1001-01-01", // value for that motion
       };
 
-      console.log("Payload", payload3);
+      // console.log("Payload", payload3);
 
       try {
         const res = await axios.get(
@@ -897,7 +904,7 @@ const Dailyactivity = ({
           }`
         );
         if (res) {
-          console.log("Success1");
+          // console.log("Success1");
         }
       } catch (err) {
         showWarning("Surgery Report not found. Kindly add Surgery Report");
@@ -931,11 +938,10 @@ const Dailyactivity = ({
     }
   };
 
-   const messages = [
-  "Analyzing updates...",
-  "Hang tight! Preparing today's patients...",
-];
-
+  const messages = [
+    "Analyzing updates...",
+    "Hang tight! Preparing today's patients...",
+  ];
 
   const [index, setIndex] = useState(0);
 
@@ -977,7 +983,7 @@ const Dailyactivity = ({
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                {doctorName || "Doctor Name"}
+                Dr. {doctorName || "Doctor Name"}
               </p>
             </div>
           )}
@@ -1042,7 +1048,7 @@ const Dailyactivity = ({
                       onDoubleClick={() =>
                         handlevipstatus(
                           selectedPatient.uhid,
-                          selectedPatient.vip
+                          String(selectedPatient.vip)
                         )
                       }
                     />
@@ -1355,9 +1361,14 @@ const Dailyactivity = ({
                 } text-center bg-[#2A343D] px-4 py-1 text-white ${
                   inter.className
                 } font-medium text-[15px] rounded-[10px]
-                ${selectedPatient?.uhid?"cursor-pointer":""} `}
+                ${selectedPatient?.uhid ? "cursor-pointer" : ""} `}
                 onClick={async () => {
-                  const today = new Date().toISOString().split("T")[0];
+                  const todayLocal = new Date();
+                  const yyyy = todayLocal.getFullYear();
+                  const mm = String(todayLocal.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
+                  const dd = String(todayLocal.getDate()).padStart(2, "0");
+
+                  const today = `${yyyy}-${mm}-${dd}`;
                   const uhid = selectedPatient?.uhid?.toLowerCase();
                   if (!uhid) return;
 
@@ -1378,10 +1389,17 @@ const Dailyactivity = ({
                       return;
                     }
                   }
+                  // console.log(
+                  //   "Not allowed — already exists or date not today",
+                  //   today,
+                  //   uhid,
+                  //   surgeryLeft
+                  // );
 
                   // 2) Left surgery check
                   if (surgeryLeft === today) {
                     const exists = await checkGetSurgery(uhid, surgeryLeft);
+
                     if (!exists) {
                       handlenavigatesurgeryreport(); // ✅ Surgery flow
                       if (typeof window !== "undefined") {
@@ -1410,7 +1428,6 @@ const Dailyactivity = ({
                   }
 
                   // ❌ Nothing matched
-                  console.log("Not allowed — already exists or date not today");
                 }}
               >
                 Surgery
@@ -1424,15 +1441,15 @@ const Dailyactivity = ({
                 } font-medium text-[15px] rounded-[10px]
                  ${selectedPatient?.uhid ? "cursor-pointer" : ""} `}
                 onClick={() => {
-                  if(selectedPatient.uhid){
-                  handlenavigatereport();
-                  if (typeof window !== "undefined") {
-                    sessionStorage.setItem(
-                      "patientreportid",
-                      selectedPatient.uhid
-                    );
+                  if (selectedPatient.uhid) {
+                    handlenavigatereport();
+                    if (typeof window !== "undefined") {
+                      sessionStorage.setItem(
+                        "patientreportid",
+                        selectedPatient.uhid
+                      );
+                    }
                   }
-                }
                 }}
               >
                 View Report
@@ -1570,32 +1587,30 @@ const Dailyactivity = ({
         <div className="flex flex-row gap-13.5 whitespace-nowrap overflow-x-auto pb-4 inline-scroll">
           {patientloading ? (
             <div className="flex space-x-2 w-full justify-center">
-                    <svg
-                      className="animate-spin h-5 w-5 text-black"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                      />
-                    </svg>
-                    <span
-                      className={`${poppins.className} text-black font-semibold`}
-                    >
-                      {messages[index]}
-                    </span>
-                  </div>
+              <svg
+                className="animate-spin h-5 w-5 text-black"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                />
+              </svg>
+              <span className={`${poppins.className} text-black font-semibold`}>
+                {messages[index]}
+              </span>
+            </div>
           ) : filteredPatients.length > 0 ? (
             filteredPatients.map((patient) => {
               const isSelected = selectedId === patient.uhid;
@@ -1619,7 +1634,7 @@ const Dailyactivity = ({
                       width={35}
                       height={35}
                       onDoubleClick={() =>
-                        handlevipstatus(patient.uhid, patient.vip)
+                        handlevipstatus(patient.uhid,String(patient.vip))
                       }
                     />
                     <div className="flex flex-col gap-1">

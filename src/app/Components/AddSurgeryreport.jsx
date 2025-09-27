@@ -64,7 +64,7 @@ const poppins = Poppins({
   variable: "--font-inter", // optional CSS variable name
 });
 
-const AddSurgeryreport = ({handleclosereport}) => {
+const AddSurgeryreport = ({ handleclosereport }) => {
   const [uhid, setUhid] = useState(null);
 
   const useWindowSize = () => {
@@ -93,27 +93,25 @@ const AddSurgeryreport = ({handleclosereport}) => {
 
   const [doctorName, setDoctorName] = useState("");
   const [showAlert, setshowAlert] = useState(false);
-        const [alermessage, setAlertMessage] = useState("");
-      
-  
-    useEffect(() => {
-      const doctorUhid = sessionStorage.getItem("doctor");
-  
-      if (doctorUhid) {
-        axios
-          .get(`${API_URL}getdoctorname/${doctorUhid}`)
-          .then((res) => {
-            if (res.data?.doctor_name) {
-              sessionStorage.setItem("doctorName", res.data.doctor_name);
-              setDoctorName(res.data.doctor_name);
-            }
-          })
-          .catch((err) => {
-            console.error("❌ Error fetching doctor name:", err);
-          });
-      }
-    }, []);
-  
+  const [alermessage, setAlertMessage] = useState("");
+
+  useEffect(() => {
+    const doctorUhid = sessionStorage.getItem("doctor");
+
+    if (doctorUhid) {
+      axios
+        .get(`${API_URL}getdoctorname/${doctorUhid}`)
+        .then((res) => {
+          if (res.data?.doctor_name) {
+            sessionStorage.setItem("doctorName", res.data.doctor_name);
+            setDoctorName(res.data.doctor_name);
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error fetching doctor name:", err);
+        });
+    }
+  }, []);
 
   const categories = ["FEMUR", "TIBIA", "INSERT", "PATELLA"];
   const rows = ["MANUFACTURER", "MODEL", "SIZE"];
@@ -591,24 +589,64 @@ const AddSurgeryreport = ({handleclosereport}) => {
           PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
         },
         bone_resection: {
-          acl: "NA",
-          distal_medial: {},
-          distal_lateral: {},
-          posterial_medial: {},
-          posterial_lateral: {},
-          tibial_resection_left: {},
-          tibial_resection_right: {},
-          pcl: "NA",
-          tibialvvrecut: {},
-          tibialsloperecut: {},
-          final_check: "NA",
-          thickness_table: initialThicknessTable,
-          pfj_resurfacing: "NA",
-          trachela_resection: "NA",
-          patella: "NA",
-          preresurfacing: "NA",
-          postresurfacing: "NA",
-        },
+  acl: "NA",
+  distal_medial: {
+    wear: "NA",
+    initial_thickness: "NA",
+    recut: "NA",
+    recutvalue: "NA",
+    washer: "NA",
+    washervalue: "NA",
+    final_thickness: "NA",
+  },
+  distal_lateral: {
+    wear: "NA",
+    initial_thickness: "NA",
+    recut: "NA",
+    recutvalue: "NA",
+    washer: "NA",
+    washervalue: "NA",
+    final_thickness: "NA",
+  },
+  posterial_medial: {
+    wear: "NA",
+    initial_thickness: "NA",
+    recut: "NA",
+    recutvalue: "NA",
+    final_thickness: "NA",
+  },
+  posterial_lateral: {
+    wear: "NA",
+    initial_thickness: "NA",
+    recut: "NA",
+    recutvalue: "NA",
+    final_thickness: "NA",
+  },
+  tibial_resection_left: {
+    wear: "NA",
+    value: "NA",
+  },
+  tibial_resection_right: {
+    wear: "NA",
+    value: "NA",
+  },
+  pcl: "NA",
+  tibialvvrecut: {
+    wear: "NA",
+    value: "NA",
+  },
+  tibialsloperecut: {
+    wear: "NA",
+    value: "NA",
+  },
+  final_check: "NA",
+  thickness_table: initialThicknessTable, // ✅ keep your imported table
+  pfj_resurfacing: "NA",
+  trachela_resection: "NA",
+  patella: "NA",
+  preresurfacing: "NA",
+  postresurfacing: "NA",
+},
         posting_timestamp: "NA",
       },
     ],
@@ -691,38 +729,70 @@ const AddSurgeryreport = ({handleclosereport}) => {
     });
   };
 
-  
   const [opside, setOpside] = useState("LEFT KNEE");
+
+  const verifySurgeryDate = async (uhid, op_date) => {
+    try {
+      const lowercaseUHID = uhid.toLowerCase();
+      const formattedOpDate = `op-${op_date}`;
+
+      const response = await axios.get(
+        `${API_URL}get-surgery/${lowercaseUHID}/${formattedOpDate}`
+      );
+
+      if (response.status === 200 && response.data) {
+        return "NA"; // ✅ Keep original date if valid
+      } else {
+        return op_date; // ✅ Not valid
+      }
+    } catch (err) {
+      console.warn(`No surgery report for ${uhid} at ${op_date}`);
+      return op_date; // ✅ Treat error as invalid
+    }
+  };
 
   const fetchPatientData = async (uhid) => {
     try {
-      console.log("Fetching patient data for UHID:", uhid);
+      // console.log("Fetching patient data for UHID:", uhid);
       const response = await axios.get(`${API_URL}patients/${uhid}`);
-      console.log("API Full Response:", response);
-      console.log("API Response Data:", response.data);
+      // console.log("API Full Response:", response);
+      // console.log("API Response Data:", response.data);
 
       if (response.data && response.data.patient) {
         const patient = response.data.patient;
-        console.log("Patient Found:", patient);
+        // console.log("Patient Found:", patient);
 
         // ✅ Extract surgery dates
-        const surgeryLeft = patient?.Medical?.surgery_date_left;
-        const surgeryRight = patient?.Medical?.surgery_date_right;
+        let surgeryLeft = patient?.Medical?.surgery_date_left || "NA";
+        let surgeryRight = patient?.Medical?.surgery_date_right || "NA";
+
+        // ✅ Validate surgery dates with fetchSurgeryReport
+        if (surgeryLeft !== "NA") {
+          surgeryLeft = await verifySurgeryDate(uhid, surgeryLeft);
+        }
+        if (surgeryRight !== "NA") {
+          surgeryRight = await verifySurgeryDate(uhid, surgeryRight);
+        }
 
         // ✅ Determine side
         let side = "left";
-        if (surgeryLeft && !surgeryRight) {
+        if (surgeryLeft !== "NA" && surgeryRight === "NA") {
           side = "left";
-        } else if (!surgeryLeft && surgeryRight) {
+        } else if (surgeryRight !== "NA" && surgeryLeft === "NA") {
           side = "right";
-        } else if (surgeryLeft && surgeryRight) {
+        } else if (surgeryLeft !== "NA" && surgeryRight !== "NA") {
           side = "left"; // Default to left if both exist
         }
 
-        // ✅ Optionally pick op_date
-        const op_date = surgeryLeft || surgeryRight || "";
+        // ✅ Pick operation date
+        const op_date =
+          surgeryLeft !== "NA"
+            ? surgeryLeft
+            : surgeryRight !== "NA"
+            ? surgeryRight
+            : "NA";
 
-const apiPatients = response.data.patient || [];
+        const apiPatients = response.data.patient || [];
         // ✅ Update state
         const mapped = {
           // ✅ Only calculate if doctor is assigned
@@ -742,8 +812,8 @@ const apiPatients = response.data.patient || [];
           period_right: apiPatients.Patient_Status_Right || "NA",
           activation_status: apiPatients.Activation_Status ?? "True",
           patient_initial_status: apiPatients.patient_current_status ?? "NA",
-          surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
-          surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
+          surgery_left: surgeryLeft,
+          surgery_right: surgeryRight,
           doctor_left: apiPatients.Practitioners?.left_doctor,
           doctor_right: apiPatients.Practitioners?.right_doctor,
           vip: apiPatients.VIP_Status ?? false,
@@ -800,84 +870,123 @@ const apiPatients = response.data.patient || [];
   const [surgeries, setSurgeries] = useState([]);
   const [selectedSurgery, setSelectedSurgery] = useState("");
   const [op_date, setop_date] = useState("");
-  
+
   // Determine side based on selected surgery
-const getSideFromSurgery = (surgery) => {
-  if (!surgery) return "";
-  const left = patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null;
-  const right = patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null;
+  const getSideFromSurgery = (surgery) => {
+    if (!surgery) return "";
+    const left =
+      patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null;
+    const right =
+      patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null;
 
-  if (surgery === left && surgery === right) {
-    return "left";
-  } else if (surgery === left) {
-    return "left";
-  } else if (surgery === right) {
-    return "right";
-  } else {
-    return "";
-  }
-};
+    if (surgery === left && surgery === right) {
+      return "left";
+    } else if (surgery === left) {
+      return "left";
+    } else if (surgery === right) {
+      return "right";
+    } else {
+      return "";
+    }
+  };
 
-// after patientData is set, update surgeries
-useEffect(() => {
-  if (patientData) {
-    const s = [
-      patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
-      patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
-    ].filter(Boolean); // remove null/NA
+  // after patientData is set, update surgeries
+  useEffect(() => {
+    if (patientData) {
+      const s = [
+        patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
+        patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
+      ].filter(Boolean); // remove null/NA
 
-    setSurgeries(s);
-    const defaultSurgery = s[0] || "";
-    setSelectedSurgery(defaultSurgery);
-    setop_date(defaultSurgery);
+      setSurgeries(s);
+      const defaultSurgery = s[0] || "";
+      setSelectedSurgery(defaultSurgery);
+      setop_date(defaultSurgery);
 
-    // Update side and opside based on default selection
-    const computedSide = getSideFromSurgery(defaultSurgery);
-    setOpside(computedSide);
-    setSurgeryData((prev) => ({
-      ...prev,
-      side: computedSide,
-      patient_records: prev.patient_records.map((record, index) =>
-        index === 0
-          ? {
-              ...record,
-              side: computedSide,
-              op_date: defaultSurgery,
-            }
-          : record
-      ),
-    }));
-  }
-}, [patientData]);
+      // Update side and opside based on default selection
+      const computedSide = getSideFromSurgery(defaultSurgery);
+      setOpside(computedSide);
+      setSurgeryData((prev) => ({
+        ...prev,
+        side: computedSide,
+        patient_records: prev.patient_records.map((record, index) =>
+          index === 0
+            ? {
+                ...record,
+                side: computedSide,
+                op_date: defaultSurgery,
+              }
+            : record
+        ),
+      }));
+    }
+  }, [patientData]);
 
-// whenever selectedSurgery changes, update op_date and side dynamically
-useEffect(() => {
-  if (selectedSurgery && patientData?.uhid) {
-    setop_date(selectedSurgery);
+  // whenever selectedSurgery changes, update op_date and side dynamically
+  useEffect(() => {
+    if (selectedSurgery && patientData?.uhid) {
+      setop_date(selectedSurgery);
 
-    const computedSide = getSideFromSurgery(selectedSurgery);
-    setOpside(computedSide);
+      const computedSide = getSideFromSurgery(selectedSurgery);
+      setOpside(computedSide);
 
-    setSurgeryData((prev) => ({
-      ...prev,
-      side: computedSide,
-      patient_records: prev.patient_records.map((record, index) =>
-        index === 0
-          ? {
-              ...record,
-              side: computedSide,
-              op_date: selectedSurgery,
-            }
-          : record
-      ),
-    }));
+      setSurgeryData((prev) => ({
+        ...prev,
+        side: computedSide,
+        patient_records: prev.patient_records.map((record, index) =>
+          index === 0
+            ? {
+                ...record,
+                side: computedSide,
+                op_date: selectedSurgery,
+              }
+            : record
+        ),
+      }));
+    }
+  }, [selectedSurgery, patientData?.uhid]);
 
-  }
-}, [selectedSurgery, patientData?.uhid]);
- 
-  
+  const messages = [
+    "Almost there, preparing patient surgery report...",
+    "Hang tight! almost done...",
+  ];
 
-  if (loading) return <p>Loading patient data...</p>;
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading) return (
+      <div className="flex space-x-2 py-4 items-center w-full justify-center">
+        <svg
+          className="animate-spin h-5 w-5 text-black"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+        <span className={`${poppins.className} text-black font-semibold`}>
+          {messages[index]}
+        </span>
+      </div>
+    );
 
   if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
 
@@ -931,7 +1040,7 @@ useEffect(() => {
         ),
       };
 
-      console.log("📦 Sending Draft Data:", updatedData);
+      // console.log("📦 Sending Draft Data:", updatedData);
 
       const response = await axios.post(
         `${API_URL}post-surgery/fhir`,
@@ -943,7 +1052,7 @@ useEffect(() => {
         }
       );
 
-      console.log("✅ Draft saved successfully:", response.data);
+      // console.log("✅ Draft saved successfully:", response.data);
       return response.data;
     } catch (error) {
       console.error("❌ Error saving draft:", error);
@@ -951,14 +1060,13 @@ useEffect(() => {
     }
   };
 
-    const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd format
+  const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd format
 
-    
-        const showWarning = (message) => {
-          setAlertMessage(message);
-          setshowAlert(true);
-          setTimeout(() => setshowAlert(false), 4000);
-        };
+  const showWarning = (message) => {
+    setAlertMessage(message);
+    setshowAlert(true);
+    setTimeout(() => setshowAlert(false), 4000);
+  };
 
   return (
     <div
@@ -994,8 +1102,7 @@ useEffect(() => {
                 <p
                   className={`${poppins.className} font-normal text-sm text-black`}
                 >
-                  {patientData?.age
-                    ?? "N/A"}
+                  {patientData?.age ?? "N/A"}
                 </p>
               </div>
               <div
@@ -1029,7 +1136,6 @@ useEffect(() => {
                 } text-end font-semibold text-[15px] text-[#484848]`}
               >
                 BMI:{patientData?.bmi ?? "N/A"}
-                
               </p>
             </div>
           </div>
@@ -1699,9 +1805,13 @@ useEffect(() => {
                     : patientData?.surgery_right === today
                     ? patientData.surgery_right
                     : patientData?.surgery_left
-                    ? new Date(patientData.surgery_left).toLocaleDateString("en-GB")
+                    ? new Date(patientData.surgery_left).toLocaleDateString(
+                        "en-GB"
+                      )
                     : patientData?.surgery_right
-                    ? new Date(patientData.surgery_right).toLocaleDateString("en-GB")
+                    ? new Date(patientData.surgery_right).toLocaleDateString(
+                        "en-GB"
+                      )
                     : "N/A"}
                 </p>
                 <Image
@@ -1714,21 +1824,30 @@ useEffect(() => {
               {/* ✅ Time input */}
               <div className="relative w-52">
                 <input
-                  type="time"
+                  type="text"
                   placeholder="HH:MM"
+                  maxLength={5} // 2 digits + ":" + 2 digits
                   className={`${poppins.className} font-medium border border-gray-300 rounded px-4 py-2 pr-10 w-full text-sm text-black`}
                   value={surgeryData.patient_records[0].op_time || ""}
                   onChange={(e) => {
-                    const newTime = e.target.value;
+                    let val = e.target.value.replace(/\D/g, ""); // remove non-digits
+                    if (val.length >= 3) {
+                      val = val.slice(0, 2) + ":" + val.slice(2, 4);
+                    }
                     setSurgeryData((prev) => {
                       const updatedRecords = [...prev.patient_records];
-                      updatedRecords[0].op_time = newTime;
+                      updatedRecords[0].op_time = val;
                       return {
                         ...prev,
                         patient_records: updatedRecords,
                       };
                     });
                   }}
+                />
+                <Image
+                  src={Clock}
+                  alt="Clock"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 pointer-events-none"
                 />
               </div>
             </div>
@@ -1843,7 +1962,7 @@ useEffect(() => {
                                 const updatedRecords = [
                                   ...prev.patient_records,
                                 ];
-                                updatedRecords[0].bone_resection.distal_medial.status =
+                                updatedRecords[0].bone_resection.distal_medial.wear =
                                   status;
                                 return {
                                   ...prev,
@@ -1853,7 +1972,7 @@ useEffect(() => {
                             }}
                             checked={
                               surgeryData.patient_records[0].bone_resection
-                                .distal_medial.status === status
+                                .distal_medial.wear === status
                             }
                           />
                         </div>
@@ -1871,7 +1990,7 @@ useEffect(() => {
 
                       <div className="flex flex-row gap-1 w-1/2 items-center">
                         <select
-                          className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                          className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                           value={
                             surgeryData.patient_records[0].bone_resection
                               .distal_medial.initial_thickness
@@ -1902,7 +2021,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row items-center gap-4">
                       {/* Recut Radio Buttons */}
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
@@ -1956,9 +2075,9 @@ useEffect(() => {
 
                       {/* Recut Value Select */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_medial.recutvalue
@@ -1992,7 +2111,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row gap-4 items-center">
                       {/* Washer Radio Buttons */}
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
@@ -2046,9 +2165,9 @@ useEffect(() => {
 
                       {/* Washer Value Select */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_medial.washervalue
@@ -2082,7 +2201,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row gap-4 items-center">
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848]`}
@@ -2092,9 +2211,9 @@ useEffect(() => {
                       </div>
 
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_medial.final_thickness
@@ -2164,7 +2283,7 @@ useEffect(() => {
                                 const updatedRecords = [
                                   ...prev.patient_records,
                                 ];
-                                updatedRecords[0].bone_resection.distal_lateral.status =
+                                updatedRecords[0].bone_resection.distal_lateral.wear =
                                   status;
                                 return {
                                   ...prev,
@@ -2174,14 +2293,14 @@ useEffect(() => {
                             }}
                             checked={
                               surgeryData.patient_records[0].bone_resection
-                                .distal_lateral.status === status
+                                .distal_lateral.wear === status
                             }
                           />
                         </div>
                       ))}
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row gap-4 items-center`}>
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848]`}
@@ -2191,10 +2310,10 @@ useEffect(() => {
                       </div>
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.initial_thickness
@@ -2228,7 +2347,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row items-center gap-4`}>
                       {/* Recut radio buttons */}
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
@@ -2279,10 +2398,10 @@ useEffect(() => {
                       {/* Recut value select */}
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.recutvalue
@@ -2316,7 +2435,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row items-center gap-4`}>
                       {/* Washer radio buttons */}
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
@@ -2367,10 +2486,10 @@ useEffect(() => {
                       {/* Washer value select */}
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.washervalue
@@ -2404,7 +2523,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className={`flex flex-row gap-4`}>
+                    <div className={`flex flex-row items-center gap-4`}>
                       {/* Label */}
                       <div className={`flex flex-row gap-4 w-1/2`}>
                         <label
@@ -2417,10 +2536,10 @@ useEffect(() => {
                       {/* Select input */}
                       <div className={`flex flex-row gap-1 w-1/2`}>
                         <div
-                          className={`flex flex-row gap-1 w-1/2 items-center`}
+                          className={`flex flex-row gap-1 w-full items-center`}
                         >
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .distal_lateral.final_thickness
@@ -2534,18 +2653,18 @@ useEffect(() => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-1/2`}>
+                      <div className={`flex flex-row gap-4 w-full items-center`}>
                         <label
-                          className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                          className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                         >
                           Initial Thickness
                         </label>
                         <div className={`flex flex-row gap-1 w-1/2`}>
                           <div
-                            className={`flex flex-row gap-1 w-1/2 items-center`}
+                            className={`flex flex-row gap-1 w-full items-center`}
                           >
                             <select
-                              className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded text-black`}
+                              className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
                               value={
                                 surgeryData.patient_records[0].bone_resection
                                   .posterial_medial.initial_thickness || "0 mm"
@@ -2580,63 +2699,64 @@ useEffect(() => {
                       </div>
                     </div>
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-1/2`}>
-                        <div className={`flex flex-row gap-4 w-1/2`}>
-                          <label
-                            className={`${raleway.className} font-semibold text-xs text-[#484848]`}
-                          >
-                            Recut
-                          </label>
-                          <div className={`space-x-3 flex flex-row pl-2.5`}>
-                            {["N", "Y"].map((grade) => {
-                              const id = `medcondrecut-${grade}`;
-                              return (
-                                <label
-                                  key={id}
-                                  htmlFor={id}
-                                  className="flex items-center space-x-2 cursor-pointer"
-                                >
-                                  <input
-                                    id={id}
-                                    type="radio"
-                                    name="post-medial-recut"
-                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
-                                    checked={
-                                      surgeryData.patient_records[0]
-                                        .bone_resection.posterial_medial
-                                        .recut === grade
-                                    }
-                                    onChange={() => {
-                                      const selected = grade;
-                                      setSurgeryData((prev) => {
-                                        const updatedRecords = [
-                                          ...prev.patient_records,
-                                        ];
-                                        updatedRecords[0].bone_resection.posterial_medial.recut =
-                                          selected;
-                                        return {
-                                          ...prev,
-                                          patient_records: updatedRecords,
-                                        };
-                                      });
-                                    }}
-                                  />
-                                  <span
-                                    className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                      <div className={`flex flex-row gap-4 w-full items-center`}>
+                        <div className={`flex flex-row gap-4 w-full items-center`}>
+                          <div className="flex flex-row gap-4 items-center w-1/2">
+                            <label
+                              className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                            >
+                              Recut
+                            </label>
+                            <div className={`space-x-3 flex flex-row pl-2.5 `}>
+                              {["N", "Y"].map((grade) => {
+                                const id = `medcondrecut-${grade}`;
+                                return (
+                                  <label
+                                    key={id}
+                                    htmlFor={id}
+                                    className="flex items-center space-x-2 cursor-pointer"
                                   >
-                                    {grade}
-                                  </span>
-                                </label>
-                              );
-                            })}
+                                    <input
+                                      id={id}
+                                      type="radio"
+                                      name="post-medial-recut"
+                                      className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                      checked={
+                                        surgeryData.patient_records[0]
+                                          .bone_resection.posterial_medial
+                                          .recut === grade
+                                      }
+                                      onChange={() => {
+                                        const selected = grade;
+                                        setSurgeryData((prev) => {
+                                          const updatedRecords = [
+                                            ...prev.patient_records,
+                                          ];
+                                          updatedRecords[0].bone_resection.posterial_medial.recut =
+                                            selected;
+                                          return {
+                                            ...prev,
+                                            patient_records: updatedRecords,
+                                          };
+                                        });
+                                      }}
+                                    />
+                                    <span
+                                      className={`text-xs text-[#272727] ${raleway.className} font-semibold`}
+                                    >
+                                      {grade}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
                           </div>
-
                           <div className={`flex flex-row gap-1 w-1/2`}>
                             <div
-                              className={`flex flex-row gap-1 w-1/2 items-center`}
+                              className={`flex flex-row gap-1 w-full items-center`}
                             >
                               <select
-                                className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded text-black`}
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
                                 value={
                                   surgeryData.patient_records[0].bone_resection
                                     .posterial_medial.recutvalue || "0 mm"
@@ -2673,19 +2793,19 @@ useEffect(() => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className={`flex flex-row gap-4 w-1/2`}>
-                        <div className={`flex flex-row gap-4 w-1/2`}>
+                      <div className={`flex flex-row gap-4 w-full`}>
+                        <div className={`flex flex-row gap-4 w-full items-center`}>
                           <label
-                            className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                            className={`${raleway.className} font-semibold text-xs w-1/2 text-[#484848]`}
                           >
                             Final Thickness
                           </label>
                           <div className={`flex flex-row gap-1 w-1/2`}>
                             <div
-                              className={`flex flex-row gap-1 w-1/2 items-center`}
+                              className={`flex flex-row gap-1 w-full items-center`}
                             >
                               <select
-                                className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded text-black`}
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
                                 value={
                                   surgeryData.patient_records[0].bone_resection
                                     .posterial_medial.final_thickness || "0 mm"
@@ -2757,7 +2877,7 @@ useEffect(() => {
                                 const updatedRecords = [
                                   ...prev.patient_records,
                                 ];
-                                updatedRecords[0].bone_resection.posterial_lateral.status =
+                                updatedRecords[0].bone_resection.posterial_lateral.wear =
                                   status;
                                 return {
                                   ...prev,
@@ -2767,7 +2887,7 @@ useEffect(() => {
                             }}
                             checked={
                               surgeryData.patient_records[0].bone_resection
-                                .posterial_lateral.status === status
+                                .posterial_lateral.wear === status
                             }
                           />
                         </div>
@@ -2775,15 +2895,15 @@ useEffect(() => {
                     </div>
 
                     <div className={`flex flex-row gap-4`}>
-                      <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                      <div className="flex flex-row gap-1 w-full">
+                        <div className="flex flex-row w-full gap-4 items-center">
                           <label
-                            className={`${raleway.className} font-semibold text-xs text-[#484848]`}
+                            className={`${raleway.className} font-semibold text-xs w-1/2 text-[#484848]`}
                           >
                             Initial Thickness
                           </label>
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-1/2 text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .posterial_lateral.initial_thickness || "0 mm"
@@ -2818,7 +2938,7 @@ useEffect(() => {
                     </div>
                     <div className="flex flex-row gap-4">
                       {/* Recut Y/N */}
-                      <div className="flex flex-row gap-4 w-1/2">
+                      <div className="flex flex-row gap-4 items-center w-1/2">
                         <label
                           className={`${raleway.className} font-semibold text-xs text-[#484848]`}
                         >
@@ -2870,9 +2990,9 @@ useEffect(() => {
 
                       {/* Recut Value */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .posterial_lateral.recutvalue || "0 mm"
@@ -2906,7 +3026,7 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <div className="flex flex-row gap-4">
+                    <div className="flex flex-row gap-4 items-center">
                       {/* Label */}
                       <div className="flex flex-row gap-4 w-1/2">
                         <label
@@ -2918,9 +3038,9 @@ useEffect(() => {
 
                       {/* Select Final Thickness */}
                       <div className="flex flex-row gap-1 w-1/2">
-                        <div className="flex flex-row gap-1 w-1/2 items-center">
+                        <div className="flex flex-row gap-1 w-full items-center">
                           <select
-                            className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                            className={`${raleway.className} border px-2 py-1 mr-1 rounded w-full text-black`}
                             value={
                               surgeryData.patient_records[0].bone_resection
                                 .posterial_lateral.final_thickness || "0 mm"
@@ -2996,14 +3116,14 @@ useEffect(() => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibial_resection_left.status === grade
+                                  .tibial_resection_left.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
                                   const updatedRecords = [
                                     ...prev.patient_records,
                                   ];
-                                  updatedRecords[0].bone_resection.tibial_resection_left.status =
+                                  updatedRecords[0].bone_resection.tibial_resection_left.wear =
                                     grade;
                                   return {
                                     ...prev,
@@ -3024,9 +3144,9 @@ useEffect(() => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-1/2 items-center`}>
+                      <div className={`flex flex-row gap-1 w-full items-center`}>
                         <select
-                          className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                          className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
                             surgeryData.patient_records[0].bone_resection
                               .tibial_resection_left.value
@@ -3058,7 +3178,7 @@ useEffect(() => {
                     </div>
                   </div>
 
-                  <div className={`w-5/7 flex items-center`}>
+                  <div className={`w-5/7 flex items-center justify-center`}>
                     <Image src={Tibia} alt="Bone Left" className="w-6/7 pt-3" />
                   </div>
                   <div className={`w-1/7 h-full flex flex-col justify-between`}>
@@ -3079,14 +3199,14 @@ useEffect(() => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibial_resection_right.status === grade
+                                  .tibial_resection_right.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
                                   const updatedRecords = [
                                     ...prev.patient_records,
                                   ];
-                                  updatedRecords[0].bone_resection.tibial_resection_right.status =
+                                  updatedRecords[0].bone_resection.tibial_resection_right.wear =
                                     grade;
                                   return {
                                     ...prev,
@@ -3107,9 +3227,9 @@ useEffect(() => {
 
                     {/* Value Selection */}
                     <div className={`flex flex-row gap-1`}>
-                      <div className={`flex flex-row gap-1 w-1/2 items-center`}>
+                      <div className={`flex flex-row gap-1 w-full items-center`}>
                         <select
-                          className={`${raleway.className} border px-2 py-1 w-28 mr-1 rounded w-1/4 text-black`}
+                          className={`${raleway.className} border px-2 py-1 truncate rounded w-full text-black`}
                           value={
                             surgeryData.patient_records[0].bone_resection
                               .tibial_resection_right.value
@@ -3215,7 +3335,7 @@ useEffect(() => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibialvvrecut.status === grade
+                                  .tibialvvrecut.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
@@ -3226,7 +3346,7 @@ useEffect(() => {
                                     {
                                       ...updatedRecords[0].bone_resection
                                         .tibialvvrecut,
-                                      status: grade,
+                                      wear: grade,
                                     };
                                   return {
                                     ...prev,
@@ -3301,7 +3421,7 @@ useEffect(() => {
                               className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
                               checked={
                                 surgeryData.patient_records[0].bone_resection
-                                  .tibialsloperecut.status === grade
+                                  .tibialsloperecut.wear === grade
                               }
                               onChange={() => {
                                 setSurgeryData((prev) => {
@@ -3312,7 +3432,7 @@ useEffect(() => {
                                     {
                                       ...updatedRecords[0].bone_resection
                                         .tibialsloperecut,
-                                      status: grade,
+                                      wear: grade,
                                     };
                                   return {
                                     ...prev,
@@ -3852,11 +3972,11 @@ useEffect(() => {
                                 [col]: {
                                   ...selections[col],
                                   [row]: value,
-                                  ...(row === "MANUFACTURER" && {
-                                    MODEL: "",
-                                    SIZE: "",
+                                  ...(row === "MANUFACTURER" &&  {
+                                    MODEL: "NA",
+                                    SIZE: "NA",
                                   }),
-                                  ...(row === "MODEL" && { SIZE: "" }),
+                                  ...(row === "MODEL" && { SIZE: "NA" }),
                                 },
                               });
 
@@ -3871,22 +3991,22 @@ useEffect(() => {
                                 if (row === "MANUFACTURER") {
                                   updated.patient_records[0].components_details[
                                     col
-                                  ].MODEL = "";
+                                  ].MODEL = "NA";
                                   updated.patient_records[0].components_details[
                                     col
-                                  ].SIZE = "";
+                                  ].SIZE = "NA";
                                 }
                                 if (row === "MODEL") {
                                   updated.patient_records[0].components_details[
                                     col
-                                  ].SIZE = "";
+                                  ].SIZE = "NA";
                                 }
 
                                 return updated;
                               });
                             }}
                           >
-                            <option value="" disabled>
+                            <option value="NA" disabled>
                               Select
                             </option>
 
@@ -3938,7 +4058,7 @@ useEffect(() => {
         <p
           className={`${raleway.className} text-center bg-[#2A343D] px-6 py-2 text-white ${inter.className} font-medium text-lg cursor-pointer`}
           onClick={async () => {
-            console.log("Surgery Report Data:", surgeryData);
+            // console.log("Surgery Report Data:", surgeryData);
 
             try {
               const result = await saveDraft(surgeryData);

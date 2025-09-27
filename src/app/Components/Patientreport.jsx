@@ -424,7 +424,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
 
         setloading(false);
 
-        console.log("Fetched patient reminder data:", pickedData);
+        // console.log("Fetched patient reminder data:", pickedData);
       } catch (err) {
         console.error("Error fetching patient reminder:", err);
       }
@@ -499,7 +499,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           }));
 
         setpatientsques(consolidateQuestionnaires(mapped));
-        console.log("Other patients scores", consolidateQuestionnaires(mapped));
+        // console.log("Other patients scores", consolidateQuestionnaires(mapped));
       } catch (err) {
         if (err.response) {
           showWarning(err.response.data.detail || "Failed to fetch patients");
@@ -778,6 +778,13 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     FJS: "Forgotten Joint Score (FJS)",
   };
 
+      const KOOSJR_MAP = [
+      100.0, 91.975, 84.6, 79.914, 76.332, 73.342, 70.704, 68.284, 65.994,
+      63.776, 61.583, 59.381, 57.14, 54.84, 52.465, 50.012, 47.487, 44.905,
+      42.281, 39.625, 36.931, 34.174, 31.307, 28.251, 24.875, 20.941, 15.939,
+      8.291, 0.0,
+    ];
+
   const transformApiDataToStaticWithDates = (apiData, surgeryDateLeft) => {
     if (!apiData) return { periods: [], questionnaires: [] };
 
@@ -822,11 +829,16 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
         } else {
           // Period exists and score exists
           const match = periodData.score.match(/:\s*(\d+)/);
-          scores[p.key] = match ? match[1] : "NA";
-          // console.log(
-          //   "Questionnaire API Data all side:",
-          //   periodData.other_notes
-          // );
+          if (QUESTIONNAIRE_NAMES[qKey]) {
+            if (QUESTIONNAIRE_NAMES[qKey].includes("KOOS")) {
+              // ✅ Special handling for KOOS
+             
+              scores[p.key] = match ? KOOSJR_MAP[match[1]] : "NA";
+             
+            } else {
+              scores[p.key] = match ? match[1] : "NA";
+            }
+          }
           const [first, second, third, fourth] = periodData.other_notes || [];
           const filtered = [];
           if (first === "filledBy: Self") {
@@ -872,8 +884,11 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
   const questionnaireData =
     handlequestableswitch === "left" ? staticLeft : staticRight;
 
+
+
   const extractQuestionnaireScores = (apiData, periodOffsets) => {
     if (!apiData) return [];
+        
 
     return Object.entries(apiData).map(([qKey, qPeriods]) => {
       const scores = {};
@@ -899,7 +914,19 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
         } else {
           // Period exists and score exists
           const match = periodData.score.match(/:\s*(\d+)/);
-          scores[p.key] = match ? match[1] : "NA";
+
+          
+          
+          if (QUESTIONNAIRE_NAMES[qKey]) {
+            if (QUESTIONNAIRE_NAMES[qKey].includes("KOOS")) {
+              // ✅ Special handling for KOOS
+             
+              scores[p.key] = match ? KOOSJR_MAP[match[1]] : "NA";
+             
+            } else {
+              scores[p.key] = match ? match[1] : "NA";
+            }
+          }
 
           const [first, , third] = periodData.other_notes || [];
           const filtered = [];
@@ -910,6 +937,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       });
 
       const fullName = QUESTIONNAIRE_NAMES[qKey] || qKey;
+      
       return { name: fullName, scores, notesMap };
     });
   };
@@ -934,6 +962,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     patientbasic?.questionnaire_right || {},
     periodOffsets
   );
+
 
   // Map each period key to chart label and days
   const periodLabelMap = {
@@ -989,7 +1018,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       ? buildChartData(leftScores)
       : buildChartData(rightScores);
 
-  console.log("Chart data",chartData);
+  // console.log("Chart data",chartData);
 
   const periodOffsetssf12 = [
     { key: "pre_op", label: "-3" },
@@ -1002,7 +1031,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
   ];
 
   const extractSf12Scores = (sf12Data) => {
-    console.log("Extracting SF12 from:", sf12Data);
+    // console.log("Extracting SF12 from:", sf12Data);
 
     if (!sf12Data || Object.keys(sf12Data).length === 0) return [];
 
@@ -1180,7 +1209,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
                 <p
                   className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
                 >
-                  {doctorName}
+                  Dr. {doctorName || "Doctor Name"}
                 </p>
               </div>
             </div>
@@ -1478,8 +1507,19 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
 
                           {Object.keys(q.scores || {}).length > 0 ? (
                             questionnaireData.periods.map((period) => {
-                              const score = q.scores?.[period.key];
-                              const color = getTextColor(Number(score));
+                              const score=q.scores?.[period.key];
+                                let score1 = score; 
+                                const num = Number(score1);
+
+                                if (!isNaN(num)) {
+                                  if (q.name.includes("OKS")) {
+                                    score1 = ((num / 48) * 100).toFixed(1); // convert to 100
+                                  } else if (q.name.includes("FJS")) {
+                                    score1 = ((num / 60) * 100).toFixed(1); // convert to 100
+                                  }
+                                }
+
+                                const color = getTextColor(Number(score1));
 
                               return (
                                 <td

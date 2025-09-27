@@ -525,10 +525,10 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       };
 
       // ✅ Log payload before sending
-      console.log(
-        "⚡ PATCH payload for implant cell:",
-        JSON.stringify(payload, null, 2)
-      );
+      // console.log(
+      //   "⚡ PATCH payload for implant cell:",
+      //   JSON.stringify(payload, null, 2)
+      // );
 
       // 4️⃣ Send PATCH request
       const response = await axios.patch(
@@ -536,7 +536,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         payload
       );
 
-      console.log(`${category} ${row} update response:`, response.data);
+      // console.log(`${category} ${row} update response:`, response.data);
     } catch (error) {
       console.error(`Failed to save ${category} ${row}:`, error);
     }
@@ -559,20 +559,21 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   const [uhid, setUhid] = useState(null);
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingsurg, setLoadingsurg] = useState(true);
   const [op_date, setop_date] = useState("");
   const [opside, setOpside] = useState("LEFT KNEE");
   // state for surgeries + selected surgery
-  
+
   const fetchPatientData = async (uhid) => {
     try {
-      console.log("Fetching patient data for UHID:", uhid);
+      // console.log("Fetching patient data for UHID:", uhid);
       const response = await axios.get(`${API_URL}patients/${uhid}`);
-      console.log("API Full Response:", response);
-      console.log("API Response Data:", response.data);
+      // console.log("API Full Response:", response);
+      // console.log("API Response Data:", response.data);
 
       if (response.data && response.data.patient) {
         const patient = response.data.patient;
-        console.log("Patient Found:", patient);
+        // console.log("Patient Found:", patient);
 
         // ✅ Extract surgery dates
         const surgeryLeft = patient?.Medical?.surgery_date_left;
@@ -643,7 +644,6 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
 
         setPatientData(mapped);
 
-
         // setSurgeryData((prev) => ({
         //   ...prev,
         //   uhid,
@@ -670,51 +670,52 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   const [surgeries, setSurgeries] = useState([]);
-const [selectedSurgery, setSelectedSurgery] = useState("");
+  const [selectedSurgery, setSelectedSurgery] = useState("");
 
-// after patientData is set, update surgeries
-useEffect(() => {
-  if (patientData) {
-    const s = [
-      patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
-      patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
-    ].filter(Boolean); // remove null/NA
+  // after patientData is set, update surgeries
+  useEffect(() => {
+    if (patientData) {
+      const s = [
+        patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
+        patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
+      ].filter(Boolean);
 
-    setSurgeries(s);
-    setSelectedSurgery(s[0] || ""); // default to first available
-    setop_date(s[0]); // update op_date state
+      setSurgeries(s);
 
-  }
-}, [patientData]);
+      // Only set default if nothing is selected yet
+      setSelectedSurgery((prev) => prev || s[0] || "");
+      setop_date((prev) => prev || s[0] || "");
+    }
+  }, [patientData]);
 
-// whenever selectedSurgery changes, call API
-useEffect(() => {
-  if (selectedSurgery && patientData?.uhid) {
-    console.log("Fetching surgery report for:", selectedSurgery);
-    setop_date(selectedSurgery); // update op_date state
-    fetchSurgeryReport(patientData?.uhid, selectedSurgery);
-  }
-}, [selectedSurgery, patientData?.uhid]);
-
+  // whenever selectedSurgery changes, call API
+  useEffect(() => {
+    if (selectedSurgery && patientData?.uhid) {
+      // console.log("Fetching surgery report for:", selectedSurgery);
+      setop_date(selectedSurgery); // update op_date state
+      fetchSurgeryReport(patientData?.uhid, selectedSurgery);
+    }
+  }, [selectedSurgery]);
 
   const fetchSurgeryReport = async (storedUHID, op_date) => {
     try {
       setshowsurgeryreport(true);
       const lowercaseUHID = storedUHID.toLowerCase();
-      console.log(op_date);
+      // console.log(op_date);
       const formattedOpDate = `op-${op_date}`;
-      console.log(formattedOpDate);
+      // console.log(formattedOpDate);
       const response = await axios.get(
         `${API_URL}get-surgery/${lowercaseUHID}/${formattedOpDate}`
       );
+      setLoadingsurg(false);
 
-      console.log("Surgery", response.data.entry);
+      // console.log("Surgery", response.data.entry);
 
       const components28 = response.data.entry[28].resource.component;
       const components27 = response.data.entry[27].resource.component;
 
-      console.log("surgery report entry 28", response.data.entry[28]);
-      console.log("surgery report entry 27", response.data.entry[27]);
+      // console.log("surgery report entry 28", response.data.entry[28]);
+      // console.log("surgery report entry 27", response.data.entry[27]);
 
       // ✅ Helper functions for both entries
       const getValue28 = (key) =>
@@ -856,15 +857,15 @@ useEffect(() => {
       setSelectedDeformity(deformityArray);
       setTempDeformity(deformityArray);
 
-      console.log("Hospital Name:", hospitalName);
-      console.log("ACL Status:", aclStatus);
+      // console.log("Hospital Name:", hospitalName);
+      // console.log("ACL Status:", aclStatus);
 
       const components14 = response.data.entry[14].resource.component;
       const getValue14 = (key) =>
         components14.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for distal medial section
-      const distalMedialStatus = getValue14("status"); // e.g., "Worn"
+      const distalMedialStatus = getValue14("wear"); // e.g., "Worn"
       setDistalMedialUnwornWorn(distalMedialStatus);
       setTempDistalMedialUnwornWorn(distalMedialStatus);
 
@@ -881,8 +882,8 @@ useEffect(() => {
       setTempDistalMedialRecutYN(distalMedialRecutYNValue);
 
       const distalMedialWasherValue = getValue14("washer"); // e.g., "N"
-      setDistalMedialWasher(distalMedialWasherValue);
-      setTempDistalMedialWasher(distalMedialWasherValue);
+      setDistalMedialWasherYN(distalMedialWasherValue);
+      setTempDistalMedialWasherYN(distalMedialWasherValue);
 
       const distalMedialWasherMMValue = getValue14("washervalue"); // e.g., "8.5 mm"
       setDistalMedialWasherMM(distalMedialWasherMMValue);
@@ -897,7 +898,7 @@ useEffect(() => {
         components15.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for distal lateral section
-      const distalLateralStatus = getValue15("status"); // e.g., "Worn"
+      const distalLateralStatus = getValue15("wear"); // e.g., "Worn"
       setDistalLateralUnwornWorn(distalLateralStatus);
       setTempDistalLateralUnwornWorn(distalLateralStatus);
 
@@ -955,7 +956,7 @@ useEffect(() => {
         components17.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for posterial lateral section
-      const postLatStatus = getValue17("status"); // e.g., "Unworn"
+      const postLatStatus = getValue17("wear"); // e.g., "Unworn"
       setPostLatUnwornWorn(postLatStatus);
       setTempPostLatUnwornWorn(postLatStatus);
 
@@ -980,7 +981,7 @@ useEffect(() => {
         components18.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for tibial_resection_left section
-      const tibialLeftStatus = getValue18("status"); // e.g., "UnWorn"
+      const tibialLeftStatus = getValue18("wear"); // e.g., "UnWorn"
       setTibialLeftWorn(tibialLeftStatus);
       setTempTibialLeftWorn(tibialLeftStatus);
 
@@ -993,7 +994,7 @@ useEffect(() => {
         components19.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for tibial_resection_right section
-      const tibialRightStatus = getValue19("status"); // e.g., "Worn"
+      const tibialRightStatus = getValue19("wear"); // e.g., "Worn"
       setTibialRightWorn(tibialRightStatus);
       setTempTibialRightWorn(tibialRightStatus);
 
@@ -1005,10 +1006,10 @@ useEffect(() => {
       const getValue20 = (key) =>
         components20.find((c) => c.code.text === key)?.valueString || "";
 
-      console.log("surgery report entry 20", response.data.entry[20]);
+      // console.log("surgery report entry 20", response.data.entry[20]);
 
       // ✅ Extract and set values for tibialvvrecut section
-      const tibialVVStatus = getValue20("status"); // e.g., "Y"
+      const tibialVVStatus = getValue20("wear"); // e.g., "Y"
       setTibialVVRecutYN(tibialVVStatus);
       setTempTibialVVRecutYN(tibialVVStatus);
 
@@ -1021,7 +1022,7 @@ useEffect(() => {
         components21.find((c) => c.code.text === key)?.valueString || "";
 
       // ✅ Extract and set values for tibial_slope section
-      const tibialSlopeStatus = getValue21("status"); // e.g., "Y"
+      const tibialSlopeStatus = getValue21("wear"); // e.g., "Y"
       setTibialSlopeRecutYN(tibialSlopeStatus);
       setTempTibialSlopeRecutYN(tibialSlopeStatus);
 
@@ -1036,7 +1037,7 @@ useEffect(() => {
         const entryIndex = 22 + i;
         const currentEntry = response.data.entry[entryIndex];
 
-        console.log(`Surgery report entry ${entryIndex}:`, currentEntry);
+        // console.log(`Surgery report entry ${entryIndex}:`, currentEntry);
 
         if (!currentEntry || !currentEntry.resource?.component) continue;
 
@@ -1101,9 +1102,11 @@ useEffect(() => {
       });
     } catch (error) {
       setshowsurgeryreport(false);
+      setLoadingsurg(false);
       console.error("Error fetching surgery report:", error);
     } finally {
       setLoading(false);
+      setLoadingsurg(false);
     }
   };
 
@@ -1134,7 +1137,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2)); // ✅ log JSON
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2)); // ✅ log JSON
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1175,7 +1178,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1212,7 +1215,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2)); // log JSON
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1279,10 +1282,10 @@ useEffect(() => {
         };
 
         // ✅ Console payload before sending
-        console.log(
-          `⚡ PATCH payload for ${motion}:`,
-          JSON.stringify(payload, null, 2)
-        );
+        // console.log(
+        //   `⚡ PATCH payload for ${motion}:`,
+        //   JSON.stringify(payload, null, 2)
+        // );
 
         // 2️⃣ Send PATCH request using API_URL
         const response = await axios.patch(
@@ -1290,7 +1293,7 @@ useEffect(() => {
           payload
         );
 
-        console.log(`ROM update response for ${motion}:`, response.data);
+        // console.log(`ROM update response for ${motion}:`, response.data);
       }
     } catch (error) {
       console.error(`Failed to save ROM for ${tp}:`, error);
@@ -1312,7 +1315,7 @@ useEffect(() => {
   const [isEditingConsultant, setIsEditingConsultant] = useState(false);
   const [selectedConsultant, setSelectedConsultant] = useState(""); // stored value
   const [tempConsultant, setTempConsultant] = useState(""); // temporary edit
-  const consultants = ["Dr. Vetri Kumar", "Dr. ABC", "Dr. XYZ"];
+  const consultants = ["Dr. Vetri Kumar"];
 
   const handleEditConsultant = () => {
     setTempConsultant(selectedConsultant || consultants[0]); // default to first option
@@ -1331,7 +1334,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1353,7 +1356,7 @@ useEffect(() => {
   const [isEditingSurgeon, setIsEditingSurgeon] = useState(false);
   const [selectedSurgeon, setSelectedSurgeon] = useState(""); // stored value
   const [tempSurgeon, setTempSurgeon] = useState(""); // temp edit
-  const surgeons = ["Dr. Vetri Kumar", "Dr. ABC", "Dr. XYZ"];
+  const surgeons = ["Dr. Vetri Kumar"];
 
   const handleEditSurgeon = () => {
     setTempSurgeon(selectedSurgeon || surgeons[0]); // default first option
@@ -1372,7 +1375,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1394,7 +1397,7 @@ useEffect(() => {
   const [isEditingAssistant, setIsEditingAssistant] = useState(false);
   const [selectedAssistant, setSelectedAssistant] = useState(""); // stored value
   const [tempAssistant, setTempAssistant] = useState(""); // temporary edit
-  const assistants = ["Dr. Vinod Kumar", "Dr. ABC", "Dr. XYZ"];
+  const assistants = ["Dr. Vetri Kumar", "Dr. Vinod Kumar"];
 
   const handleEditAssistant = () => {
     setTempAssistant(selectedAssistant || assistants[0]); // default to first
@@ -1413,7 +1416,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1436,7 +1439,7 @@ useEffect(() => {
     useState(false);
   const [selectedSecondAssistant, setSelectedSecondAssistant] = useState(""); // stored value
   const [tempSecondAssistant, setTempSecondAssistant] = useState(""); // temporary edit
-  const secondAssistants = ["Dr. Milan Adhikari", "Dr. ABC", "Dr. XYZ"];
+  const secondAssistants = ["Dr. Vinod Kumar", "Dr. Milan Adhikari"];
 
   const handleEditSecondAssistant = () => {
     setTempSecondAssistant(selectedSecondAssistant || secondAssistants[0]); // default first option
@@ -1455,7 +1458,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1506,7 +1509,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1548,7 +1551,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1603,7 +1606,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1658,7 +1661,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1700,7 +1703,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1742,7 +1745,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1784,7 +1787,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1825,7 +1828,7 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Payload to send:", JSON.stringify(payload, null, 2));
+      // console.log("Payload to send:", JSON.stringify(payload, null, 2));
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1856,10 +1859,10 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log(
-        `Payload to send for ${fieldName}:`,
-        JSON.stringify(payload, null, 2)
-      );
+      // console.log(
+      //   `Payload to send for ${fieldName}:`,
+      //   JSON.stringify(payload, null, 2)
+      // );
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
@@ -1885,7 +1888,7 @@ useEffect(() => {
   const handleSaveDistalMedialUnwornWorn = async () => {
     setDistalMedialUnwornWorn(tempDistalMedialUnwornWorn);
     setIsEditingDistalMedialUnwornWorn(false);
-    await saveField("distal_medial,status", tempDistalMedialUnwornWorn);
+    await saveField("distal_medial,wear", tempDistalMedialUnwornWorn);
   };
 
   const handleCancelDistalMedialUnwornWorn = () => {
@@ -1956,30 +1959,41 @@ useEffect(() => {
     setIsEditingDistalMedialRecutMM(false);
   };
 
-  const [distalMedialWasher, setDistalMedialWasher] = useState(""); // N or Y
-  const [tempDistalMedialWasher, setTempDistalMedialWasher] =
-    useState(distalMedialWasher);
-
-  const [distalMedialWasherMM, setDistalMedialWasherMM] = useState(""); // stored mm value
-  const [tempDistalMedialWasherMM, setTempDistalMedialWasherMM] =
-    useState(distalMedialWasherMM);
-
-  const [isEditingDistalMedialWasher, setIsEditingDistalMedialWasher] =
+  // States for Y/N
+  const [distalMedialWasherYN, setDistalMedialWasherYN] = useState("");
+  const [tempDistalMedialWasherYN, setTempDistalMedialWasherYN] =
+    useState(distalMedialWasherYN);
+  const [isEditingDistalMedialWasherYN, setIsEditingDistalMedialWasherYN] =
     useState(false);
 
-  const handleEditDistalMedialWasher = () =>
-    setIsEditingDistalMedialWasher(true);
-  const handleSaveDistalMedialWasher = async () => {
-    setDistalMedialWasher(tempDistalMedialWasher);
+  // States for MM
+  const [distalMedialWasherMM, setDistalMedialWasherMM] = useState("");
+  const [tempDistalMedialWasherMM, setTempDistalMedialWasherMM] =
+    useState(distalMedialWasherMM);
+  const [isEditingDistalMedialWasherMM, setIsEditingDistalMedialWasherMM] =
+    useState(false);
+
+  // Functions
+  const saveDistalMedialWasherYN = async () => {
+    setDistalMedialWasherYN(tempDistalMedialWasherYN);
+    setIsEditingDistalMedialWasherYN(false);
+    await saveField("distal_medial,washer", tempDistalMedialWasherYN);
+  };
+
+  const cancelDistalMedialWasherYN = () => {
+    setTempDistalMedialWasherYN(distalMedialWasherYN);
+    setIsEditingDistalMedialWasherYN(false);
+  };
+
+  const saveDistalMedialWasherMM = async () => {
     setDistalMedialWasherMM(tempDistalMedialWasherMM);
-    setIsEditingDistalMedialWasher(false);
-    await saveField("distal_medial,washer", tempDistalMedialWasher);
+    setIsEditingDistalMedialWasherMM(false);
     await saveField("distal_medial,washervalue", tempDistalMedialWasherMM);
   };
-  const handleCancelDistalMedialWasher = () => {
-    setTempDistalMedialWasher(distalMedialWasher);
+
+  const cancelDistalMedialWasherMM = () => {
     setTempDistalMedialWasherMM(distalMedialWasherMM);
-    setIsEditingDistalMedialWasher(false);
+    setIsEditingDistalMedialWasherMM(false);
   };
 
   const [distalMedialFinalThickness, setDistalMedialFinalThickness] =
@@ -2079,9 +2093,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(`${fieldName} saved:`, value);
+      // console.log(`${fieldName} saved:`, value);
     } catch (err) {
-      console.error(`Failed to save ${fieldName}:`, err);
+      // console.error(`Failed to save ${fieldName}:`, err);
     }
   };
 
@@ -2092,7 +2106,7 @@ useEffect(() => {
     setDistalLateralUnwornWorn(tempDistalLateralUnwornWorn);
     setIsEditingDistalLateralUnwornWorn(false);
     await saveDistalLateralField(
-      "distal_lateral,status",
+      "distal_lateral,wear",
       tempDistalLateralUnwornWorn
     );
   };
@@ -2201,7 +2215,7 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(`${fieldName} saved:`, value);
+      // console.log(`${fieldName} saved:`, value);
     } catch (err) {
       console.error(`Failed to save ${fieldName}:`, err);
     }
@@ -2314,7 +2328,7 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(`${fieldName} saved:`, value);
+      // console.log(`${fieldName} saved:`, value);
     } catch (err) {
       console.error(`Failed to save ${fieldName}:`, err);
     }
@@ -2358,7 +2372,7 @@ useEffect(() => {
   const savePostLatUnwornWorn = async () => {
     setPostLatUnwornWorn(tempPostLatUnwornWorn);
     setIsEditingPostLatUnwornWorn(false);
-    await savePostLatField("posterial_lateral,status", tempPostLatUnwornWorn);
+    await savePostLatField("posterial_lateral,wear", tempPostLatUnwornWorn);
   };
   const cancelPostLatUnwornWorn = () => {
     setTempPostLatUnwornWorn(postLatUnwornWorn);
@@ -2427,9 +2441,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(`${fieldName} saved:`, value);
+      // console.log(`${fieldName} saved:`, value);
     } catch (err) {
-      console.error(`Failed to save ${fieldName}:`, err);
+      // console.error(`Failed to save ${fieldName}:`, err);
     }
   };
 
@@ -2448,7 +2462,7 @@ useEffect(() => {
     setTibialLeftWorn(tempTibialLeftWorn);
     setIsEditingTibialLeftWorn(false);
     await saveTibialLeftField(
-      "tibial_resection_left,status",
+      "tibial_resection_left,wear",
       tempTibialLeftWorn
     );
   };
@@ -2481,9 +2495,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(`${side} tibial ${fieldName} saved:`, value);
+      // console.log(`${side} tibial ${fieldName} saved:`, value);
     } catch (err) {
-      console.error(`Failed to save ${side} tibial ${fieldName}:`, err);
+      // console.error(`Failed to save ${side} tibial ${fieldName}:`, err);
     }
   };
 
@@ -2505,7 +2519,7 @@ useEffect(() => {
     setIsEditingTibialRightWorn(false);
     await saveTibialField(
       "right",
-      "tibial_resection_right,status",
+      "tibial_resection_right,wear",
       tempTibialRightWorn
     );
   };
@@ -2548,9 +2562,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("PCL Condition saved:", tempPclCondition);
+      // console.log("PCL Condition saved:", tempPclCondition);
     } catch (err) {
-      console.error("Failed to save PCL Condition:", err);
+      // console.error("Failed to save PCL Condition:", err);
     }
   };
 
@@ -2577,7 +2591,7 @@ useEffect(() => {
 
     try {
       const payload = {
-        field: "tibialvvrecut,status", // backend field for status
+        field: "tibialvvrecut,wear", // backend field for status
         value: tempTibialVVRecutYN,
         uhid: uhid.toLowerCase(),
         op_date: `op-${op_date}`,
@@ -2586,9 +2600,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Tibial VV Recut Y/N saved:", tempTibialVVRecutYN);
+      // console.log("Tibial VV Recut Y/N saved:", tempTibialVVRecutYN);
     } catch (err) {
-      console.error("Failed to save Tibial VV Recut Y/N:", err);
+      // console.error("Failed to save Tibial VV Recut Y/N:", err);
     }
   };
   const cancelTibialVVRecutYN = () => {
@@ -2611,9 +2625,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Tibial VV Recut MM saved:", tempTibialVVRecutMM);
+      // console.log("Tibial VV Recut MM saved:", tempTibialVVRecutMM);
     } catch (err) {
-      console.error("Failed to save Tibial VV Recut MM:", err);
+      // console.error("Failed to save Tibial VV Recut MM:", err);
     }
   };
   const cancelTibialVVRecutMM = () => {
@@ -2639,7 +2653,7 @@ useEffect(() => {
 
     try {
       const payload = {
-        field: "tibialsloperecut,status",
+        field: "tibialsloperecut,wear",
         value: tempTibialSlopeRecutYN,
         uhid: uhid.toLowerCase(),
         op_date: `op-${op_date}`,
@@ -2648,9 +2662,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Tibial Slope Recut Y/N saved:", tempTibialSlopeRecutYN);
+      // console.log("Tibial Slope Recut Y/N saved:", tempTibialSlopeRecutYN);
     } catch (err) {
-      console.error("Failed to save Tibial Slope Recut Y/N:", err);
+      // console.error("Failed to save Tibial Slope Recut Y/N:", err);
     }
   };
   const cancelTibialSlopeRecutYN = () => {
@@ -2673,9 +2687,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Tibial Slope Recut MM saved:", tempTibialSlopeRecutMM);
+      // console.log("Tibial Slope Recut MM saved:", tempTibialSlopeRecutMM);
     } catch (err) {
-      console.error("Failed to save Tibial Slope Recut MM:", err);
+      // console.error("Failed to save Tibial Slope Recut MM:", err);
     }
   };
   const cancelTibialSlopeRecutMM = () => {
@@ -2724,9 +2738,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Final Check saved:", payload.value);
+      // console.log("Final Check saved:", payload.value);
     } catch (err) {
-      console.error("Failed to save Final Check:", err);
+      // console.error("Failed to save Final Check:", err);
     }
   };
 
@@ -2811,18 +2825,18 @@ useEffect(() => {
         op_date: `op-${op_date}`,
       };
 
-      console.log("Patch payload for thickness_table row:", payload);
+      // console.log("Patch payload for thickness_table row:", payload);
 
       await axios.patch(
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(
-        `Row ${rowIdx} field "${field}" saved:`,
-        tableData[rowIdx].temp[field]
-      );
+      // console.log(
+      //   `Row ${rowIdx} field "${field}" saved:`,
+      //   tableData[rowIdx].temp[field]
+      // );
     } catch (err) {
-      console.error(`Failed to save Row ${rowIdx} field "${field}":`, err);
+      // console.error(`Failed to save Row ${rowIdx} field "${field}":`, err);
     }
   };
 
@@ -2863,9 +2877,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("PFJ Resurfacing saved:", tempPFJResurf);
+      // console.log("PFJ Resurfacing saved:", tempPFJResurf);
     } catch (err) {
-      console.error("Failed to save PFJ Resurfacing:", err);
+      // console.error("Failed to save PFJ Resurfacing:", err);
     }
   };
 
@@ -2899,9 +2913,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Trachela Resection saved:", tempTrachelaResection);
+      // console.log("Trachela Resection saved:", tempTrachelaResection);
     } catch (err) {
-      console.error("Failed to save Trachela Resection:", err);
+      // console.error("Failed to save Trachela Resection:", err);
     }
   };
 
@@ -2932,9 +2946,9 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log("Patella saved:", tempPatella);
+      // console.log("Patella saved:", tempPatella);
     } catch (err) {
-      console.error("Failed to save Patella:", err);
+      // console.error("Failed to save Patella:", err);
     }
   };
 
@@ -2965,12 +2979,12 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(
-        "Pre-Resurfacing Thickness saved:",
-        tempPreResurfacingThickness
-      );
+      // console.log(
+      //   "Pre-Resurfacing Thickness saved:",
+      //   tempPreResurfacingThickness
+      // );
     } catch (err) {
-      console.error("Failed to save Pre-Resurfacing Thickness:", err);
+      // console.error("Failed to save Pre-Resurfacing Thickness:", err);
     }
   };
 
@@ -3001,12 +3015,12 @@ useEffect(() => {
         `${API_URL}patient_surgery_details/update_field`,
         payload
       );
-      console.log(
-        "Post-Resurfacing Thickness saved:",
-        tempPostResurfacingThickness
-      );
+      // console.log(
+      //   "Post-Resurfacing Thickness saved:",
+      //   tempPostResurfacingThickness
+      // );
     } catch (err) {
-      console.error("Failed to save Post-Resurfacing Thickness:", err);
+      // console.error("Failed to save Post-Resurfacing Thickness:", err);
     }
   };
 
@@ -3016,48 +3030,64 @@ useEffect(() => {
   };
 
   const messages = [
-  "Fetching surgery reports from the database...",
-  "Almost there, preparing patient surgery data...",
-  "Optimizing report results...",
-  "Hang tight! Loading the surgery reports...",
-];
+    "Fetching surgery reports from the database...",
+    "Almost there, preparing patient surgery data...",
+    "Optimizing report results...",
+    "Hang tight! Loading the surgery reports...",
+  ];
 
-  
-    const [index, setIndex] = useState(0);
-  
-    useEffect(() => {
-      const interval = setInterval(() => {
-        setIndex((prev) => (prev + 1) % messages.length);
-      }, 3000);
-      return () => clearInterval(interval);
-    }, []);
-  
+  const messages1 = [
+    "Gathering surgery data...",
+    "Checking patient details...",
+    "Organizing your report...",
+    "Almost done, getting everything ready...",
+  ];
 
-  if (loading) return <div className="flex space-x-2 py-4 items-center w-full justify-center">
-              <svg
-                className="animate-spin h-5 w-5 text-black"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                />
-              </svg>
-              <span className={`${poppins.className} text-black font-semibold`}>
-                {messages[index]}
-              </span>
-            </div>;
+  const [index, setIndex] = useState(0);
+  const [index1, setIndex1] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex((prev) => (prev + 1) % messages.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setIndex1((prev) => (prev + 1) % messages1.length);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading)
+    return (
+      <div className="flex space-x-2 py-4 items-center w-full justify-center">
+        <svg
+          className="animate-spin h-5 w-5 text-black"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+          />
+        </svg>
+        <span className={`${poppins.className} text-black font-semibold`}>
+          {messages[index]}
+        </span>
+      </div>
+    );
 
   if (!patientData) return <p>No patient data found for UHID: {uhid}</p>;
 
@@ -3165,7 +3195,7 @@ useEffect(() => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                {doctorName}
+                Dr. {doctorName || "Doctor Name"}
               </p>
             </div>
           </div>
@@ -3177,7 +3207,13 @@ useEffect(() => {
           <select
             className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
             value={selectedSurgery}
-            onChange={(e) => setSelectedSurgery(e.target.value)}
+            onChange={(e) => {
+              const newSurgery = e.target.value;
+              setSelectedSurgery(newSurgery);
+              setop_date(newSurgery);
+              if (patientData?.uhid)
+                fetchSurgeryReport(patientData.uhid, newSurgery);
+            }}
           >
             {surgeries.map((surgery, index) => (
               <option key={index} value={surgery}>
@@ -3188,8 +3224,35 @@ useEffect(() => {
         </div>
       )}
 
+      {loadingsurg && (
+        <div className="flex space-x-2 py-4 items-center w-full justify-center">
+          <svg
+            className="animate-spin h-5 w-5 text-black"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            />
+          </svg>
+          <span className={`${poppins.className} text-black font-semibold`}>
+            {messages1[index1]}
+          </span>
+        </div>
+      )}
 
-      {showsurgeryreport && (
+      {showsurgeryreport && !loadingsurg && (
         <>
           <div className={`w-full flex flex-col pt-[60px]`}>
             <h2
@@ -3236,8 +3299,6 @@ useEffect(() => {
                       <option value="Parvathy Hospital">
                         Parvathy Hospital
                       </option>
-                      <option value="ABC Hospital">ABC Hospital</option>
-                      <option value="XYZ Hospital">XYZ Hospital</option>
                     </select>
 
                     <ClipboardDocumentCheckIcon
@@ -3338,7 +3399,7 @@ useEffect(() => {
                   </div>
                 ) : (
                   <div
-                    className={`${raleway.className} pt-4 flex flex-wrap gap-8 pl-4`}
+                    className={`${raleway.className} pt-4 flex flex-wrap gap-8 pl-4 items-center`}
                   >
                     {asaGrades.map((grade) => {
                       const id = `asa-${grade}`;
@@ -3363,7 +3424,7 @@ useEffect(() => {
                       );
                     })}
 
-                    <div className="flex items-center space-x-2 mt-4">
+                    <div className="flex items-center space-x-2">
                       <ClipboardDocumentCheckIcon
                         className="w-5 h-5 text-green-600 cursor-pointer"
                         onClick={handleSaveASA}
@@ -4051,7 +4112,15 @@ useEffect(() => {
                             type="text"
                             placeholder="HH:MM"
                             value={tempTimeValue}
-                            onChange={(e) => setTempTimeValue(e.target.value)}
+                            maxLength={5} // 2 digits + ":" + 2 digits
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, ""); // remove non-digits
+                              if (val.length >= 3) {
+                                val = val.slice(0, 2) + ":" + val.slice(2, 4);
+                              }
+
+                              setTempTimeValue(val); // update your existing temp state
+                            }}
                             className={`${poppins.className} font-medium border border-gray-300 rounded px-4 py-2 pr-10 w-full text-sm text-black`}
                           />
                           <Image
@@ -4177,7 +4246,7 @@ useEffect(() => {
                       />
                       <div className="w-full flex flex-col gap-4 py-4">
                         {/* 1. Unworn / Worn */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
@@ -4247,7 +4316,7 @@ useEffect(() => {
                         </div>
 
                         {/* 2. Initial Thickness */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
@@ -4269,16 +4338,28 @@ useEffect(() => {
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input
-                                type="text"
-                                value={tempDistalMedialInitialThickness}
-                                onChange={(e) =>
+                              <select
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                value={
+                                  tempDistalMedialInitialThickness || "0 mm"
+                                }
+                                onChange={(e) => {
                                   setTempDistalMedialInitialThickness(
                                     e.target.value
-                                  )
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                              />
+                                  );
+                                }}
+                              >
+                                {Array.from({ length: 32 }, (_, i) => {
+                                  const value = (i * 0.5).toFixed(1);
+                                  const label = `${value} mm`;
+                                  return (
+                                    <option key={value} value={label}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={() => {
@@ -4288,6 +4369,7 @@ useEffect(() => {
                                   setIsEditingDistalMedialInitialThickness(
                                     false
                                   );
+                                  handleSaveDistalMedialInitialThickness();
                                 }}
                               />
                               <XMarkIcon
@@ -4306,7 +4388,7 @@ useEffect(() => {
                         </div>
 
                         {/* 3. Recut */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
@@ -4398,14 +4480,26 @@ useEffect(() => {
                                 </>
                               ) : (
                                 <>
-                                  <input
-                                    type="text"
-                                    value={tempDistalMedialRecutMM}
-                                    onChange={(e) =>
-                                      setTempDistalMedialRecutMM(e.target.value)
-                                    }
-                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                                  />
+                                  <select
+                                    className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                    value={tempDistalMedialRecutMM || "0 mm"}
+                                    onChange={(e) => {
+                                      setTempDistalMedialRecutMM(
+                                        e.target.value
+                                      );
+                                    }}
+                                  >
+                                    {Array.from({ length: 32 }, (_, i) => {
+                                      const value = (i * 0.5).toFixed(1);
+                                      const label = `${value} mm`;
+                                      return (
+                                        <option key={value} value={label}>
+                                          {label}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
                                   <ClipboardDocumentCheckIcon
                                     className="w-4 h-4 text-green-600 cursor-pointer"
                                     onClick={saveDistalMedialRecutMM}
@@ -4421,82 +4515,134 @@ useEffect(() => {
                         </div>
 
                         {/* 4. Washer */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
                             Washer
                           </label>
-                          {!isEditingDistalMedialWasher ? (
-                            <div className="flex items-center w-1/2 justify-between">
-                              <span
-                                className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
-                              >
-                                {distalMedialWasher} {distalMedialWasherMM}{" "}
-                              </span>
-                              <PencilIcon
-                                className="w-5 h-5 text-gray-600 cursor-pointer"
-                                onClick={() =>
-                                  setIsEditingDistalMedialWasher(true)
-                                }
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center w-1/2 gap-2">
-                              {["N", "Y"].map((option) => (
-                                <label
-                                  key={option}
-                                  className="flex items-center space-x-2 cursor-pointer"
-                                >
-                                  <input
-                                    type="radio"
-                                    name="distalMedialWasher"
-                                    value={option}
-                                    checked={tempDistalMedialWasher === option}
-                                    onChange={(e) =>
-                                      setTempDistalMedialWasher(e.target.value)
-                                    }
-                                    className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
-                                  />
-                                  <span className="text-xs text-[#272727]">
-                                    {option}
+                          {/* Distal Medial Recut Block */}
+                          <div className="flex items-center w-1/2 gap-4">
+                            {/* Radio (Y/N) */}
+                            <div className="flex items-center gap-2">
+                              {!isEditingDistalMedialWasherYN ? (
+                                <>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalMedialWasherYN}
                                   </span>
-                                </label>
-                              ))}
-                              <input
-                                type="text"
-                                value={tempDistalMedialWasherMM}
-                                onChange={(e) =>
-                                  setTempDistalMedialWasherMM(e.target.value)
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                              />
-                              <ClipboardDocumentCheckIcon
-                                className="w-5 h-5 text-green-600 cursor-pointer"
-                                onClick={() => {
-                                  setDistalMedialWasher(tempDistalMedialWasher);
-                                  setDistalMedialWasherMM(
-                                    tempDistalMedialWasherMM
-                                  );
-                                  setIsEditingDistalMedialWasher(false);
-                                }}
-                              />
-                              <XMarkIcon
-                                className="w-5 h-5 text-red-600 cursor-pointer"
-                                onClick={() => {
-                                  setTempDistalMedialWasher(distalMedialWasher);
-                                  setTempDistalMedialWasherMM(
-                                    distalMedialWasherMM
-                                  );
-                                  setIsEditingDistalMedialWasher(false);
-                                }}
-                              />
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingDistalMedialWasherYN(true)
+                                    }
+                                  />
+                                </>
+                              ) : (
+                                <>
+                                  <label className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="distalMedialWasherYN"
+                                      value="N"
+                                      checked={tempDistalMedialWasherYN === "N"}
+                                      onChange={(e) =>
+                                        setTempDistalMedialWasherYN(
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                    />
+                                    <span className="text-xs text-[#272727]">
+                                      N
+                                    </span>
+                                  </label>
+
+                                  <label className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="distalMedialWasherYN"
+                                      value="Y"
+                                      checked={tempDistalMedialWasherYN === "Y"}
+                                      onChange={(e) =>
+                                        setTempDistalMedialWasherYN(
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-4 h-4 appearance-none rounded-xs bg-[#D9D9D9] checked:bg-blue-600 cursor-pointer"
+                                    />
+                                    <span className="text-xs text-[#272727]">
+                                      Y
+                                    </span>
+                                  </label>
+
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={saveDistalMedialWasherYN}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelDistalMedialWasherYN}
+                                  />
+                                </>
+                              )}
                             </div>
-                          )}
+
+                            {/* MM Input */}
+                            <div className="flex items-center gap-2">
+                              {!isEditingDistalMedialWasherMM ? (
+                                <>
+                                  <span
+                                    className={`text-sm text-[#272727] ${raleway.className} font-semibold`}
+                                  >
+                                    {distalMedialWasherMM}
+                                  </span>
+                                  <PencilIcon
+                                    className="w-4 h-4 text-gray-600 cursor-pointer"
+                                    onClick={() =>
+                                      setIsEditingDistalMedialWasherMM(true)
+                                    }
+                                  />
+                                </>
+                              ) : (
+                                <>
+                                  <select
+                                    className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                    value={tempDistalMedialWasherMM || "0 mm"}
+                                    onChange={(e) => {
+                                      setTempDistalMedialWasherMM(
+                                        e.target.value
+                                      );
+                                    }}
+                                  >
+                                    {Array.from({ length: 32 }, (_, i) => {
+                                      const value = (i * 0.5).toFixed(1);
+                                      const label = `${value} mm`;
+                                      return (
+                                        <option key={value} value={label}>
+                                          {label}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
+                                  <ClipboardDocumentCheckIcon
+                                    className="w-4 h-4 text-green-600 cursor-pointer"
+                                    onClick={saveDistalMedialWasherMM}
+                                  />
+                                  <XMarkIcon
+                                    className="w-4 h-4 text-red-600 cursor-pointer"
+                                    onClick={cancelDistalMedialWasherMM}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
 
                         {/* 5. Final Thickness */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
@@ -4518,16 +4664,26 @@ useEffect(() => {
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input
-                                type="text"
-                                value={tempDistalMedialFinalThickness}
-                                onChange={(e) =>
+                              <select
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                value={tempDistalMedialFinalThickness || "0 mm"}
+                                onChange={(e) => {
                                   setTempDistalMedialFinalThickness(
                                     e.target.value
-                                  )
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                              />
+                                  );
+                                }}
+                              >
+                                {Array.from({ length: 32 }, (_, i) => {
+                                  const value = (i * 0.5).toFixed(1);
+                                  const label = `${value} mm`;
+                                  return (
+                                    <option key={value} value={label}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={() => {
@@ -4535,6 +4691,7 @@ useEffect(() => {
                                     tempDistalMedialFinalThickness
                                   );
                                   setIsEditingDistalMedialFinalThickness(false);
+                                  handleSaveDistalMedialFinalThickness();
                                 }}
                               />
                               <XMarkIcon
@@ -4626,7 +4783,7 @@ useEffect(() => {
                         </div>
 
                         {/* 2. Initial Thickness */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
@@ -4646,16 +4803,28 @@ useEffect(() => {
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input
-                                type="text"
-                                value={tempDistalLateralInitialThickness}
-                                onChange={(e) =>
+                              <select
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                value={
+                                  tempDistalLateralInitialThickness || "0 mm"
+                                }
+                                onChange={(e) => {
                                   setTempDistalLateralInitialThickness(
                                     e.target.value
-                                  )
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                              />
+                                  );
+                                }}
+                              >
+                                {Array.from({ length: 32 }, (_, i) => {
+                                  const value = (i * 0.5).toFixed(1);
+                                  const label = `${value} mm`;
+                                  return (
+                                    <option key={value} value={label}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={saveDistalLateralInitialThickness}
@@ -4669,7 +4838,7 @@ useEffect(() => {
                         </div>
 
                         {/* 3. Recut */}
-                        <div className="flex flex-row gap-4">
+                        <div className="flex flex-row gap-4 items-center">
                           <label
                             className={`${raleway.className} font-semibold text-xs text-[#484848] w-1/2`}
                           >
@@ -4745,16 +4914,26 @@ useEffect(() => {
                                 </>
                               ) : (
                                 <>
-                                  <input
-                                    type="text"
-                                    value={tempDistalLateralRecutMM}
-                                    onChange={(e) =>
+                                  <select
+                                    className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                    value={tempDistalLateralRecutMM || "0 mm"}
+                                    onChange={(e) => {
                                       setTempDistalLateralRecutMM(
                                         e.target.value
-                                      )
-                                    }
-                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                                  />
+                                      );
+                                    }}
+                                  >
+                                    {Array.from({ length: 32 }, (_, i) => {
+                                      const value = (i * 0.5).toFixed(1);
+                                      const label = `${value} mm`;
+                                      return (
+                                        <option key={value} value={label}>
+                                          {label}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
                                   <ClipboardDocumentCheckIcon
                                     className="w-4 h-4 text-green-600 cursor-pointer"
                                     onClick={saveDistalLateralRecutMM}
@@ -4850,16 +5029,26 @@ useEffect(() => {
                                 </>
                               ) : (
                                 <>
-                                  <input
-                                    type="text"
-                                    value={tempDistalLateralWasherMM}
-                                    onChange={(e) =>
+                                  <select
+                                    className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                    value={tempDistalLateralWasherMM || "0 mm"}
+                                    onChange={(e) => {
                                       setTempDistalLateralWasherMM(
                                         e.target.value
-                                      )
-                                    }
-                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                                  />
+                                      );
+                                    }}
+                                  >
+                                    {Array.from({ length: 32 }, (_, i) => {
+                                      const value = (i * 0.5).toFixed(1);
+                                      const label = `${value} mm`;
+                                      return (
+                                        <option key={value} value={label}>
+                                          {label}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
                                   <ClipboardDocumentCheckIcon
                                     className="w-4 h-4 text-green-600 cursor-pointer"
                                     onClick={saveDistalLateralWasherMM}
@@ -4895,16 +5084,28 @@ useEffect(() => {
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input
-                                type="text"
-                                value={tempDistalLateralFinalThickness}
-                                onChange={(e) =>
+                              <select
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                value={
+                                  tempDistalLateralFinalThickness || "0 mm"
+                                }
+                                onChange={(e) => {
                                   setTempDistalLateralFinalThickness(
                                     e.target.value
-                                  )
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs text-[#272727] px-1"
-                              />
+                                  );
+                                }}
+                              >
+                                {Array.from({ length: 32 }, (_, i) => {
+                                  const value = (i * 0.5).toFixed(1);
+                                  const label = `${value} mm`;
+                                  return (
+                                    <option key={value} value={label}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={saveDistalLateralFinalThickness}
@@ -5038,14 +5239,26 @@ useEffect(() => {
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input
-                                type="text"
-                                value={tempPostMedInitialThickness}
-                                onChange={(e) =>
-                                  setTempPostMedInitialThickness(e.target.value)
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
-                              />
+                              <select
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                value={tempPostMedInitialThickness || "0 mm"}
+                                onChange={(e) => {
+                                  setTempPostMedInitialThickness(
+                                    e.target.value
+                                  );
+                                }}
+                              >
+                                {Array.from({ length: 32 }, (_, i) => {
+                                  const value = (i * 0.5).toFixed(1);
+                                  const label = `${value} mm`;
+                                  return (
+                                    <option key={value} value={label}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={savePostMedInitialThickness}
@@ -5133,14 +5346,24 @@ useEffect(() => {
                                 </>
                               ) : (
                                 <>
-                                  <input
-                                    type="text"
-                                    value={tempPostMedRecutMM}
-                                    onChange={(e) =>
-                                      setTempPostMedRecutMM(e.target.value)
-                                    }
-                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
-                                  />
+                                  <select
+                                    className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                    value={tempPostMedRecutMM || "0 mm"}
+                                    onChange={(e) => {
+                                      setTempPostMedRecutMM(e.target.value);
+                                    }}
+                                  >
+                                    {Array.from({ length: 32 }, (_, i) => {
+                                      const value = (i * 0.5).toFixed(1);
+                                      const label = `${value} mm`;
+                                      return (
+                                        <option key={value} value={label}>
+                                          {label}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
                                   <ClipboardDocumentCheckIcon
                                     className="w-4 h-4 text-green-600 cursor-pointer"
                                     onClick={savePostMedRecutMM}
@@ -5162,7 +5385,7 @@ useEffect(() => {
                           >
                             Final Thickness
                           </label>
-                          <div className="flex items-center w-1/2 gap-4">
+                          <div className="flex items-center w-1/2 justify-between gap-4">
                             {!isEditingPostMedFinalThickness ? (
                               <>
                                 <span
@@ -5178,15 +5401,27 @@ useEffect(() => {
                                 />
                               </>
                             ) : (
-                              <div className="flex items-center w-1/2 gap-2">
-                                <input
-                                  type="text"
-                                  value={tempPostMedFinalThickness}
-                                  onChange={(e) =>
-                                    setTempPostMedFinalThickness(e.target.value)
-                                  }
-                                  className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
-                                />
+                              <div className="flex items-center w-full gap-2">
+                                <select
+                                  className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                  value={tempPostMedFinalThickness || "0 mm"}
+                                  onChange={(e) => {
+                                    setTempPostMedFinalThickness(
+                                      e.target.value
+                                    );
+                                  }}
+                                >
+                                  {Array.from({ length: 32 }, (_, i) => {
+                                    const value = (i * 0.5).toFixed(1);
+                                    const label = `${value} mm`;
+                                    return (
+                                      <option key={value} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+
                                 <ClipboardDocumentCheckIcon
                                   className="w-5 h-5 text-green-600 cursor-pointer"
                                   onClick={savePostMedFinalThickness}
@@ -5295,14 +5530,26 @@ useEffect(() => {
                             </div>
                           ) : (
                             <div className="flex items-center w-1/2 gap-2">
-                              <input
-                                type="text"
-                                value={tempPostLatInitialThickness}
-                                onChange={(e) =>
-                                  setTempPostLatInitialThickness(e.target.value)
-                                }
-                                className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
-                              />
+                              <select
+                                className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                value={tempPostLatInitialThickness || "0 mm"}
+                                onChange={(e) => {
+                                  setTempPostLatInitialThickness(
+                                    e.target.value
+                                  );
+                                }}
+                              >
+                                {Array.from({ length: 32 }, (_, i) => {
+                                  const value = (i * 0.5).toFixed(1);
+                                  const label = `${value} mm`;
+                                  return (
+                                    <option key={value} value={label}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+
                               <ClipboardDocumentCheckIcon
                                 className="w-5 h-5 text-green-600 cursor-pointer"
                                 onClick={savePostLatInitialThickness}
@@ -5390,14 +5637,24 @@ useEffect(() => {
                                 </>
                               ) : (
                                 <>
-                                  <input
-                                    type="text"
-                                    value={tempPostLatRecutMM}
-                                    onChange={(e) =>
-                                      setTempPostLatRecutMM(e.target.value)
-                                    }
-                                    className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
-                                  />
+                                  <select
+                                    className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                    value={tempPostLatRecutMM || "0 mm"}
+                                    onChange={(e) => {
+                                      setTempPostLatRecutMM(e.target.value);
+                                    }}
+                                  >
+                                    {Array.from({ length: 32 }, (_, i) => {
+                                      const value = (i * 0.5).toFixed(1);
+                                      const label = `${value} mm`;
+                                      return (
+                                        <option key={value} value={label}>
+                                          {label}
+                                        </option>
+                                      );
+                                    })}
+                                  </select>
+
                                   <ClipboardDocumentCheckIcon
                                     className="w-4 h-4 text-green-600 cursor-pointer"
                                     onClick={savePostLatRecutMM}
@@ -5419,7 +5676,7 @@ useEffect(() => {
                           >
                             Final Thickness
                           </label>
-                          <div className="flex items-center w-1/2 gap-4">
+                          <div className="flex items-center w-1/2 justify-between gap-4">
                             {!isEditingPostLatFinalThickness ? (
                               <>
                                 <span
@@ -5435,15 +5692,27 @@ useEffect(() => {
                                 />
                               </>
                             ) : (
-                              <div className="flex items-center w-1/2 gap-2">
-                                <input
-                                  type="text"
-                                  value={tempPostLatFinalThickness}
-                                  onChange={(e) =>
-                                    setTempPostLatFinalThickness(e.target.value)
-                                  }
-                                  className="w-16 h-4 rounded-xs bg-[#D9D9D9] text-xs px-1"
-                                />
+                              <div className="flex items-center w-full gap-2">
+                                <select
+                                  className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                  value={tempPostLatFinalThickness || "0 mm"}
+                                  onChange={(e) => {
+                                    setTempPostLatFinalThickness(
+                                      e.target.value
+                                    );
+                                  }}
+                                >
+                                  {Array.from({ length: 32 }, (_, i) => {
+                                    const value = (i * 0.5).toFixed(1);
+                                    const label = `${value} mm`;
+                                    return (
+                                      <option key={value} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+
                                 <ClipboardDocumentCheckIcon
                                   className="w-5 h-5 text-green-600 cursor-pointer"
                                   onClick={savePostLatFinalThickness}
@@ -5481,7 +5750,7 @@ useEffect(() => {
                 </p>
                 <div className={`w-full flex flex-row pt-10`}>
                   <div className={`w-1/2 flex flex-col gap-12`}>
-                    <div className={`w-full flex flex-row gap-2`}>
+                    <div className={`w-full flex flex-row `}>
                       <div
                         className={`w-1/7 h-full flex flex-col justify-between`}
                       >
@@ -5565,14 +5834,23 @@ useEffect(() => {
                                 <label
                                   className={`${raleway.className} font-semibold text-xs text-[#484848]`}
                                 ></label>
-                                <input
-                                  type="text"
-                                  value={tempTibialLeftMM}
-                                  onChange={(e) =>
-                                    setTempTibialLeftMM(e.target.value)
-                                  }
-                                  className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"
-                                />
+                                <select
+                                  className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                  value={tempTibialLeftMM || "0 mm"}
+                                  onChange={(e) => {
+                                    setTempTibialLeftMM(e.target.value);
+                                  }}
+                                >
+                                  {Array.from({ length: 32 }, (_, i) => {
+                                    const value = (i * 0.5).toFixed(1);
+                                    const label = `${value} mm`;
+                                    return (
+                                      <option key={value} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
                               </div>
                               <div className={`flex flex-row gap-3`}>
                                 <ClipboardDocumentCheckIcon
@@ -5589,7 +5867,7 @@ useEffect(() => {
                         </div>
                       </div>
 
-                      <div className={`w-5/7 flex items-center`}>
+                      <div className={`w-5/7 flex items-center justify-center`}>
                         <Image
                           src={Tibia}
                           alt="Bone Left"
@@ -5682,14 +5960,24 @@ useEffect(() => {
                                 <label
                                   className={`${raleway.className} font-semibold text-sm text-[#484848]`}
                                 ></label>
-                                <input
-                                  type="text"
-                                  value={tempTibialRightMM}
-                                  onChange={(e) =>
-                                    setTempTibialRightMM(e.target.value)
-                                  }
-                                  className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-xs text-black px-1"
-                                />
+
+                                <select
+                                  className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                  value={tempTibialRightMM || "0 mm"}
+                                  onChange={(e) => {
+                                    setTempTibialRightMM(e.target.value);
+                                  }}
+                                >
+                                  {Array.from({ length: 32 }, (_, i) => {
+                                    const value = (i * 0.5).toFixed(1);
+                                    const label = `${value} mm`;
+                                    return (
+                                      <option key={value} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
                               </div>
                               <div className={`flex flex-row gap-3`}>
                                 <ClipboardDocumentCheckIcon
@@ -5861,19 +6149,28 @@ useEffect(() => {
                               />
                             </div>
                           ) : (
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-2 items-center">
                               <div className="flex items-center gap-2">
                                 <label
                                   className={`${raleway.className} font-semibold text-sm text-[#484848]`}
                                 ></label>
-                                <input
-                                  type="text"
-                                  value={tempTibialVVRecutMM}
-                                  onChange={(e) =>
-                                    setTempTibialVVRecutMM(e.target.value)
-                                  }
-                                  className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-sm px-1 text-black"
-                                />
+                                <select
+                                  className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                  value={tempTibialVVRecutMM || "0 mm"}
+                                  onChange={(e) => {
+                                    setTempTibialVVRecutMM(e.target.value);
+                                  }}
+                                >
+                                  {Array.from({ length: 32 }, (_, i) => {
+                                    const value = (i * 0.5).toFixed(1);
+                                    const label = `${value} mm`;
+                                    return (
+                                      <option key={value} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
                               </div>
                               <div className="flex gap-2">
                                 <ClipboardDocumentCheckIcon
@@ -5980,19 +6277,28 @@ useEffect(() => {
                               />
                             </div>
                           ) : (
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-2 items-center">
                               <div className="flex items-center gap-2">
                                 <label
                                   className={`${raleway.className} font-semibold text-sm text-[#484848]`}
                                 ></label>
-                                <input
-                                  type="text"
-                                  value={tempTibialSlopeRecutMM}
-                                  onChange={(e) =>
-                                    setTempTibialSlopeRecutMM(e.target.value)
-                                  }
-                                  className="w-9 h-4 rounded-xs bg-[#D9D9D9] text-sm text-black px-1"
-                                />
+                                <select
+                                  className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                                  value={tempTibialSlopeRecutMM || "0 mm"}
+                                  onChange={(e) => {
+                                    setTempTibialSlopeRecutMM(e.target.value);
+                                  }}
+                                >
+                                  {Array.from({ length: 32 }, (_, i) => {
+                                    const value = (i * 0.5).toFixed(1);
+                                    const label = `${value} mm`;
+                                    return (
+                                      <option key={value} value={label}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
                               </div>
                               <div className="flex gap-2">
                                 <ClipboardDocumentCheckIcon
@@ -6413,14 +6719,24 @@ useEffect(() => {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={tempTrachelaResection}
-                          onChange={(e) =>
-                            setTempTrachelaResection(e.target.value)
-                          }
-                          className="px-4 py-1 rounded w-40 bg-gray-300 text-black text-sm"
-                        />
+                        <select
+                          className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                          value={tempTrachelaResection || "0 mm"}
+                          onChange={(e) => {
+                            setTempTrachelaResection(e.target.value);
+                          }}
+                        >
+                          {Array.from({ length: 32 }, (_, i) => {
+                            const value = (i * 0.5).toFixed(1);
+                            const label = `${value} mm`;
+                            return (
+                              <option key={value} value={label}>
+                                {label}
+                              </option>
+                            );
+                          })}
+                        </select>
+
                         <ClipboardDocumentCheckIcon
                           className="w-5 h-5 text-green-600 cursor-pointer"
                           onClick={saveTrachelaResection}
@@ -6505,14 +6821,24 @@ useEffect(() => {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={tempPreResurfacingThickness}
-                          onChange={(e) =>
-                            setTempPreResurfacingThickness(e.target.value)
-                          }
-                          className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
-                        />
+                        <select
+                          className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                          value={tempPreResurfacingThickness || "0 mm"}
+                          onChange={(e) => {
+                            setTempPreResurfacingThickness(e.target.value);
+                          }}
+                        >
+                          {Array.from({ length: 32 }, (_, i) => {
+                            const value = (i * 0.5).toFixed(1);
+                            const label = `${value} mm`;
+                            return (
+                              <option key={value} value={label}>
+                                {label}
+                              </option>
+                            );
+                          })}
+                        </select>
+
                         <ClipboardDocumentCheckIcon
                           className="w-5 h-5 text-green-600 cursor-pointer"
                           onClick={savePreResurfacing}
@@ -6544,14 +6870,24 @@ useEffect(() => {
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={tempPostResurfacingThickness}
-                          onChange={(e) =>
-                            setTempPostResurfacingThickness(e.target.value)
-                          }
-                          className="px-4 py-1 rounded w-40 bg-gray-300 text-[black] text-sm"
-                        />
+                        <select
+                          className={`${raleway.className} border px-2 py-1 w-full mr-1 rounded text-black`}
+                          value={tempPostResurfacingThickness || "0 mm"}
+                          onChange={(e) => {
+                            setTempPostResurfacingThickness(e.target.value);
+                          }}
+                        >
+                          {Array.from({ length: 32 }, (_, i) => {
+                            const value = (i * 0.5).toFixed(1);
+                            const label = `${value} mm`;
+                            return (
+                              <option key={value} value={label}>
+                                {label}
+                              </option>
+                            );
+                          })}
+                        </select>
+
                         <ClipboardDocumentCheckIcon
                           className="w-5 h-5 text-green-600 cursor-pointer"
                           onClick={savePostResurfacing}
@@ -6719,7 +7055,7 @@ useEffect(() => {
         </>
       )}
 
-      {!showsurgeryreport && (
+      {!showsurgeryreport && !loadingsurg && (
         <div className={`bg-black rounded-lg w-1/5 py-2 flex mx-auto mt-12`}>
           <p
             className={`${inter.className} font-semibold text-base text-white text-center w-full cursor-pointer`}

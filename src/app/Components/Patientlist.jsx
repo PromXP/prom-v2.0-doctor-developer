@@ -117,8 +117,6 @@ const Patientlist = ({ handlenavigatereport }) => {
     setDropdownOpen(false);
   };
 
-
-
   const [patientdata, setPatientdata] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
 
@@ -215,6 +213,7 @@ const Patientlist = ({ handlenavigatereport }) => {
             status: i % 3 === 0 ? "COMPLETED" : "PENDING",
             left_compliance: p.Medical_Left_Completion ?? 0,
             right_compliance: p.Medical_Right_Completion ?? 0,
+            vip: p.VIP_Status,
             activation_status: p.Activation_Status ?? "True",
             left_questionnaires: p.Medical_Left ?? "NA",
             right_questionnaires: p.Medical_Right ?? "NA",
@@ -245,7 +244,7 @@ const Patientlist = ({ handlenavigatereport }) => {
         });
         setPatientloading(false);
         setPatientdata(mapped);
-        console.log("Patient dat", mapped);
+        // console.log("Patient dat", mapped);
       } catch (err) {
         console.error("❌ Error fetching patients:", err);
         if (err.response) {
@@ -279,14 +278,16 @@ const Patientlist = ({ handlenavigatereport }) => {
         ? patient.overall_scores.left
         : patient.overall_scores.right;
 
-    console.log("Score data", scores + " " + side);
+    // console.log("Score data", scores + " " + side);
 
     if (!scores) return 0;
 
-    return Object.values(scores).reduce((sum, val) => {
+    const total = Object.values(scores).reduce((sum, val) => {
       const num = parseFloat(val);
       return sum + (isNaN(num) ? 0 : num);
     }, 0);
+
+    return Math.round((total / 408) * 100); // ✅ rounded to 2 decimals
   };
 
   const filteredPatients = patientdata.filter((patient) => {
@@ -355,38 +356,37 @@ const Patientlist = ({ handlenavigatereport }) => {
   });
 
   // Use searchedPatients if searchTerm exists, otherwise filteredPatients
-   const displayedPatients = searchTerm
-  ? sortedPatients.filter(p => 
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.uhid.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  : sortedPatients;
-
+  const displayedPatients = searchTerm
+    ? sortedPatients.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.uhid.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : sortedPatients;
 
   // Whenever data or rowsPerPage change, reset page
   // Reset current page when searchTerm, filteredPatients, or rowsPerPage changes
-// Reset current page when searchTerm or filteredPatients length changes
-useEffect(() => {
-  setCurrentPage(1);
-}, [searchTerm, filteredPatients.length]);
+  // Reset current page when searchTerm or filteredPatients length changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filteredPatients.length]);
 
-// Optional: adjust rowsPerPage if it exceeds array length
-useEffect(() => {
-  if (rowsPerPage > displayedPatients.length) {
-    setRowsPerPage(Math.max(5, displayedPatients.length));
-  }
-}, [displayedPatients.length]);
+  // Optional: adjust rowsPerPage if it exceeds array length
+  useEffect(() => {
+    if (rowsPerPage > displayedPatients.length) {
+      setRowsPerPage(Math.max(5, displayedPatients.length));
+    }
+  }, [displayedPatients.length]);
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(displayedPatients.length / rowsPerPage)
+  );
 
-
-  const totalPages = Math.max(1, Math.ceil(displayedPatients.length / rowsPerPage));
-
-
-
-const paginatedPatients = displayedPatients.slice(
-  (currentPage - 1) * rowsPerPage,
-  currentPage * rowsPerPage
-);
+  const paginatedPatients = displayedPatients.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   const generatePageOptions = (total) => {
     const options = [5, 10, 25, 50].filter((n) => n < total);
@@ -435,23 +435,23 @@ const paginatedPatients = displayedPatients.slice(
   }, [profpat]);
 
   const handlevipstatus = async (uhid, vip) => {
-    console.log("Status", vip);
+    // console.log("Status", vip);
     let vip1 = "";
     if (String(vip) === "true") {
       vip1 = "false";
     } else {
       vip1 = "true";
     }
-    const payload = { vip_status: vip1 };
-    console.log("Status payload", payload + " " + vip1);
+    const payload = { field: "vip_status", value: vip1 };
+    // console.log("Status payload", payload);
     try {
       // ✅ API call
-      const response = await axios.put(
+      const response = await axios.patch(
         `${API_URL}patients/update-field/${uhid}`,
         payload
       );
 
-      showWarning("Patient status update successfull");
+      showWarning("Patient vip status update successfull");
     } catch (error) {
       console.error("Error updating status:", error);
       showWarning("Failed to update status");
@@ -540,7 +540,7 @@ const paginatedPatients = displayedPatients.slice(
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                {doctorName || "Doctor Name"}
+                Dr. {doctorName || "Doctor Name"}
               </p>
             </div>
           )}
@@ -858,9 +858,6 @@ const paginatedPatients = displayedPatients.slice(
                         setshowprof(true);
                         setshowprofpat(patient);
                       }}
-                      onDoubleClick={() =>
-                        handlevipstatus(patient.uhid, String(patient.vip))
-                      }
                     />
                     <div
                       className={`w-full flex items-center ${
@@ -999,6 +996,15 @@ const paginatedPatients = displayedPatients.slice(
           )}
         </div>
       </div>
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
 
       <style>
         {`
@@ -1050,11 +1056,25 @@ const paginatedPatients = displayedPatients.slice(
                     }`}
                   >
                     <div className="flex flex-row justify-between items-center w-full">
-                      <p
-                        className={`${inter.className} text-2xl font-semibold text-black`}
-                      >
-                        Patient Profile
-                      </p>
+                      <div className="flex flex-col">
+                        <p
+                          className={`${inter.className} text-2xl font-semibold text-black`}
+                        >
+                          Patient Profile
+                        </p>
+                        <p
+                          className={`${inter.className} text-sm font-semibold text-black cursor-pointer`}
+                          onClick={() => {
+                            handlevipstatus(
+                              profpat?.uhid,
+                              String(profpat?.vip)
+                            );
+                          }}
+                        >
+                          VIP SWITCH
+                        </p>
+                      </div>
+
                       <div
                         className={`flex flex-row gap-4 items-center justify-center`}
                       >
@@ -1077,6 +1097,7 @@ const paginatedPatients = displayedPatients.slice(
                             className={`w-12 h-6 cursor-pointer`}
                           />
                         )}
+
                         <Image
                           src={CloseIcon}
                           alt="Close"
@@ -1299,27 +1320,43 @@ const paginatedPatients = displayedPatients.slice(
                         ID PROOF
                       </p>
                       <div className="flex flex-wrap justify-between w-full">
-                        {Object.keys(selectedIDs).map((id) => (
-                          <div key={id} className="flex flex-col gap-2 mt-2">
-                            <label
-                              className={`${outfit.className} text-base font-semibold uppercase text-black/80`}
-                            >
-                              {id} Number
-                            </label>
+                        {Object.keys(selectedIDs).map((id) => {
+                          const value = selectedIDs[id] || "";
+                          // ✅ Mask last 5 characters
+                          const masked =
+                            value.length > 5
+                              ? value.slice(0, -5) + "*****"
+                              : "*".repeat(value.length);
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-black/90">
-                                {selectedIDs[id]}
-                              </span>
+                          return (
+                            <div key={id} className="flex flex-col gap-2 mt-2">
+                              <label
+                                className={`${outfit.className} text-base font-semibold uppercase text-black/80`}
+                              >
+                                {id} Number
+                              </label>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-black/90">{masked}</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            {showAlert && (
+              <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+                <div
+                  className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+                >
+                  {alermessage}
+                </div>
+              </div>
+            )}
             <style>
               {`
         .inline-scroll::-webkit-scrollbar {

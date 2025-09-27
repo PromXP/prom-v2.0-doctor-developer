@@ -184,7 +184,8 @@ const Markedpatient = ({ handlenavigatereport }) => {
 
         // setPatients1(res.data.patients || []);
 
-        const apiPatients = res.data.patients || [];
+        const apiPatients = res.data[0].patients || [];
+
 
         const filteredPatients = apiPatients.filter(
           (p) => p.VIP_Status === true
@@ -209,13 +210,14 @@ const Markedpatient = ({ handlenavigatereport }) => {
               : "NA",
             gender:
               p.Patient?.gender?.toLowerCase() === "male" ? "Male" : "Female",
-            uhid: p.uhid,
+            uhid: p.Patient?.uhid,
             dob: p.Patient?.birthDate ?? "NA",
             period: p.Patient_Status_Left || "NA",
             period_right: p.Patient_Status_Right || "NA",
             status: i % 3 === 0 ? "COMPLETED" : "PENDING",
             left_compliance: p.Medical_Left_Completion ?? 0,
             right_compliance: p.Medical_Right_Completion ?? 0,
+            vip:p.VIP_Status,
             activation_status: p.Activation_Status ?? "True",
             left_questionnaires: p.Medical_Left ?? "NA",
             right_questionnaires: p.Medical_Right ?? "NA",
@@ -246,7 +248,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
         });
         setPatientloading(false);
         setPatientdata(mapped);
-        console.log("Patient dat", apiPatients);
+        // console.log("Patient dat", apiPatients);
       } catch (err) {
         console.error("❌ Error fetching patients:", err);
         if (err.response) {
@@ -273,14 +275,16 @@ const Markedpatient = ({ handlenavigatereport }) => {
         ? patient.overall_scores.left
         : patient.overall_scores.right;
 
-    console.log("Score data", scores + " " + side);
+    // console.log("Score data", scores + " " + side);
 
     if (!scores) return 0;
 
-    return Object.values(scores).reduce((sum, val) => {
-      const num = parseFloat(val);
-      return sum + (isNaN(num) ? 0 : num);
-    }, 0);
+    const total = Object.values(scores).reduce((sum, val) => {
+    const num = parseFloat(val);
+    return sum + (isNaN(num) ? 0 : num);
+  }, 0);
+
+  return Math.round((total / 408) * 100); // ✅ rounded to 2 decimals
   };
 
 
@@ -417,6 +421,8 @@ const Markedpatient = ({ handlenavigatereport }) => {
 
   const [selectedIDs, setSelectedIDs] = useState({});
 
+  const [vipchanged, setVipChanged] = useState(false);
+
   useEffect(() => {
     if (profpat?.id_proofs) {
       const existing = {};
@@ -430,23 +436,24 @@ const Markedpatient = ({ handlenavigatereport }) => {
   }, [profpat]);
 
   const handlevipstatus = async (uhid, vip) => {
-    console.log("Status", vip);
+    // console.log("Status", vip);
     let vip1 = "";
     if (String(vip) === "true") {
       vip1 = "false";
     } else {
       vip1 = "true";
     }
-    const payload = { vip_status: vip1 };
-    console.log("Status payload", payload + " " + vip1);
+    const payload = {field: "vip_status", value: vip1 };
+    // console.log("Status payload", payload);
     try {
       // ✅ API call
-      const response = await axios.put(
+      const response = await axios.patch(
         `${API_URL}patients/update-field/${uhid}`,
         payload
       );
 
-      showWarning("Patient status update successfull");
+      showWarning("Patient vip status update successfull");
+      setVipChanged(true);
     } catch (error) {
       console.error("Error updating status:", error);
       showWarning("Failed to update status");
@@ -535,7 +542,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-                {doctorName || "Doctor Name"}
+               Dr. {doctorName || "Doctor Name"}
               </p>
             </div>
           )}
@@ -553,7 +560,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
           }`}
         >
           {/* Dropdown SVG Button */}
-          <div className={`${raleway.className} relative`}>
+          <div ref={dropdownRef} className={`${raleway.className} relative`}>
             <div
               className="bg-white rounded-lg px-3 py-2 cursor-pointer shadow-lg  border-[#EBEBEB] border-2"
               onClick={() => setDropdownOpen((prev) => !prev)}
@@ -651,32 +658,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   ))}
                 </div>
 
-                {/* Completion Status */}
-                <div className="mb-4">
-                  <p className="font-semibold mb-1">Completion Status</p>
-                  {["all", "not_assigned", "pending", "completed"].map(
-                    (status) => (
-                      <label
-                        key={status}
-                        className="inline-flex items-center mr-4 cursor-pointer"
-                      >
-                        <input
-                          type="radio"
-                          className="form-radio"
-                          name="completionStatus"
-                          value={status}
-                          checked={completionStatus === status}
-                          onChange={() => setCompletionStatus(status)}
-                        />
-                        <span className="ml-2">
-                          {status
-                            .replace("_", " ")
-                            .replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </span>
-                      </label>
-                    )
-                  )}
-                </div>
+  
 
                 {/* Sort */}
                 <div>
@@ -881,9 +863,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                         setshowprof(true);
                         setshowprofpat(patient);
                       }}
-                      onDoubleClick={() =>
-                        handlevipstatus(patient.uhid, String(patient.vip))
-                      }
+            
                     />
                     <div
                       className={`w-full flex items-center ${
@@ -1023,6 +1003,16 @@ const Markedpatient = ({ handlenavigatereport }) => {
         </div>
       </div>
 
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
+
       <style>
         {`
         .inline-scroll::-webkit-scrollbar {
@@ -1073,11 +1063,19 @@ const Markedpatient = ({ handlenavigatereport }) => {
                     }`}
                   >
                     <div className="flex flex-row justify-between items-center w-full">
-                      <p
+                      <div className="flex flex-col">
+<p
                         className={`${inter.className} text-2xl font-semibold text-black`}
                       >
                         Patient Profile
                       </p>
+                      <p
+                        className={`${inter.className} text-sm font-semibold text-black cursor-pointer`}
+                        onClick={()=>{handlevipstatus(profpat?.uhid, String(profpat?.vip));}}
+                      >
+                        VIP SWITCH
+                      </p>
+                      </div>
                       <div
                         className={`flex flex-row gap-4 items-center justify-center`}
                       >
@@ -1106,6 +1104,9 @@ const Markedpatient = ({ handlenavigatereport }) => {
                           className={`w-fit h-6 cursor-pointer`}
                           onClick={() => {
                             setshowprof(false);
+                            if(vipchanged){
+                            window.location.reload();
+                            }
                           }}
                         />
                       </div>
@@ -1321,28 +1322,44 @@ const Markedpatient = ({ handlenavigatereport }) => {
                       >
                         ID PROOF
                       </p>
-                      <div className="flex flex-wrap justify-between w-full">
-                        {Object.keys(selectedIDs).map((id) => (
-                          <div key={id} className="flex flex-col gap-2 mt-2">
-                            <label
-                              className={`${outfit.className} text-base font-semibold uppercase text-black/80`}
-                            >
-                              {id} Number
-                            </label>
+                        <div className="flex flex-wrap justify-between w-full">
+                        {Object.keys(selectedIDs).map((id) => {
+                          const value = selectedIDs[id] || "";
+                          // ✅ Mask last 5 characters
+                          const masked =
+                            value.length > 5
+                              ? value.slice(0, -5) + "*****"
+                              : "*".repeat(value.length);
 
-                            <div className="flex items-center gap-2">
-                              <span className="text-black/90">
-                                {selectedIDs[id]}
-                              </span>
+                          return (
+                            <div key={id} className="flex flex-col gap-2 mt-2">
+                              <label
+                                className={`${outfit.className} text-base font-semibold uppercase text-black/80`}
+                              >
+                                {id} Number
+                              </label>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-black/90">{masked}</span>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
+            {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
             <style>
               {`
               .inline-scroll::-webkit-scrollbar {
