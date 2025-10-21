@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import ReactDOM from "react-dom";
+import { useRouter } from "next/navigation";
+
 import axios from "axios";
 import { API_URL } from "../libs/global";
+
 import { Raleway, Inter, Poppins } from "next/font/google";
 import {
   LineChart,
@@ -32,6 +36,7 @@ import {
   ClipboardDocumentCheckIcon,
   XMarkIcon,
   ArrowDownCircleIcon,
+  ArrowRightStartOnRectangleIcon,
 } from "@heroicons/react/16/solid";
 
 import Headset from "@/app/Assets/headset.png";
@@ -88,6 +93,26 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   const { width, height } = useWindowSize();
+
+  const [logoutconfirm, setlogoutconfirm] = useState(false);
+
+  const router = useRouter();
+
+  const handlelogout = () => {
+    console.clear();
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    router.replace("/Login");
+  };
+
+  const [showAlert, setshowAlert] = useState(false);
+  const [alermessage, setAlertMessage] = useState("");
+  const showWarning = (message) => {
+    setAlertMessage(message);
+    setshowAlert(true);
+    setTimeout(() => setshowAlert(false), 4000);
+  };
 
   const [doctorName, setDoctorName] = useState("");
 
@@ -576,8 +601,17 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         // console.log("Patient Found:", patient);
 
         // ✅ Extract surgery dates
-        const surgeryLeft = patient?.Medical?.surgery_date_left;
-        const surgeryRight = patient?.Medical?.surgery_date_right;
+        const surgeryLeft =
+          patient?.Medical?.surgery_date_left &&
+          patient.Medical.surgery_date_left !== "1001-01-01"
+            ? patient.Medical.surgery_date_left
+            : "";
+
+        const surgeryRight =
+          patient?.Medical?.surgery_date_right &&
+          patient.Medical.surgery_date_right !== "1001-01-01"
+            ? patient.Medical.surgery_date_right
+            : "";
 
         // ✅ Determine side
         let side = "left";
@@ -593,7 +627,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         }
 
         // ✅ Optionally pick op_date
-        setop_date(surgeryLeft);
+        setop_date(surgeryLeft || surgeryRight || "NA");
         const apiPatients = response.data.patient || [];
         // ✅ Update state
         const mapped = {
@@ -614,8 +648,18 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
           period_right: apiPatients.Patient_Status_Right || "NA",
           activation_status: apiPatients.Activation_Status ?? "True",
           patient_initial_status: apiPatients.patient_current_status ?? "NA",
-          surgery_left: apiPatients.Medical?.surgery_date_left ?? "NA",
-          surgery_right: apiPatients.Medical?.surgery_date_right ?? "NA",
+          surgery_left:
+            apiPatients.Medical?.surgery_date_left &&
+            apiPatients.Medical.surgery_date_left !== "1001-01-01"
+              ? apiPatients.Medical.surgery_date_left
+              : "NA",
+
+          surgery_right:
+            apiPatients.Medical?.surgery_date_right &&
+            apiPatients.Medical.surgery_date_right !== "1001-01-01"
+              ? apiPatients.Medical.surgery_date_right
+              : "NA",
+
           doctor_left: apiPatients.Practitioners?.left_doctor,
           doctor_right: apiPatients.Practitioners?.right_doctor,
           vip: apiPatients.VIP_Status ?? false,
@@ -673,18 +717,40 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   const [selectedSurgery, setSelectedSurgery] = useState("");
 
   // after patientData is set, update surgeries
+  // In your useEffect
   useEffect(() => {
     if (patientData) {
-      const s = [
-        patientData?.surgery_left !== "NA" ? patientData?.surgery_left : null,
-        patientData?.surgery_right !== "NA" ? patientData?.surgery_right : null,
-      ].filter(Boolean);
+      const surgeryOptions = [];
 
-      setSurgeries(s);
+      if (
+        patientData?.surgery_left &&
+        patientData.surgery_left !== "NA" &&
+        patientData.surgery_left !== "1001-01-01"
+      ) {
+        surgeryOptions.push({
+          label: `Left Knee - ${patientData.surgery_left}`,
+          value: patientData.surgery_left,
+        });
+      }
 
-      // Only set default if nothing is selected yet
-      setSelectedSurgery((prev) => prev || s[0] || "");
-      setop_date((prev) => prev || s[0] || "");
+      if (
+        patientData?.surgery_right &&
+        patientData.surgery_right !== "NA" &&
+        patientData.surgery_right !== "1001-01-01"
+      ) {
+        surgeryOptions.push({
+          label: `Right Knee - ${patientData.surgery_right}`,
+          value: patientData.surgery_right,
+        });
+      }
+
+      setSurgeries(surgeryOptions);
+
+      // Set default selected surgery
+      if (surgeryOptions.length > 0) {
+        setSelectedSurgery(surgeryOptions[0].value);
+        setop_date(surgeryOptions[0].value);
+      }
     }
   }, [patientData]);
 
@@ -1261,7 +1327,7 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
 
   const handleEdit = (tp) => {
     setEditingTimepoint(tp);
-    setTempValues(values[tp]); // copy current values for editing
+    setTempValues(0); // copy current values for editing
   };
 
   const handleSave = async (tp) => {
@@ -1309,6 +1375,13 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   };
 
   const handleChange = (tp, motion, val) => {
+    const numericValue = Number(val);
+
+    if (isNaN(numericValue) || numericValue < 0 || numericValue > 360) {
+      showWarning("Please enter a valid ROM angle between 0° and 360°");
+      return; // Stop execution, do not update state
+    }
+
     setTempValues({ ...tempValues, [motion]: val });
   };
 
@@ -1625,13 +1698,27 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
     setIsEditingDeformity(false);
   };
 
-  const handleToggleDeformity = (grade) => {
+const handleToggleDeformity = (grade) => {
+  if (grade === "Varus" || grade === "Valgus") {
+    // Single-select logic for Varus/Valgus
     if (tempDeformity.includes(grade)) {
-      setTempDeformity(tempDeformity.filter((d) => d !== grade));
+      // unselect if already selected
+      setTempDeformity(tempDeformity.filter((g) => g !== grade));
+    } else {
+      // replace any previous Varus/Valgus selection
+      const others = tempDeformity.filter((g) => g !== "Varus" && g !== "Valgus");
+      setTempDeformity([...others, grade]);
+    }
+  } else {
+    // Multi-select logic for the rest
+    if (tempDeformity.includes(grade)) {
+      setTempDeformity(tempDeformity.filter((g) => g !== grade));
     } else {
       setTempDeformity([...tempDeformity, grade]);
     }
-  };
+  }
+};
+
 
   const techOptions = [
     "Computer Guide",
@@ -3021,6 +3108,21 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
     }
   };
 
+    useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setlogoutconfirm(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+
+    // cleanup on unmount
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, []);
+
   const cancelPostResurfacing = () => {
     setTempPostResurfacingThickness(postResurfacingThickness);
     setIsEditingPostResurfacing(false);
@@ -3056,6 +3158,8 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
     }, 3000);
     return () => clearInterval(interval);
   }, []);
+
+
 
   if (loading)
     return (
@@ -3106,6 +3210,8 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
   const capitalizeFirstLetter = (string) => {
     return string.charAt(0).toUpperCase() + string.slice(1);
   };
+
+
 
   return (
     <div
@@ -3187,9 +3293,12 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
             } justify-end gap-12`}
           >
             <div
-              className={`w-1/3 flex flex-row justify-between items-center gap-8`}
+              className={`w-1/3 flex flex-row justify-end items-center gap-8`}
             >
-              <Image src={Headset} alt="support" className={`w-5 h-5`} />
+              <ArrowRightStartOnRectangleIcon
+                className="w-6 h-6 text-black cursor-pointer"
+                onClick={() => setlogoutconfirm(true)}
+              />
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
@@ -3201,9 +3310,9 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
       </div>
 
       {patientData.surgery_left !== patientData.surgery_right && (
-        <div className="flex items-center space-x-2 w-60 pt-[40px]">
+        <div className="flex items-center space-x-2 w-60 pt-[40px]" title="Select the knee to view the surgery report">
           <select
-            className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm text-black/55`}
+            className={`${inter.className} border border-gray-300 rounded px-4 py-2 w-full text-sm font-semibold text-black cursor-pointer`}
             value={selectedSurgery}
             onChange={(e) => {
               const newSurgery = e.target.value;
@@ -3211,11 +3320,12 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
               setop_date(newSurgery);
               if (patientData?.uhid)
                 fetchSurgeryReport(patientData.uhid, newSurgery);
+              sessionStorage.setItem("op_date", newSurgery);
             }}
           >
             {surgeries.map((surgery, index) => (
-              <option key={index} value={surgery}>
-                {new Date(surgery).toLocaleDateString("en-GB")}
+              <option key={index} value={surgery.value}>
+                {surgery.label}
               </option>
             ))}
           </select>
@@ -7064,6 +7174,111 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
         </div>
       )}
 
+      {logoutconfirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto ${
+                width < 950 ? "gap-4 w-full" : "w-1/3"
+              }`}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } max-h-[92vh] rounded-2xl`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-8 ${
+                      width < 760 ? "py-0" : "py-4 px-4"
+                    }`}
+                  >
+                    <div className={`w-full flex flex-col gap-1`}>
+                      <div className="flex flex-row justify-center items-center w-full">
+                        <p
+                          className={`${inter.className} text-xl font-bold text-black`}
+                        >
+                          Confirmation
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-2 justify-center items-center ${
+                        width >= 1200 ? "flex-col" : "flex-col"
+                      }`}
+                    >
+                      <p
+                        className={`${raleway.className} text-lg font-semibold text-black`}
+                      >
+                        Are you sure need to sign out?
+                      </p>
+                    </div>
+
+                    <div className={`w-full flex flex-row`}>
+                      <div
+                        className={`w-full flex flex-row gap-6 items-center ${
+                          width < 700 ? "justify-between" : "justify-end"
+                        }`}
+                      >
+                        <button
+                          className={`text-black/80 font-normal ${
+                            raleway.className
+                          } cursor-pointer ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            setlogoutconfirm(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className={`bg-[#161C10] text-white py-2 font-normal cursor-pointer ${
+                            raleway.className
+                          } ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            handlelogout();
+                          }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>
+              {`
+                             .inline-scroll::-webkit-scrollbar {
+                               width: 12px;
+                             }
+                             .inline-scroll::-webkit-scrollbar-track {
+                               background: transparent;
+                             }
+                             .inline-scroll::-webkit-scrollbar-thumb {
+                               background-color: #076C40;
+                               border-radius: 8px;
+                             }
+                       
+                             .inline-scroll {
+                               scrollbar-color: #076C40 transparent;
+                             }
+                           `}
+            </style>
+          </div>,
+          document.body
+        )}
+
       <style>
         {`
           .inline-scroll::-webkit-scrollbar {
@@ -7082,6 +7297,16 @@ const ViewSurgeryreport = ({ handlenavigateaddurgeryreport }) => {
           }
         `}
       </style>
+
+      {showAlert && (
+        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+          <div
+            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+          >
+            {alermessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -6,6 +6,7 @@ import Image from "next/image";
 
 import axios from "axios";
 import { API_URL } from "../libs/global";
+import { useRouter } from "next/navigation";
 
 import { Raleway, Inter, Poppins, Outfit } from "next/font/google";
 import {
@@ -22,6 +23,9 @@ import {
   ClipboardDocumentCheckIcon,
   XMarkIcon,
   ArrowDownCircleIcon,
+  ArrowRightStartOnRectangleIcon,
+  BookmarkIcon,
+  XCircleIcon,
 } from "@heroicons/react/16/solid";
 
 import Headset from "@/app/Assets/headset.png";
@@ -112,6 +116,13 @@ const Markedpatient = ({ handlenavigatereport }) => {
     setSearchTerm("");
   };
 
+  const isDefaultFilter =
+    side === "left" &&
+    operativePeriod === "all" &&
+    subOperativePeriod === "all" &&
+    completionStatus === "all" &&
+    sortOrder === "low_to_high";
+
   const handleApply = () => {
     // You can do any filtering/apply logic here if needed
 
@@ -186,7 +197,6 @@ const Markedpatient = ({ handlenavigatereport }) => {
 
         const apiPatients = res.data[0].patients || [];
 
-
         const filteredPatients = apiPatients.filter(
           (p) => p.VIP_Status === true
         );
@@ -217,7 +227,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
             status: i % 3 === 0 ? "COMPLETED" : "PENDING",
             left_compliance: p.Medical_Left_Completion ?? 0,
             right_compliance: p.Medical_Right_Completion ?? 0,
-            vip:p.VIP_Status,
+            vip: p.VIP_Status,
             activation_status: p.Activation_Status ?? "True",
             left_questionnaires: p.Medical_Left ?? "NA",
             right_questionnaires: p.Medical_Right ?? "NA",
@@ -265,8 +275,6 @@ const Markedpatient = ({ handlenavigatereport }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(50);
 
-
-
   const getOverallScore = (patient, side) => {
     if (!patient.overall_scores) return 0;
 
@@ -280,13 +288,12 @@ const Markedpatient = ({ handlenavigatereport }) => {
     if (!scores) return 0;
 
     const total = Object.values(scores).reduce((sum, val) => {
-    const num = parseFloat(val);
-    return sum + (isNaN(num) ? 0 : num);
-  }, 0);
+      const num = parseFloat(val);
+      return sum + (isNaN(num) ? 0 : num);
+    }, 0);
 
-  return Math.round((total / 408) * 100); // ✅ rounded to 2 decimals
+    return Math.round((total / 408) * 100); // ✅ rounded to 2 decimals
   };
-
 
   const filteredPatients = patientdata.filter((patient) => {
     // 1️⃣ Side filter
@@ -443,7 +450,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
     } else {
       vip1 = "true";
     }
-    const payload = {field: "vip_status", value: vip1 };
+    const payload = { field: "vip_status", value: vip1 };
     // console.log("Status payload", payload);
     try {
       // ✅ API call
@@ -452,8 +459,13 @@ const Markedpatient = ({ handlenavigatereport }) => {
         payload
       );
 
-      showWarning("Patient vip status update successfull");
+      showWarning(
+        `Status updated successfully to ${
+          vip1 === "true" ? "Marked" : "Unmarked"
+        }`
+      );
       setVipChanged(true);
+      window.location.reload();
     } catch (error) {
       console.error("Error updating status:", error);
       showWarning("Failed to update status");
@@ -480,7 +492,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
     }
   }, []);
 
-   const messages = [
+  const messages = [
     "Fetching patients from the database...",
     "Almost there, preparing data...",
     "Optimizing results...",
@@ -494,6 +506,38 @@ const Markedpatient = ({ handlenavigatereport }) => {
       setIndex((prev) => (prev + 1) % messages.length);
     }, 3000);
     return () => clearInterval(interval);
+  }, []);
+
+  const [logoutconfirm, setlogoutconfirm] = useState(false);
+
+  const router = useRouter();
+
+  const handlelogout = () => {
+    console.clear();
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    router.replace("/Login");
+  };
+
+  useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setshowprof(false);
+        setexpand(false);
+        setlogoutconfirm(false);
+        if (vipchanged) {
+          window.location.reload();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+
+    // cleanup on unmount
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
   }, []);
 
   return (
@@ -530,19 +574,28 @@ const Markedpatient = ({ handlenavigatereport }) => {
             <input
               placeholder="Search ..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                // allow only letters, numbers, and spaces
+                const filteredValue = value.replace(/[^a-zA-Z0-9 ]/g, "");
+                setSearchTerm(filteredValue);
+              }}
               className={`${raleway.className} font-normal text-black w-full px-2 py-1`}
             />
           </div>
           {width >= 1100 && (
             <div
-              className={`w-1/3 flex flex-row justify-between items-center gap-8`}
+              className={`w-1/3 flex flex-row justify-end items-center gap-8`}
             >
-              <Image src={Headset} alt="support" className={`w-5 h-5`} />
+              <ArrowRightStartOnRectangleIcon
+                className="w-6 h-6 text-black cursor-pointer"
+                onClick={() => setlogoutconfirm(true)}
+              />
+
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
-               Dr. {doctorName || "Doctor Name"}
+                Dr. {doctorName || "Doctor Name"}
               </p>
             </div>
           )}
@@ -560,9 +613,17 @@ const Markedpatient = ({ handlenavigatereport }) => {
           }`}
         >
           {/* Dropdown SVG Button */}
-          <div ref={dropdownRef} className={`${raleway.className} relative`}>
+          <div
+            ref={dropdownRef}
+            className={`${raleway.className} relative`}
+            title="Filter Options"
+          >
             <div
-              className="bg-white rounded-lg px-3 py-2 cursor-pointer shadow-lg  border-[#EBEBEB] border-2"
+              className={`rounded-lg p-3 cursor-pointer transition-all duration-300 ${
+                isDefaultFilter
+                  ? "bg-white border border-gray-200"
+                  : "bg-teal-100 border-2 border-teal-500 shadow-md"
+              }`}
               onClick={() => setDropdownOpen((prev) => !prev)}
             >
               <svg
@@ -584,7 +645,11 @@ const Markedpatient = ({ handlenavigatereport }) => {
                 {/* Side */}
                 <div className="mb-4">
                   <p className="font-semibold mb-1">Side</p>
-                  <label className="inline-flex items-center mr-4 cursor-pointer">
+                  <label
+                    className={`inline-flex items-center mr-4 cursor-pointer ${
+                      side === "left" ? "font-bold text-lg" : ""
+                    }`}
+                  >
                     <input
                       type="radio"
                       className="form-radio"
@@ -595,7 +660,11 @@ const Markedpatient = ({ handlenavigatereport }) => {
                     />
                     <span className="ml-2">Left</span>
                   </label>
-                  <label className="inline-flex items-center cursor-pointer">
+                  <label
+                    className={`inline-flex items-center cursor-pointer ${
+                      side === "right" ? "font-bold text-lg" : ""
+                    }`}
+                  >
                     <input
                       type="radio"
                       className="form-radio"
@@ -613,7 +682,11 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   <p className="font-semibold mb-1">Operative Period</p>
                   {["all", "pre-op", "post-op"].map((period) => (
                     <div key={period}>
-                      <label className="inline-flex items-center mr-4 cursor-pointer">
+                      <label
+                        className={`inline-flex items-center mr-4 cursor-pointer ${
+                          operativePeriod === period ? "font-bold text-lg" : ""
+                        }`}
+                      >
                         <input
                           type="radio"
                           className="form-radio"
@@ -638,7 +711,11 @@ const Markedpatient = ({ handlenavigatereport }) => {
                               (sub) => (
                                 <label
                                   key={sub}
-                                  className="inline-flex items-center cursor-pointer"
+                                  className={`inline-flex items-center cursor-pointer ${
+                                    subOperativePeriod === sub
+                                      ? "font-bold text-lg"
+                                      : ""
+                                  }`}
                                 >
                                   <input
                                     type="radio"
@@ -658,8 +735,6 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   ))}
                 </div>
 
-  
-
                 {/* Sort */}
                 <div>
                   <p className="font-semibold mb-1">Sort</p>
@@ -669,7 +744,10 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   ].map(({ label, value }) => (
                     <label
                       key={value}
-                      className="inline-flex items-center mr-4 cursor-pointer"
+                      className={`inline-flex items-center mr-4 cursor-pointer ${
+                        sortOrder === value ? "font-bold text-lg " : ""
+                      }`}
+                      title="Sorting based on the questionnaire performance score"
                     >
                       <input
                         type="radio"
@@ -684,18 +762,12 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   ))}
                 </div>
 
-                <div className="flex justify-between mt-4 pt-2 border-t border-gray-300">
+                <div className="flex justify-center mt-4 pt-2 border-t border-gray-300">
                   <button
                     onClick={handleClearAll}
                     className="text-sm font-semibold text-red-600 cursor-pointer"
                   >
                     Reset
-                  </button>
-                  <button
-                    onClick={handleApply}
-                    className="text-sm font-semibold text-blue-600 cursor-pointer"
-                  >
-                    Apply
                   </button>
                 </div>
               </div>
@@ -703,8 +775,9 @@ const Markedpatient = ({ handlenavigatereport }) => {
           </div>
 
           <p
+            className={`${raleway.className}  text-teal-600 font-semibold text-sm w-1/2 cursor-pointer underline hover:scale-105 hover:translate-x-1 transition`}
             onClick={handleClearAll}
-            className={`${raleway.className} text-[#2B2B2B] font-semibold text-sm w-1/2 cursor-pointer`}
+            title="Click to clear filter and search"
           >
             Clear All
           </p>
@@ -728,6 +801,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               setRowsPerPage(Number(e.target.value));
               setCurrentPage(1); // Reset to first page
             }}
+            title="Select no of records"
           >
             {generatePageOptions(displayedPatients.length).map((count) => (
               <option key={count} value={count}>
@@ -743,6 +817,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               className="w-6 h-6 flex items-center justify-center rounded-md bg-white shadow border cursor-pointer"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              title="Move to previous page"
             >
               <svg
                 className="w-4 h-4 text-gray-600"
@@ -772,6 +847,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
               onClick={() =>
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
+              title="Move to next page"
             >
               <svg
                 className="w-4 h-4 text-gray-600"
@@ -795,7 +871,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
             width >= 1000 ? "overflow-y-auto" : ""
           }`}
         >
-           {patientloading ? (
+          {patientloading ? (
             <div className="flex space-x-2 w-full justify-center">
               <svg
                 className="animate-spin h-5 w-5 text-black"
@@ -821,8 +897,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                 {messages[index]}
               </span>
             </div>
-          ) :
-          paginatedPatients.length > 0 ? (
+          ) : paginatedPatients.length > 0 ? (
             paginatedPatients.map((patient, index) => (
               <div
                 key={index}
@@ -863,7 +938,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                         setshowprof(true);
                         setshowprofpat(patient);
                       }}
-            
+                      title="View profile"
                     />
                     <div
                       className={`w-full flex items-center ${
@@ -935,7 +1010,10 @@ const Markedpatient = ({ handlenavigatereport }) => {
                       width < 750 ? "w-3/4 text-center" : "w-1/4 text-center"
                     }`}
                   >
-                    <div className="w-full flex flex-col items-center relative group">
+                    <div
+                      className="w-full flex flex-col items-center relative group"
+                      title="Overall questionnaire score"
+                    >
                       {/* Hover Percentage Text */}
                       <div className="absolute -top-7 left-0 transform translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-300 ease-in-out text-sm font-semibold text-black border-2 border-black px-3 rounded-lg">
                         {`${getOverallScore(patient, side) ?? 0}%`}
@@ -987,6 +1065,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                             );
                           }
                         }}
+                        title="View Report"
                       />
                     </div>
                   </div>
@@ -1064,17 +1143,31 @@ const Markedpatient = ({ handlenavigatereport }) => {
                   >
                     <div className="flex flex-row justify-between items-center w-full">
                       <div className="flex flex-col">
-<p
-                        className={`${inter.className} text-2xl font-semibold text-black`}
-                      >
-                        Patient Profile
-                      </p>
-                      <p
-                        className={`${inter.className} text-sm font-semibold text-black cursor-pointer`}
-                        onClick={()=>{handlevipstatus(profpat?.uhid, String(profpat?.vip));}}
-                      >
-                        VIP SWITCH
-                      </p>
+                        <p
+                          className={`${inter.className} text-2xl font-semibold text-black`}
+                        >
+                          Patient Profile
+                        </p>
+                        <div
+                          className={`${inter.className} text-sm font-semibold text-black cursor-pointer flex flex-row gap-2 items-center mt-1`}
+                          onClick={() => {
+                            handlevipstatus(
+                              profpat?.uhid,
+                              String(profpat?.vip)
+                            );
+                          }}
+                          title={`Click to ${
+                            String(profpat?.vip) === "true" ? "Unmark" : "Mark"
+                          } Patient`}
+                        >
+                          <BookmarkIcon className="w-6 h-6 text-red-400" />
+                          <p>
+                            {String(profpat?.vip) === "true"
+                              ? "Unmark"
+                              : "Mark"}{" "}
+                            Patient
+                          </p>
+                        </div>
                       </div>
                       <div
                         className={`flex flex-row gap-4 items-center justify-center`}
@@ -1098,14 +1191,13 @@ const Markedpatient = ({ handlenavigatereport }) => {
                             className={`w-12 h-6 cursor-pointer`}
                           />
                         )}
-                        <Image
-                          src={CloseIcon}
-                          alt="Close"
-                          className={`w-fit h-6 cursor-pointer`}
+                        <XCircleIcon
+                          className="w-fit h-7 text-red-600  cursor-pointer"
                           onClick={() => {
                             setshowprof(false);
-                            if(vipchanged){
-                            window.location.reload();
+                            setexpand(false);
+                            if (vipchanged) {
+                              window.location.reload();
                             }
                           }}
                         />
@@ -1322,7 +1414,7 @@ const Markedpatient = ({ handlenavigatereport }) => {
                       >
                         ID PROOF
                       </p>
-                        <div className="flex flex-wrap justify-between w-full">
+                      <div className="flex flex-wrap justify-between w-full">
                         {Object.keys(selectedIDs).map((id) => {
                           const value = selectedIDs[id] || "";
                           // ✅ Mask last 5 characters
@@ -1352,14 +1444,14 @@ const Markedpatient = ({ handlenavigatereport }) => {
               </div>
             </div>
             {showAlert && (
-        <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
-          <div
-            className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
-          >
-            {alermessage}
-          </div>
-        </div>
-      )}
+              <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
+                <div
+                  className={`${poppins.className} bg-yellow-100 border border-red-400 text-yellow-800 px-6 py-3 rounded-lg shadow-lg animate-fade-in-out`}
+                >
+                  {alermessage}
+                </div>
+              </div>
+            )}
             <style>
               {`
               .inline-scroll::-webkit-scrollbar {
@@ -1380,6 +1472,111 @@ const Markedpatient = ({ handlenavigatereport }) => {
             </style>
           </div>,
           document.body // portal target
+        )}
+
+      {logoutconfirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto ${
+                width < 950 ? "gap-4 w-full" : "w-1/3"
+              }`}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } max-h-[92vh] rounded-2xl`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-8 ${
+                      width < 760 ? "py-0" : "py-4 px-4"
+                    }`}
+                  >
+                    <div className={`w-full flex flex-col gap-1`}>
+                      <div className="flex flex-row justify-center items-center w-full">
+                        <p
+                          className={`${inter.className} text-xl font-bold text-black`}
+                        >
+                          Confirmation
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-2 justify-center items-center ${
+                        width >= 1200 ? "flex-col" : "flex-col"
+                      }`}
+                    >
+                      <p
+                        className={`${raleway.className} text-lg font-semibold text-black`}
+                      >
+                        Are you sure need to sign out?
+                      </p>
+                    </div>
+
+                    <div className={`w-full flex flex-row`}>
+                      <div
+                        className={`w-full flex flex-row gap-6 items-center ${
+                          width < 700 ? "justify-between" : "justify-end"
+                        }`}
+                      >
+                        <button
+                          className={`text-black/80 font-normal ${
+                            raleway.className
+                          } cursor-pointer ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            setlogoutconfirm(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className={`bg-[#161C10] text-white py-2 font-normal cursor-pointer ${
+                            raleway.className
+                          } ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            handlelogout();
+                          }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>
+              {`
+                                     .inline-scroll::-webkit-scrollbar {
+                                       width: 12px;
+                                     }
+                                     .inline-scroll::-webkit-scrollbar-track {
+                                       background: transparent;
+                                     }
+                                     .inline-scroll::-webkit-scrollbar-thumb {
+                                       background-color: #076C40;
+                                       border-radius: 8px;
+                                     }
+                               
+                                     .inline-scroll {
+                                       scrollbar-color: #076C40 transparent;
+                                     }
+                                   `}
+            </style>
+          </div>,
+          document.body
         )}
     </div>
   );

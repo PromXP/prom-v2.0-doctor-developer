@@ -2,12 +2,15 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import ReactDOM from "react-dom";
 import { useRouter } from "next/navigation";
+import axios from "axios";
+import { API_URL } from "../libs/global";
 
 import { Raleway, Inter, Poppins } from "next/font/google";
 
 import MainBg from "@/app/Assets/mainbg.png";
-import Logo from "@/app/Assets/logo.png";
+import Logo from "@/app/Assets/xolabslogo.png";
 import Doctor from "@/app/Assets/doctorcover.png";
 import Homeicon from "@/app/Assets/homeicon.png";
 import Patienticon from "@/app/Assets/fevericon.png";
@@ -98,11 +101,6 @@ const page = () => {
     setIsSidebarOpen(false); // start slide-out
   };
 
-  const handlelogout = () => {
-    console.clear();
-    router.replace("/Login");
-  };
-
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== "undefined") {
       return sessionStorage.getItem("selectedTab") || "Home";
@@ -123,7 +121,7 @@ const page = () => {
   };
 
   const handleclosereport = () => {
-    setActiveTab("Home");
+    setActiveTab("ViewSurgeryreport");
   };
 
   const handlenavigateaddurgeryreport = () => {
@@ -149,7 +147,12 @@ const page = () => {
   const renderSelectedComponent = () => {
     switch (activeTab) {
       case "Home":
-        return <Dailyactivity handlenavigatereport={handlenavigatereport} handlenavigatesurgeryreport={handlenavigatesurgeryreport} />;
+        return (
+          <Dailyactivity
+            handlenavigatereport={handlenavigatereport}
+            handlenavigatesurgeryreport={handlenavigatesurgeryreport}
+          />
+        );
 
       case "Patient":
         return <Patientlist handlenavigatereport={handlenavigatereport} />;
@@ -158,18 +161,58 @@ const page = () => {
         return <Markedpatient handlenavigatereport={handlenavigatereport} />;
 
       case "Patientreport":
-        return <Patientreport handlenavigateviewsurgeryreport={handlenavigateviewsurgeryreport}/>;
+        return (
+          <Patientreport
+            handlenavigateviewsurgeryreport={handlenavigateviewsurgeryreport}
+          />
+        );
 
       case "Surgeryreport":
         return <Surgeryreport handleclosereport={handleclosereport} />;
 
       case "ViewSurgeryreport":
-        return <ViewSurgeryreport handlenavigateaddurgeryreport={handlenavigateaddurgeryreport}/>;
+        return (
+          <ViewSurgeryreport
+            handlenavigateaddurgeryreport={handlenavigateaddurgeryreport}
+          />
+        );
 
       case "AddSurgeryreport":
-        return <AddSurgeryreport handleclosereport={handleclosereport}/>;
+        return <AddSurgeryreport handleclosereport={handleclosereport} />;
     }
   };
+
+  const [logoutconfirm, setlogoutconfirm] = useState(false);
+
+  const handlelogout = () => {
+    console.clear();
+    setloginopen(true);
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    router.replace("/Login");
+  };
+
+   const [doctorName, setDoctorName] = useState("");
+  
+    useEffect(() => {
+      const doctorUhid = sessionStorage.getItem("doctor");
+      console.log("Doctor UHID:", doctorUhid);
+  
+      if (doctorUhid) {
+        axios
+          .get(`${API_URL}getdoctorname/${doctorUhid}`)
+          .then((res) => {
+            if (res.data?.doctor_name) {
+              sessionStorage.setItem("doctorName", res.data.doctor_name);
+              setDoctorName(res.data.doctor_name);
+            }
+          })
+          .catch((err) => {
+            console.error("❌ Error fetching doctor name:", err);
+          });
+      }
+    }, []);
 
   return (
     <div
@@ -190,7 +233,7 @@ const page = () => {
               className={`w-[15%] h-full flex flex-col justify-center  rounded-4xl border-white border-[1px] bg-white/20 backdrop-blur-none text-white `}
             >
               <div className="absolute top-6 left-6 flex flex-col items-center">
-                <Image src={Logo} alt="XoLabs" className="w-20 h-12" />
+                <Image src={Logo} alt="XoLabs" className="w-20 h-6" />
                 <span
                   className={`${raleway.className} text-lg text-black font-semibold`}
                 >
@@ -231,16 +274,6 @@ const page = () => {
                     <Image src={Markedicon} alt="Home" className={`w-5 h-5`} />
                     <p>Marked Patients</p>
                   </div>
-                </div>
-                <div
-                  className={`w-full ${raleway.className} font-semibold text-base text-white flex items-center justify-center`}
-                >
-                  <p
-                    className={`bg-[#2A343D] rounded-[20px] px-6 py-1.5 text-center w-3/5 cursor-pointer`}
-                    onClick={handlelogout}
-                  >
-                    LOG OUT
-                  </p>
                 </div>
               </div>
             </div>
@@ -295,13 +328,13 @@ const page = () => {
                     <div
                       className={`${raleway.className} py-1 px-4 bg-[#1A2E39] rounded-full text-xs w-fit`}
                     >
-                      <p className="font-semibold">Doctor Name</p>
+                      <p className="font-semibold">Dr. {doctorName || "Doctor Name"}</p>
                     </div>
                     <div className="w-fit flex flex-row gap-8">
-                      <Image src={Headset} alt="Support" className="w-6 h-6" />
+                      {/* <Image src={Headset} alt="Support" className="w-6 h-6" /> */}
                       <ArrowRightStartOnRectangleIcon
                         className="w-6 h-6 text-black"
-                        onClick={handlelogout}
+                        onClick={() => setlogoutconfirm(true)}
                       />
                     </div>
                   </div>
@@ -359,6 +392,110 @@ const page = () => {
           </div>
         </div>
       </div>
+      {logoutconfirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto ${
+                width < 950 ? "gap-4 w-full" : "w-1/3"
+              }`}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } max-h-[92vh] rounded-2xl`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-8 ${
+                      width < 760 ? "py-0" : "py-4 px-4"
+                    }`}
+                  >
+                    <div className={`w-full flex flex-col gap-1`}>
+                      <div className="flex flex-row justify-center items-center w-full">
+                        <p
+                          className={`${inter.className} text-xl font-bold text-black`}
+                        >
+                          Confirmation
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-2 justify-center items-center ${
+                        width >= 1200 ? "flex-col" : "flex-col"
+                      }`}
+                    >
+                      <p
+                        className={`${raleway.className} text-lg font-semibold text-black`}
+                      >
+                        Are you sure need to sign out?
+                      </p>
+                    </div>
+
+                    <div className={`w-full flex flex-row`}>
+                      <div
+                        className={`w-full flex flex-row gap-6 items-center ${
+                          width < 700 ? "justify-between" : "justify-end"
+                        }`}
+                      >
+                        <button
+                          className={`text-black/80 font-normal ${
+                            raleway.className
+                          } cursor-pointer ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            setlogoutconfirm(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className={`bg-[#161C10] text-white py-2 font-normal cursor-pointer ${
+                            raleway.className
+                          } ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            handlelogout();
+                          }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>
+              {`
+                                                 .inline-scroll::-webkit-scrollbar {
+                                                   width: 12px;
+                                                 }
+                                                 .inline-scroll::-webkit-scrollbar-track {
+                                                   background: transparent;
+                                                 }
+                                                 .inline-scroll::-webkit-scrollbar-thumb {
+                                                   background-color: #076C40;
+                                                   border-radius: 8px;
+                                                 }
+                                           
+                                                 .inline-scroll {
+                                                   scrollbar-color: #076C40 transparent;
+                                                 }
+                                               `}
+            </style>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

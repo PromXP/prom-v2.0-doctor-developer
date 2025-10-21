@@ -10,7 +10,7 @@ import { API_URL } from "../libs/global";
 import { Raleway, Inter, Poppins } from "next/font/google";
 
 import MainBg from "@/app/Assets/mainbg.png";
-import Logo from "@/app/Assets/logo.png";
+import Logo from "@/app/Assets/xolabslogo.png";
 import Doctor from "@/app/Assets/doctorcover.png";
 
 const raleway = Raleway({
@@ -87,7 +87,7 @@ const page = () => {
       return;
     }
 
-     setloginlock(true);
+    setloginlock(true);
 
     try {
       const res = await axios.post(`${API_URL}auth/login`, {
@@ -99,13 +99,12 @@ const page = () => {
       console.log("Login", res);
 
       if (typeof window !== "undefined") {
-      sessionStorage.setItem("doctor", res.data.user.uhid);
-      sessionStorage.setItem("doctor_password", userPassword);
-    }
-
+        sessionStorage.setItem("doctor", res.data.user.uhid);
+        sessionStorage.setItem("doctor_password", userPassword);
+      }
 
       // redirect
-       setloginlock(false);
+      setloginlock(false);
       router.replace("/Homedashboard");
       setuserUHID("");
       setuserPassword("");
@@ -141,7 +140,9 @@ const page = () => {
     }
 
     try {
-      const res = await axios.post(`${API_URL}request_password_reset?uhid=${resetUHID}&email=${resetEmail}`);
+      const res = await axios.post(
+        `${API_URL}request_password_reset?uhid=${resetUHID}&role=doctor&email=${resetEmail}`
+      );
 
       showWarning("Password reset link sent to you registered email");
       setloginlock(false);
@@ -168,7 +169,6 @@ const page = () => {
     }
   };
 
-
   return (
     <div className="relative bg-[#CFDADE] min-h-screen w-full">
       {/* Top-left MainBg */}
@@ -181,7 +181,7 @@ const page = () => {
             className={`w-full h-full rounded-4xl bg-white/20 backdrop-blur-none text-white flex flex-row justify-center `}
           >
             <div className="absolute top-6 left-6 flex flex-col items-center">
-              <Image src={Logo} alt="XoLabs" className="w-20 h-12" />
+              <Image src={Logo} alt="XoLabs" className="w-20 h-6" />
               <span
                 className={`${raleway.className} text-lg text-black font-semibold`}
               >
@@ -227,29 +227,57 @@ const page = () => {
                         handlelogin();
                       }}
                     >
-                      <input
-                        type="text"
-                        placeholder="UEID / Email / Phone"
-                        value={userUHID}
-                        onChange={(e) => setuserUHID(e.target.value)}
-                        className={`${poppins.className} rounded-md p-3 text-sm border-1 border-[#E0E9E7] text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
-                      />
-                      <div className="relative w-full">
+                      <div className="flex flex-col">
+                        <label
+                          htmlFor="userUHID"
+                          className={`${poppins.className} text-sm font-semibold text-gray-900 mb-1`}
+                        >
+                          UEID / Email / Phone
+                        </label>
                         <input
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Password"
-                          value={userPassword}
-                          onChange={(e) => setuserPassword(e.target.value)}
-                          className={`${poppins.className} w-full border-1 border-[#E0E9E7] rounded-md text-sm p-3 text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
+                          id="userUHID"
+                          type="text"
+                          placeholder="Enter UEID / Email / Phone"
+                          value={userUHID}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            // Allow letters, numbers, @, . only
+                            const safeValue = value.replace(
+                              /[^a-zA-Z0-9@.]/g,
+                              ""
+                            );
+                            setuserUHID(safeValue);
+                          }}
+                          maxLength={64} // Optional, works in HTML itself
+                          className={`${poppins.className} rounded-md p-3 text-sm text-gray-900 placeholder-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400`}
                         />
-                        {/* Password show/hide icon placeholder on right */}
+                      </div>
+
+                      <div className="flex flex-col relative">
+                        <label
+                          htmlFor="userPassword"
+                          className={`${poppins.className} text-sm font-semibold text-gray-900 mb-1`}
+                        >
+                          Password
+                        </label>
+                        <input
+                          id="userPassword"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Enter Password"
+                          value={userPassword}
+                          maxLength={30} // Optional, works in HTML itself
+                          onChange={(e) => setuserPassword(e.target.value)}
+                          className={`${poppins.className} w-full rounded-md text-sm p-3 text-gray-900 placeholder-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400`}
+                        />
+                        {/* Password show/hide icon */}
                         <button
                           type="button"
-                          className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-gray-500 hover:text-gray-700"
+                          className="absolute top-6/9 right-3 -translate-y-1/2 cursor-pointer text-gray-500 hover:text-gray-700"
                           aria-label="Toggle Password Visibility"
                           onClick={() => setshowPassword((prev) => !prev)}
                         >
                           {!showPassword ? (
+                            // Eye icon
                             <svg
                               width="22"
                               height="14"
@@ -263,6 +291,7 @@ const page = () => {
                               />
                             </svg>
                           ) : (
+                            // Eye-off icon
                             <svg
                               width="22"
                               height="14"
@@ -298,33 +327,33 @@ const page = () => {
                           className={`${raleway.className} w-4/5 text-lg cursor-pointer bg-black text-white rounded-md py-1 font-semibold hover:bg-gray-800 transition`}
                         >
                           {loginlock ? (
-                        // Spinner + text
-                        <div className="flex items-center justify-center space-x-2">
-                          <svg
-                            className="animate-spin h-5 w-5 text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                            />
-                          </svg>
-                          <span>Logging in...</span>
-                        </div>
-                      ) : (
-                        "Login"
-                      )}
+                            // Spinner + text
+                            <div className="flex items-center justify-center space-x-2">
+                              <svg
+                                className="animate-spin h-5 w-5 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                />
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                                />
+                              </svg>
+                              <span>Logging in...</span>
+                            </div>
+                          ) : (
+                            "Login"
+                          )}
                         </button>
                       </div>
                     </form>
@@ -350,20 +379,50 @@ const page = () => {
                         e.preventDefault(); // Prevent form reload
                       }}
                     >
-                      <input
-                        type="text"
-                        placeholder="UEID"
-                        value={resetUHID}
-                        onChange={(e) => setresetUHID(e.target.value)}
-                        className={`${poppins.className} rounded-md p-3 text-sm border-1 border-[#E0E9E7] text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
-                      />
+                      <div className="flex flex-col">
+                        <label
+                          htmlFor="resetUHID"
+                          className={`${poppins.className} text-sm font-semibold text-gray-900 mb-1`}
+                        >
+                          UEID
+                        </label>
+                        <input
+                          id="resetUHID"
+                          type="text"
+                          required
+                          placeholder="Enter your UEID"
+                          value={resetUHID}
+                          onChange={(e) => {
+                            // Only allow letters, numbers, hyphen, underscore
+                            const filtered = e.target.value.replace(
+                              /[^a-zA-Z0-9-_]/g,
+                              ""
+                            );
+                            setresetUHID(filtered);
+                          }}
+                          maxLength={30} // Optional, works in HTML itself
+                          className={`${poppins.className} rounded-md p-3 text-sm text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400`}
+                        />
+                      </div>
 
-                      <input
-                        placeholder="Registered Email"
-                        value={resetEmail}
-                        onChange={(e) => setResetEmail(e.target.value)}
-                        className={`${poppins.className} w-full border-1 border-[#E0E9E7] rounded-md text-sm p-3 text-gray-900 placeholder-black bg-[#F9F9F9] focus:outline-none focus:ring-2 focus:ring-teal-400`}
-                      />
+                      <div className="flex flex-col">
+                        <label
+                          htmlFor="resetEmail"
+                          className={`${poppins.className} text-sm font-semibold text-gray-900 mb-1`}
+                        >
+                          Registered Email
+                        </label>
+                        <input
+                          id="resetEmail"
+                          type="text"
+                          required
+                          placeholder="Enter your registered email"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          maxLength={64} // Optional, works in HTML itself
+                          className={`${poppins.className} rounded-md p-3 text-sm text-gray-900 placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-teal-400`}
+                        />
+                      </div>
 
                       <div
                         className={`w-full flex ${
@@ -389,6 +448,9 @@ const page = () => {
                           onClick={() => {
                             setShowForgotPassword(false);
                             setResetEmail("");
+                            setresetUHID("");
+                            setuserUHID("");
+                            setuserPassword("");
                           }}
                         >
                           Back to Login

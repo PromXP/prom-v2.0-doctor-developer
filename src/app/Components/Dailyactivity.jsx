@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import ReactDOM from "react-dom";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 import axios from "axios";
 import { API_URL } from "../libs/global";
@@ -35,6 +36,9 @@ import {
   ClipboardDocumentCheckIcon,
   XMarkIcon,
   ArrowDownCircleIcon,
+  ArrowRightStartOnRectangleIcon,
+  StarIcon,
+  XCircleIcon,
 } from "@heroicons/react/16/solid";
 
 import Headset from "@/app/Assets/headset.png";
@@ -45,6 +49,7 @@ import CloseIcon from "@/app/Assets/closeiconwindow.png";
 import ExpandIcon from "@/app/Assets/expand.png";
 import ShrinkIcon from "@/app/Assets/shrink.png";
 import UploadProfile from "@/app/Assets/uploadprofilepic.png";
+import { set } from "lodash";
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -259,8 +264,16 @@ const Dailyactivity = ({
             left_questionnaires: p.Medical_Left ?? "NA",
             right_questionnaires: p.Medical_Right ?? "NA",
             patient_initial_status: p.patient_current_status ?? "NA",
-            surgery_left: p.Medical?.surgery_date_left ?? "NA",
-            surgery_right: p.Medical?.surgery_date_right ?? "NA",
+            surgery_left:
+              p.Medical?.surgery_date_left &&
+              p.Medical.surgery_date_left !== "1001-01-01"
+                ? p.Medical.surgery_date_left
+                : "NA",
+            surgery_right:
+              p.Medical?.surgery_date_right &&
+              p.Medical.surgery_date_right !== "1001-01-01"
+                ? p.Medical.surgery_date_right
+                : "NA",
             phone: p.Patient?.phone ?? "NA",
             alterphone: p.Patient?.alterphone ?? "NA",
             email: p.Patient?.email ?? "NA",
@@ -401,8 +414,6 @@ const Dailyactivity = ({
 
     const allowedPatients = [];
 
-
-
     for (const p of patients) {
       let allowed = false;
       let matchedSide = null;
@@ -441,10 +452,10 @@ const Dailyactivity = ({
           allowed = false;
         }
 
-        if(p.activation_status){
-          allowed=true;
-        }else{
-          allowed=false;
+        if (p.activation_status) {
+          allowed = true;
+        } else {
+          allowed = false;
         }
       }
 
@@ -799,7 +810,7 @@ const Dailyactivity = ({
     } else {
       vip1 = "true";
     }
-    const payload = {field: "vip_status", value: vip1 };
+    const payload = { field: "vip_status", value: vip1 };
     // console.log("Status payload", payload + " " + vip1);
     // return;
     try {
@@ -961,6 +972,34 @@ const Dailyactivity = ({
     return () => clearInterval(interval);
   }, []);
 
+  const [logoutconfirm, setlogoutconfirm] = useState(false);
+
+  const router = useRouter();
+
+  const handlelogout = () => {
+    console.clear();
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    router.replace("/Login");
+  };
+
+  useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setshowprof(false);
+        setlogoutconfirm(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+
+    // cleanup on unmount
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, []);
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col py-8 ${
@@ -986,9 +1025,13 @@ const Dailyactivity = ({
         >
           {width >= 1100 && (
             <div
-              className={`w-1/3 flex flex-row justify-between items-center gap-8`}
+              className={`w-1/3 flex flex-row justify-end items-center gap-8`}
             >
-              <Image src={Headset} alt="support" className={`w-5 h-5`} />
+              <ArrowRightStartOnRectangleIcon
+                className="w-6 h-6 text-black cursor-pointer"
+                onClick={() => setlogoutconfirm(true)}
+              />
+
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
@@ -1004,80 +1047,81 @@ const Dailyactivity = ({
           width >= 1000 ? "flex-row" : "flex-col h-fit"
         }`}
       >
-        <div
-          className={`${
-            width >= 1000 ? "w-1/3" : "w-full h-full"
-          } flex flex-col gap-4`}
-        >
-          <p
-            className={`${inter.className} font-medium text-xl text-[#30263B]`}
-          >
-            Selected Patient
-          </p>
-
+        {filteredPatients.length > 0 && (
           <div
-            className={`w-full flex flex-col gap-3 border-[#EBEBEB] border-[1.3px] rounded-[10px] py-6 px-4`}
+            className={`${
+              width >= 1000 ? "w-1/3" : "w-full h-full"
+            } flex flex-col gap-4`}
           >
-            <div className={`w-full flex `}>
-              <div className={`${width >= 1350 ? "w-full" : "w-full"}`}>
-                <div
-                  className={`flex gap-4 py-0  w-full ${
-                    width < 710 && width >= 640
-                      ? "px-0 flex-row items-start"
-                      : width < 530
-                      ? "flex-col justify-between items-center"
-                      : "flex-row items-start"
-                  }`}
-                >
-                  {selectedPatient?.avatar ? (
-                    <Image
-                      src={selectedPatient.avatar}
-                      alt="Avatar"
-                      className={`rounded-full cursor-pointer ${
-                        width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
-                      }`}
-                      width={60}
-                      height={60}
-                      onDoubleClick={() =>
-                        handlevipstatus(
-                          selectedPatient.uhid,
-                          String(selectedPatient.vip)
-                        )
-                      }
-                    />
-                  ) : (
-                    <Image
-                      src={ManAvatar} // 👈 default fallback if no avatar
-                      alt="Default Avatar"
-                      className={`rounded-full cursor-pointer ${
-                        width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
-                      }`}
-                      width={60}
-                      height={60}
-                      onDoubleClick={() =>
-                        handlevipstatus(
-                          selectedPatient.uhid,
-                          String(selectedPatient.vip)
-                        )
-                      }
-                    />
-                  )}
+            <p
+              className={`${inter.className} font-medium text-xl text-[#30263B]`}
+            >
+              Selected Patient
+            </p>
 
+            <div
+              className={`w-full flex flex-col gap-3 border-[#EBEBEB] border-[1.3px] rounded-[10px] py-6 px-4`}
+            >
+              <div className={`w-full flex `}>
+                <div className={`${width >= 1350 ? "w-full" : "w-full"}`}>
                   <div
-                    className={`w-full flex ${
-                      width >= 1350
-                        ? "flex-row"
-                        : width < 1350 && width >= 1000
-                        ? "flex-col"
-                        : width < 1000 && width >= 600
-                        ? "flex-row"
-                        : "flex-col gap-2"
+                    className={`flex gap-4 py-0  w-full ${
+                      width < 710 && width >= 640
+                        ? "px-0 flex-row items-start"
+                        : width < 530
+                        ? "flex-col justify-between items-center"
+                        : "flex-row items-start"
                     }`}
                   >
+                    {selectedPatient?.avatar ? (
+                      <Image
+                        src={selectedPatient.avatar}
+                        alt="Avatar"
+                        className={`rounded-full cursor-pointer ${
+                          width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
+                        }`}
+                        width={60}
+                        height={60}
+                        onDoubleClick={() =>
+                          handlevipstatus(
+                            selectedPatient.uhid,
+                            String(selectedPatient.vip)
+                          )
+                        }
+                      />
+                    ) : (
+                      <Image
+                        src={ManAvatar} // 👈 default fallback if no avatar
+                        alt="Default Avatar"
+                        className={`rounded-full cursor-pointer ${
+                          width < 530 ? "w-12 h-12" : "w-[60px] h-[60px]"
+                        }`}
+                        width={60}
+                        height={60}
+                        onDoubleClick={() =>
+                          handlevipstatus(
+                            selectedPatient.uhid,
+                            String(selectedPatient.vip)
+                          )
+                        }
+                      />
+                    )}
+
                     <div
-                      className={` flex items-start ${
-                        width < 710 ? "flex-col" : "flex-row"
-                      }
+                      className={`w-full flex ${
+                        width >= 1350
+                          ? "flex-row"
+                          : width < 1350 && width >= 1000
+                          ? "flex-col"
+                          : width < 1000 && width >= 600
+                          ? "flex-row"
+                          : "flex-col gap-2"
+                      }`}
+                    >
+                      <div
+                        className={` flex items-start ${
+                          width < 710 ? "flex-col" : "flex-row"
+                        }
                         
                     ${
                       width >= 1350
@@ -1088,38 +1132,38 @@ const Dailyactivity = ({
                         ? "w-5/7"
                         : "w-full"
                     }`}
-                    >
-                      <div
-                        className={`flex flex-col ${
-                          width < 710 ? "w-full" : "w-full"
-                        }`}
                       >
-                        <div className="flex items-center justify-between">
-                          <p
-                            className={`${
-                              raleway.className
-                            } text-black font-semibold text-lg ${
-                              width < 530 ? "w-full text-center" : ""
-                            }`}
-                          >
-                            {selectedPatient?.name ?? "Patient Name"}
-                          </p>
-                        </div>
-                        <p
-                          className={`${
-                            poppins.className
-                          } font-normal text-sm text-[#0F0F0F] ${
-                            width < 530 ? "text-center" : "text-start"
+                        <div
+                          className={`flex flex-col ${
+                            width < 710 ? "w-full" : "w-full"
                           }`}
                         >
-                          {selectedPatient
-                            ? `${selectedPatient.age}, ${selectedPatient.gender}`
-                            : "Age, Gender"}
-                        </p>
-                        <p
-                          className={`uppercase ${
-                            poppins.className
-                          } font-medium text-base text-[#222222] opacity-50 
+                          <div className="flex items-center justify-between">
+                            <p
+                              className={`${
+                                raleway.className
+                              } text-black font-semibold text-lg ${
+                                width < 530 ? "w-full text-center" : ""
+                              }`}
+                            >
+                              {selectedPatient?.name ?? "Patient Name"}
+                            </p>
+                          </div>
+                          <p
+                            className={`${
+                              poppins.className
+                            } font-normal text-sm text-[#0F0F0F] ${
+                              width < 530 ? "text-center" : "text-start"
+                            }`}
+                          >
+                            {selectedPatient
+                              ? `${selectedPatient.age}, ${selectedPatient.gender}`
+                              : "Age, Gender"}
+                          </p>
+                          <p
+                            className={`uppercase ${
+                              poppins.className
+                            } font-medium text-base text-[#222222] opacity-50 
                         
                         ${
                           width >= 1350
@@ -1134,13 +1178,13 @@ const Dailyactivity = ({
                         }
 
                         `}
-                        >
-                          {selectedPatient ? selectedPatient.uhid : "UHID"}
-                        </p>
+                          >
+                            {selectedPatient ? selectedPatient.uhid : "UHID"}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div
-                      className={`flex flex-col
+                      <div
+                        className={`flex flex-col
 
                       ${
                         width >= 1350
@@ -1153,13 +1197,15 @@ const Dailyactivity = ({
                       }
 
                       `}
-                    >
-                      <p
-                        className={`${
-                          inter.className
-                        } text-[#484848] font-semibold text-base ${
-                          width < 530 ? "w-full text-center" : "w-full text-end"
-                        }
+                      >
+                        <p
+                          className={`${
+                            inter.className
+                          } text-[#484848] font-semibold text-base ${
+                            width < 530
+                              ? "w-full text-center"
+                              : "w-full text-end"
+                          }
                           ${
                             width >= 1350
                               ? "text-end"
@@ -1173,104 +1219,104 @@ const Dailyactivity = ({
                           }
 
                           `}
-                      >
-                        {selectedPatient ? (
-                          <>
-                            L:{" "}
-                            {selectedPatient.doctor_left ===
-                            selectedPatient.doctor
-                              ? selectedPatient.period
-                              : "NA"}
-                            <br />
-                            R:{" "}
-                            {selectedPatient.doctor_right ===
-                            selectedPatient.doctor
-                              ? selectedPatient.period
-                              : "NA"}
-                          </>
-                        ) : (
-                          <>
-                            L: NA
-                            <br />
-                            R: NA
-                          </>
-                        )}
-                      </p>
+                        >
+                          {selectedPatient ? (
+                            <>
+                              L:{" "}
+                              {selectedPatient.doctor_left ===
+                              selectedPatient.doctor
+                                ? selectedPatient.period
+                                : "NA"}
+                              <br />
+                              R:{" "}
+                              {selectedPatient.doctor_right ===
+                              selectedPatient.doctor
+                                ? selectedPatient.period
+                                : "NA"}
+                            </>
+                          ) : (
+                            <>
+                              L: NA
+                              <br />
+                              R: NA
+                            </>
+                          )}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div
-              className={`w-full flex ${
-                width >= 530 ? "flex-row" : "flex-col"
-              } gap-4`}
-            >
-              <div className={`${width >= 530 ? "w-3/4" : "w-full"}`}>
-                <div className="w-full h-full bg-white rounded-lg">
+              <div
+                className={`w-full flex ${
+                  width >= 530 ? "flex-row" : "flex-col"
+                } gap-4`}
+              >
+                <div className={`${width >= 530 ? "w-3/4" : "w-full"}`}>
                   <div className="w-full h-full bg-white rounded-lg">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={selectedbardata}
-                        margin={{ top: 0, right: 0, left: -30, bottom: -10 }}
-                      >
-                        <CartesianGrid vertical={false} stroke="#EBEBEB" />
+                    <div className="w-full h-full bg-white rounded-lg">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={selectedbardata}
+                          margin={{ top: 0, right: 0, left: -30, bottom: -10 }}
+                        >
+                          <CartesianGrid vertical={false} stroke="#EBEBEB" />
 
-                        {/* X Axis */}
-                        <XAxis
-                          dataKey="name"
-                          tick={{
-                            fill: "#475467",
-                            opacity: 1,
-                            fontFamily: "Poppins",
-                            fontWeight: 500,
-                            fontSize: 8,
-                          }}
-                          axisLine={false}
-                        />
+                          {/* X Axis */}
+                          <XAxis
+                            dataKey="name"
+                            tick={{
+                              fill: "#475467",
+                              opacity: 1,
+                              fontFamily: "Poppins",
+                              fontWeight: 500,
+                              fontSize: 8,
+                            }}
+                            axisLine={false}
+                          />
 
-                        {/* Y Axis */}
-                        <YAxis
-                          tick={{
-                            fill: "#475467",
-                            opacity: 0.5,
-                            fontFamily: "Poppins",
-                            fontWeight: 500,
-                            fontSize: 12,
-                          }}
-                          axisLine={false}
-                          tickLine={false}
-                        />
+                          {/* Y Axis */}
+                          <YAxis
+                            tick={{
+                              fill: "#475467",
+                              opacity: 0.5,
+                              fontFamily: "Poppins",
+                              fontWeight: 500,
+                              fontSize: 12,
+                            }}
+                            axisLine={false}
+                            tickLine={false}
+                          />
 
-                        <Tooltip content={<CustomTooltip />} />
+                          <Tooltip content={<CustomTooltip />} />
 
-                        {/* ✅ Two bars per questionnaire */}
-                        <Bar
-                          dataKey="left"
-                          fill="#8884d8"
-                          radius={[8, 8, 0, 0]}
-                          barSize={10}
-                        />
-                        <Bar
-                          dataKey="right"
-                          fill="#82ca9d"
-                          radius={[8, 8, 0, 0]}
-                          barSize={10}
-                        />
-                      </BarChart>
-                    </ResponsiveContainer>
+                          {/* ✅ Two bars per questionnaire */}
+                          <Bar
+                            dataKey="left"
+                            fill="#8884d8"
+                            radius={[8, 8, 0, 0]}
+                            barSize={10}
+                          />
+                          <Bar
+                            dataKey="right"
+                            fill="#82ca9d"
+                            radius={[8, 8, 0, 0]}
+                            barSize={10}
+                          />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div
-                className={`${
-                  width >= 530
-                    ? "w-1/4 flex-col items-center gap-8"
-                    : "w-full flex-row items-center gap-4"
-                } flex   justify-between `}
-              >
-                {/* <div
+                <div
+                  className={`${
+                    width >= 530
+                      ? "w-1/4 flex-col items-center gap-8"
+                      : "w-full flex-row items-center gap-4"
+                  } flex   justify-between `}
+                >
+                  {/* <div
                   className={`w-full flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
                 >
                   <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
@@ -1280,80 +1326,80 @@ const Dailyactivity = ({
                     23 %
                   </p>
                 </div> */}
-                <div className={`w-full flex flex-col items-center`}>
-                  <div
-                    className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
-                  >
-                    <p
-                      className={`${inter.className} font-semibold text-sm text-[#484848]`}
+                  <div className={`w-full flex flex-col items-center`}>
+                    <div
+                      className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
                     >
-                      {selectedPatient?.total_combined ?? "NA"}
+                      <p
+                        className={`${inter.className} font-semibold text-sm text-[#484848]`}
+                      >
+                        {selectedPatient?.total_combined ?? "NA"}
+                      </p>
+                    </div>
+                    <p
+                      className={`${inter.className} font-normal text-[#475467] opacity-50 text-xs`}
+                    >
+                      Score
                     </p>
                   </div>
                   <p
-                    className={`${inter.className} font-normal text-[#475467] opacity-50 text-xs`}
+                    className={`w-full ${poppins.className} text-center font-normal text-sm text-[#0F0F0F]`}
                   >
-                    Score
+                    BMI: {selectedPatient?.bmi ?? "NA"}
                   </p>
                 </div>
-                <p
-                  className={`w-full ${poppins.className} text-center font-normal text-sm text-[#0F0F0F]`}
-                >
-                  BMI: {selectedPatient?.bmi ?? "NA"}
-                </p>
               </div>
-            </div>
 
-            <div className={`w-full flex flex-col gap-2`}>
-              <p
-                className={`${inter.className} font-bold text-sm text-[#2A343D]`}
-              >
-                Pending
-              </p>
-              <div
-                className={`w-full flex flex-col ${raleway.className} font-semibold text-xs text-[#696969] gap-1 max-h-40 overflow-y-auto inline-Scroll`}
-              >
-                {selectedPatient ? (
-                  getPendingQuestionnaires(selectedPatient).length > 0 ? (
-                    getPendingQuestionnaires(selectedPatient).map(
-                      (item, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between rounded-lg px-3 py-1.5 hover:bg-[#f1f1f1] transition"
-                        >
-                          <span className="font-semibold text-gray-800 w-2/3">
-                            {item.label}
-                          </span>
-                          <div className="flex gap-2 text-[10px] font-medium w-1/3 justify-between">
-                            <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit">
-                              {item.side}
+              <div className={`w-full flex flex-col gap-2`}>
+                <p
+                  className={`${inter.className} font-bold text-sm text-[#2A343D]`}
+                >
+                  Pending
+                </p>
+                <div
+                  className={`w-full flex flex-col ${raleway.className} font-semibold text-xs text-[#696969] gap-1 max-h-40 overflow-y-auto inline-Scroll`}
+                >
+                  {selectedPatient ? (
+                    getPendingQuestionnaires(selectedPatient).length > 0 ? (
+                      getPendingQuestionnaires(selectedPatient).map(
+                        (item, index) => (
+                          <div
+                            key={index}
+                            className="flex items-center justify-between rounded-lg px-3 py-1.5 hover:bg-[#f1f1f1] transition"
+                          >
+                            <span className="font-semibold text-gray-800 w-2/3">
+                              {item.label}
                             </span>
-                            <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 w-fit">
-                              {item.period}
-                            </span>
+                            <div className="flex gap-2 text-[10px] font-medium w-1/3 justify-between">
+                              <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 w-fit">
+                                {item.side}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-full bg-red-100 text-red-700 w-fit">
+                                {item.period}
+                              </span>
+                            </div>
                           </div>
-                        </div>
+                        )
                       )
+                    ) : (
+                      <div className="text-center py-4 text-gray-400 font-medium">
+                        No pending questionnaires
+                      </div>
                     )
                   ) : (
                     <div className="text-center py-4 text-gray-400 font-medium">
                       No pending questionnaires
                     </div>
-                  )
-                ) : (
-                  <div className="text-center py-4 text-gray-400 font-medium">
-                    No pending questionnaires
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
 
-            <div
-              className={`w-full flex ${
-                width >= 1300
-                  ? "flex-row gap-12"
-                  : "flex-col items-center gap-6"
-              } 
+              <div
+                className={`w-full flex ${
+                  width >= 1300
+                    ? "flex-row gap-12"
+                    : "flex-col items-center gap-6"
+                } 
               ${
                 width >= 1350
                   ? "flex-row gap-12"
@@ -1363,113 +1409,126 @@ const Dailyactivity = ({
                   ? "flex-row gap-12"
                   : "flex-col items-center gap-6"
               }`}
-            >
-              <p
-                className={`${
-                  width >= 400 ? "w-1/2" : "w-2/3"
-                } text-center bg-[#2A343D] px-4 py-1 text-white ${
-                  inter.className
-                } font-medium text-[15px] rounded-[10px]
+              >
+                <p
+                  className={`${
+                    width >= 400 ? "w-1/2" : "w-2/3"
+                  } text-center bg-[#2A343D] px-4 py-1 text-white ${
+                    inter.className
+                  } font-medium text-[15px] rounded-[10px]
                 ${selectedPatient?.uhid ? "cursor-pointer" : ""} `}
-                onClick={async () => {
-                  const todayLocal = new Date();
-                  const yyyy = todayLocal.getFullYear();
-                  const mm = String(todayLocal.getMonth() + 1).padStart(2, "0"); // months are 0-indexed
-                  const dd = String(todayLocal.getDate()).padStart(2, "0");
+                  onClick={async () => {
+                    const todayLocal = new Date();
+                    const yyyy = todayLocal.getFullYear();
+                    const mm = String(todayLocal.getMonth() + 1).padStart(
+                      2,
+                      "0"
+                    ); // months are 0-indexed
+                    const dd = String(todayLocal.getDate()).padStart(2, "0");
 
-                  const today = `${yyyy}-${mm}-${dd}`;
-                  const uhid = selectedPatient?.uhid?.toLowerCase();
-                  if (!uhid) return;
+                    const today = `${yyyy}-${mm}-${dd}`;
+                    const uhid = selectedPatient?.uhid?.toLowerCase();
+                    if (!uhid) return;
 
-                  const opdDate = getDateOnly(selectedPatient?.opd);
-                  const surgeryLeft = getDateOnly(
-                    selectedPatient?.surgery_left
-                  );
-                  const surgeryRight = getDateOnly(
-                    selectedPatient?.surgery_right
-                  );
+                    const opdDate = getDateOnly(selectedPatient?.opd);
+                    const surgeryLeft = getDateOnly(
+                      selectedPatient?.surgery_left
+                    );
+                    const surgeryRight = getDateOnly(
+                      selectedPatient?.surgery_right
+                    );
 
-                  // === Priority ===
-                  // 1) OPD check
-                  if (opdDate === today) {
-                    const exists = await checkGetSurgery(uhid, `op-${opdDate}`);
-                    if (!exists) {
-                      setshowprof(true); // ✅ OPD flow
-                      return;
-                    }
-                  }
-                  // console.log(
-                  //   "Not allowed — already exists or date not today",
-                  //   today,
-                  //   uhid,
-                  //   surgeryLeft
-                  // );
-
-                  // 2) Left surgery check
-                  if (surgeryLeft === today) {
-                    const exists = await checkGetSurgery(uhid, surgeryLeft);
-
-                    if (!exists) {
-                      handlenavigatesurgeryreport(); // ✅ Surgery flow
-                      if (typeof window !== "undefined") {
-                        sessionStorage.setItem(
-                          "selectedUHID",
-                          selectedPatient.uhid
-                        );
-                      }
-                      return;
-                    }
-                  }
-
-                  // 3) Right surgery check
-                  if (surgeryRight === today) {
-                    const exists = await checkGetSurgery(uhid, surgeryRight);
-                    if (!exists) {
-                      handlenavigatesurgeryreport(); // ✅ Surgery flow
-                      if (typeof window !== "undefined") {
-                        sessionStorage.setItem(
-                          "selectedUHID",
-                          selectedPatient.uhid
-                        );
-                      }
-                      return;
-                    }
-                  }
-
-                  // ❌ Nothing matched
-                }}
-              >
-                Surgery
-              </p>
-
-              <p
-                className={`${
-                  width >= 400 ? "w-1/2" : "w-2/3"
-                } text-center bg-[#2A343D] px-4 py-1 text-white ${
-                  inter.className
-                } font-medium text-[15px] rounded-[10px]
-                 ${selectedPatient?.uhid ? "cursor-pointer" : ""} `}
-                onClick={() => {
-                  if (selectedPatient.uhid) {
-                    handlenavigatereport();
-                    if (typeof window !== "undefined") {
-                      sessionStorage.setItem(
-                        "patientreportid",
-                        selectedPatient.uhid
+                    // === Priority ===
+                    // 1) OPD check
+                    if (opdDate === today) {
+                      const exists = await checkGetSurgery(
+                        uhid,
+                        `op-${opdDate}`
                       );
+                      if (!exists) {
+                        setshowprof(true); // ✅ OPD flow
+                        return;
+                      }
                     }
-                  }
-                }}
-              >
-                View Report
-              </p>
+                    // console.log(
+                    //   "Not allowed — already exists or date not today",
+                    //   today,
+                    //   uhid,
+                    //   surgeryLeft
+                    // );
+
+                    // 2) Left surgery check
+                    if (surgeryLeft === today) {
+                      const exists = await checkGetSurgery(uhid, surgeryLeft);
+
+                      if (!exists) {
+                        handlenavigatesurgeryreport(); // ✅ Surgery flow
+                        if (typeof window !== "undefined") {
+                          sessionStorage.setItem(
+                            "selectedUHID",
+                            selectedPatient.uhid
+                          );
+                        }
+                        return;
+                      }
+                    }
+
+                    // 3) Right surgery check
+                    if (surgeryRight === today) {
+                      const exists = await checkGetSurgery(uhid, surgeryRight);
+                      if (!exists) {
+                        handlenavigatesurgeryreport(); // ✅ Surgery flow
+                        if (typeof window !== "undefined") {
+                          sessionStorage.setItem(
+                            "selectedUHID",
+                            selectedPatient.uhid
+                          );
+                        }
+                        return;
+                      }
+                    }
+
+                    // ❌ Nothing matched
+                  }}
+                >
+                  Surgery
+                </p>
+
+                <p
+                  className={`${
+                    width >= 400 ? "w-1/2" : "w-2/3"
+                  } text-center bg-[#2A343D] px-4 py-1 text-white ${
+                    inter.className
+                  } font-medium text-[15px] rounded-[10px]
+                 ${selectedPatient?.uhid ? "cursor-pointer" : ""} `}
+                  onClick={() => {
+                    if (selectedPatient.uhid) {
+                      handlenavigatereport();
+                      if (typeof window !== "undefined") {
+                        sessionStorage.setItem(
+                          "patientreportid",
+                          selectedPatient.uhid
+                        );
+                      }
+                    }
+                  }}
+                >
+                  View Report
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div
           className={`${
-            width >= 1000 ? "w-2/3" : "w-full h-full min-h-[600px]"
+            filteredPatients.length === 0 && width >= 1000
+              ? "w-full h-full min-h-[400px]"
+              : filteredPatients.length === 0 && width < 1000
+              ? "w-full h-full min-h-[600px]"
+              : width >= 1000
+              ? "w-2/3"
+              : "w-full h-full min-h-[600px]"
           } flex flex-col justify-between gap-2 border-[#EBEBEB] border-[1.3px] rounded-[10px] py-4 px-4 h-full`}
         >
           <p
@@ -1593,9 +1652,9 @@ const Dailyactivity = ({
       </div>
 
       <div className="w-full h-fit">
-        <div className="flex flex-row gap-13.5 whitespace-nowrap overflow-x-auto pb-4 inline-scroll">
-          {patientloading || filteredPatients.length === 0 ? (
-            <div className="flex space-x-2 w-full justify-center">
+        <div className="flex flex-row gap-13.5  overflow-x-auto pb-4 inline-scroll">
+          {patientloading ? (
+            <div className="flex space-x-2 w-full justify-center break-words">
               <svg
                 className="animate-spin h-5 w-5 text-black"
                 xmlns="http://www.w3.org/2000/svg"
@@ -1628,12 +1687,17 @@ const Dailyactivity = ({
                 <div
                   key={patient.uhid}
                   onClick={() => setSelectedId(patient.uhid)}
-                  className={`w-fit h-fit min-w-[220px] flex-shrink-0 flex flex-col rounded-lg py-3 px-4 gap-2 cursor-pointer transition-colors duration-200 ${
+                  className={`w-fit h-fit min-w-[220px] flex-shrink-0 flex flex-col rounded-lg py-3 px-4 gap-2 cursor-pointer transition-colors duration-200 relative ${
                     isSelected
                       ? "bg-[#2A343D]"
                       : "bg-white border-[#EBEBEB] border-1"
                   }`}
                 >
+                  {String(patient.vip) === "true" && (
+                    <StarIcon
+                      className={`absolute top-2 left-2 text-red-500 w-4 h-4`}
+                    />
+                  )}
                   {/* Top Row */}
                   <div className="w-full flex flex-row gap-6 items-center">
                     <Image
@@ -1643,7 +1707,7 @@ const Dailyactivity = ({
                       width={35}
                       height={35}
                       onDoubleClick={() =>
-                        handlevipstatus(patient.uhid,String(patient.vip))
+                        handlevipstatus(patient.uhid, String(patient.vip))
                       }
                     />
                     <div className="flex flex-col gap-1">
@@ -1804,14 +1868,11 @@ const Dailyactivity = ({
                             className={`w-12 h-6 cursor-pointer`}
                           />
                         )}
-                        <Image
-                          src={CloseIcon}
-                          alt="Close"
-                          className={`w-fit h-6 cursor-pointer`}
+                        <XCircleIcon className={`w-fit h-6 cursor-pointer`}
                           onClick={() => {
                             setshowprof(false);
-                          }}
-                        />
+                          }}/>
+                        
                       </div>
                     </div>
 
@@ -2057,6 +2118,111 @@ const Dailyactivity = ({
             )}
           </div>,
           document.body // Render to body, outside constrained parent.
+        )}
+
+      {logoutconfirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto ${
+                width < 950 ? "gap-4 w-full" : "w-1/3"
+              }`}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } max-h-[92vh] rounded-2xl`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-8 ${
+                      width < 760 ? "py-0" : "py-4 px-4"
+                    }`}
+                  >
+                    <div className={`w-full flex flex-col gap-1`}>
+                      <div className="flex flex-row justify-center items-center w-full">
+                        <p
+                          className={`${inter.className} text-xl font-bold text-black`}
+                        >
+                          Confirmation
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-2 justify-center items-center ${
+                        width >= 1200 ? "flex-col" : "flex-col"
+                      }`}
+                    >
+                      <p
+                        className={`${raleway.className} text-lg font-semibold text-black`}
+                      >
+                        Are you sure need to sign out?
+                      </p>
+                    </div>
+
+                    <div className={`w-full flex flex-row`}>
+                      <div
+                        className={`w-full flex flex-row gap-6 items-center ${
+                          width < 700 ? "justify-between" : "justify-end"
+                        }`}
+                      >
+                        <button
+                          className={`text-black/80 font-normal ${
+                            raleway.className
+                          } cursor-pointer ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            setlogoutconfirm(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className={`bg-[#161C10] text-white py-2 font-normal cursor-pointer ${
+                            raleway.className
+                          } ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            handlelogout();
+                          }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>
+              {`
+                       .inline-scroll::-webkit-scrollbar {
+                         width: 12px;
+                       }
+                       .inline-scroll::-webkit-scrollbar-track {
+                         background: transparent;
+                       }
+                       .inline-scroll::-webkit-scrollbar-thumb {
+                         background-color: #076C40;
+                         border-radius: 8px;
+                       }
+                 
+                       .inline-scroll {
+                         scrollbar-color: #076C40 transparent;
+                       }
+                     `}
+            </style>
+          </div>,
+          document.body
         )}
     </div>
   );

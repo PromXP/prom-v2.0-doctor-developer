@@ -2,8 +2,12 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import ReactDOM from "react-dom";
+import { useRouter } from "next/navigation";
+
 import axios from "axios";
 import { API_URL } from "../libs/global";
+
 import { Raleway, Inter, Poppins } from "next/font/google";
 
 import {
@@ -33,6 +37,7 @@ import {
   ClipboardDocumentCheckIcon,
   XMarkIcon,
   ArrowDownCircleIcon,
+  ArrowRightStartOnRectangleIcon,
 } from "@heroicons/react/16/solid";
 
 import Headset from "@/app/Assets/headset.png";
@@ -46,6 +51,7 @@ import Boneright from "@/app/Assets/boneright.png";
 import MedialCondyle from "@/app/Assets/medialcondyle.png";
 import LateralCondyle from "@/app/Assets/lateralcondyle.png";
 import Tibia from "@/app/Assets/tibial.png";
+import { isEqual } from "lodash";
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -91,6 +97,8 @@ const Surgeryreport = ({ handleclosereport }) => {
   };
 
   const [doctorName, setDoctorName] = useState("");
+
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   useEffect(() => {
     const doctorUhid = sessionStorage.getItem("doctor");
@@ -867,6 +875,143 @@ const Surgeryreport = ({ handleclosereport }) => {
   };
 
   const saveDraft = async (data) => {
+    const defaultData = {
+      patuhid: sessionStorage.getItem("selectedUHID") || "NA",
+      hospital_name: "NA",
+      anaesthetic_type: "NA",
+      asa_grade: "NA",
+      rom: [
+        { period: "Preop", flexion: "NA", extension: "NA" },
+        { period: "1Month", flexion: "NA", extension: "NA" },
+        { period: "3Month", flexion: "NA", extension: "NA" },
+        { period: "6Month", flexion: "NA", extension: "NA" },
+        { period: "1Year", flexion: "NA", extension: "NA" },
+        { period: "2Year", flexion: "NA", extension: "NA" },
+        { period: "3Year", flexion: "NA", extension: "NA" },
+        { period: "4Year", flexion: "NA", extension: "NA" },
+        { period: "5Year", flexion: "NA", extension: "NA" },
+        { period: "10Year", flexion: "NA", extension: "NA" },
+      ],
+      consultant_incharge: "Dr. Vetri Kumar",
+      operating_surgeon: "Dr. Vetri Kumar",
+      first_assistant: "Dr. Vetri Kumar",
+      second_assistant: "Dr. Vinod Kumar",
+      mag_proc: "NA",
+      side: "left",
+      surgery_indication: "NA",
+      tech_assist: "NA",
+      align_phil: "NA",
+      torq_used: "NA",
+      op_date: sessionStorage.getItem("op_date"),
+      op_time: "NA",
+      components_details: {
+        FEMUR: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+        TIBIA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+        INSERT: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+        PATELLA: { MANUFACTURER: "NA", MODEL: "NA", SIZE: "NA" },
+      },
+      bone_resection: {
+        acl: "NA",
+        distal_medial: {
+          wear: "NA",
+          initial_thickness: "NA",
+          recut: "NA",
+          recutvalue: "NA",
+          washer: "NA",
+          washervalue: "NA",
+          final_thickness: "NA",
+        },
+        distal_lateral: {
+          wear: "NA",
+          initial_thickness: "NA",
+          recut: "NA",
+          recutvalue: "NA",
+          washer: "NA",
+          washervalue: "NA",
+          final_thickness: "NA",
+        },
+        posterial_medial: {
+          wear: "NA",
+          initial_thickness: "NA",
+          recut: "NA",
+          recutvalue: "NA",
+          final_thickness: "NA",
+        },
+        posterial_lateral: {
+          wear: "NA",
+          initial_thickness: "NA",
+          recut: "NA",
+          recutvalue: "NA",
+          final_thickness: "NA",
+        },
+        tibial_resection_left: { wear: "NA", value: "NA" },
+        tibial_resection_right: { wear: "NA", value: "NA" },
+        pcl: "NA",
+        tibialvvrecut: { wear: "NA", value: "NA" },
+        tibialsloperecut: { wear: "NA", value: "NA" },
+        final_check: "NA",
+        thickness_table: [
+          {
+            thickness: 10,
+            numOfTicks: 0,
+            extensionExtOrient: "NA",
+            flexionIntOrient: "NA",
+            liftOff: "NA",
+          },
+          {
+            thickness: 11,
+            numOfTicks: 0,
+            extensionExtOrient: "NA",
+            flexionIntOrient: "NA",
+            liftOff: "NA",
+          },
+          {
+            thickness: 12,
+            numOfTicks: 0,
+            extensionExtOrient: "NA",
+            flexionIntOrient: "NA",
+            liftOff: "NA",
+          },
+          {
+            thickness: 13,
+            numOfTicks: 0,
+            extensionExtOrient: "NA",
+            flexionIntOrient: "NA",
+            liftOff: "NA",
+          },
+          {
+            thickness: 14,
+            numOfTicks: 0,
+            extensionExtOrient: "NA",
+            flexionIntOrient: "NA",
+            liftOff: "NA",
+          },
+        ],
+        pfj_resurfacing: "NA",
+        trachela_resection: "NA",
+        patella: "NA",
+        preresurfacing: "NA",
+        postresurfacing: "NA",
+      },
+      posting_timestamp: "NA",
+    };
+
+    const cleanDefaultData = { ...defaultData };
+    const cleanData = {
+      patient_records: data.patient_records.map((record, index) =>
+        index === 0 ? record : record
+      ),
+    };
+
+    const isUnchanged = isEqual(cleanDefaultData, cleanData.patient_records[0]);
+
+    if (isUnchanged) {
+      setIsConfirmOpen(false);
+      showWarning("Enter at least one field to draft."); // no changes detected
+
+      return;
+    }
+
     try {
       const currentTimestamp = new Date().toISOString(); // ✅ ISO format timestamp
 
@@ -875,7 +1020,19 @@ const Surgeryreport = ({ handleclosereport }) => {
         ...data,
         patient_records: data.patient_records.map((record, index) =>
           index === 0
-            ? { ...record, posting_timestamp: currentTimestamp }
+            ? {
+                ...record,
+                posting_timestamp: currentTimestamp,
+                bone_resection: {
+                  ...record.bone_resection,
+                  thickness_table: record.bone_resection.thickness_table.map(
+                    (item) => ({
+                      ...item,
+                      numOfTicks: item.numOfTicks.toString(), // ✅ convert only here
+                    })
+                  ),
+                },
+              }
             : record
         ),
       };
@@ -892,7 +1049,10 @@ const Surgeryreport = ({ handleclosereport }) => {
         }
       );
 
-      // console.log("✅ Draft saved successfully:", response.data);
+      sessionStorage.setItem("selectedTab", "Home");
+      showWarning("Draft saved successfully!");
+      handleclosereport();
+      showWarning("Draft saved successfully!");
       return response.data;
     } catch (error) {
       console.error("❌ Error saving draft:", error);
@@ -901,6 +1061,35 @@ const Surgeryreport = ({ handleclosereport }) => {
   };
 
   const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd format
+
+  const [logoutconfirm, setlogoutconfirm] = useState(false);
+
+  const router = useRouter();
+
+  const handlelogout = () => {
+    console.clear();
+
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    router.replace("/Login");
+  };
+
+   useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+       setIsConfirmOpen(false);
+       setlogoutconfirm(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+
+    // cleanup on unmount
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, []);
 
   return (
     <div
@@ -982,9 +1171,13 @@ const Surgeryreport = ({ handleclosereport }) => {
             } justify-end gap-12`}
           >
             <div
-              className={`w-1/3 flex flex-row justify-between items-center gap-8`}
+              className={`w-1/3 flex flex-row justify-end items-center gap-8`}
             >
-              <Image src={Headset} alt="support" className={`w-5 h-5`} />
+              <ArrowRightStartOnRectangleIcon
+                className="w-6 h-6 text-black cursor-pointer"
+                onClick={() => setlogoutconfirm(true)}
+              />
+
               <p
                 className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
               >
@@ -1152,6 +1345,18 @@ const Surgeryreport = ({ handleclosereport }) => {
                   }
                   onChange={(e) =>
                     setSurgeryData((prev) => {
+                      const numericValue = Number(e.target.value);
+
+                      if (
+                        isNaN(numericValue) ||
+                        numericValue < 0 ||
+                        numericValue > 360
+                      ) {
+                        showWarning(
+                          "Please enter a valid ROM angle between 0° and 360°"
+                        );
+                        return; // Stop execution, do not update state
+                      }
                       const updatedROM = [...prev.patient_records[0].rom];
                       updatedROM[0] = {
                         ...updatedROM[0],
@@ -1398,16 +1603,23 @@ const Surgeryreport = ({ handleclosereport }) => {
                             updatedRecords[0].surgery_indication?.split(", ") ||
                             [];
 
-                          if (e.target.checked) {
-                            // ✅ Add only if not already present
-                            if (!indications.includes(grade))
-                              indications.push(grade);
-                          } else {
-                            // ✅ Remove unchecked value
-                            indications = indications.filter(
-                              (item) => item !== grade
-                            );
-                          }
+                          if (grade === "Varus" || grade === "Valgus") {
+              if (e.target.checked) {
+                // Remove other Varus/Valgus if selected
+                indications = indications.filter((item) => item !== "Varus" && item !== "Valgus");
+                indications.push(grade);
+              } else {
+                // Uncheck current
+                indications = indications.filter((item) => item !== grade);
+              }
+            } else {
+              // Multi-select for remaining
+              if (e.target.checked) {
+                if (!indications.includes(grade)) indications.push(grade);
+              } else {
+                indications = indications.filter((item) => item !== grade);
+              }
+            }
 
                           // ✅ Convert back to comma-separated string
                           updatedRecords[0].surgery_indication =
@@ -3870,19 +4082,7 @@ const Surgeryreport = ({ handleclosereport }) => {
         </p>
         <p
           className={`${raleway.className} text-center bg-[#2A343D] px-6 py-2 text-white ${inter.className} font-medium text-lg cursor-pointer`}
-          onClick={async () => {
-            // console.log("Surgery Report Data:", surgeryData);
-
-            try {
-              const result = await saveDraft(surgeryData);
-              sessionStorage.setItem("selectedTab", "Home");
-              showWarning("Draft saved successfully!");
-              handleclosereport();
-              showWarning("Draft saved successfully!");
-            } catch (error) {
-              showWarning("Failed to save draft.");
-            }
-          }}
+          onClick={() => setIsConfirmOpen(true)}
         >
           Draft
         </p>
@@ -3906,6 +4106,7 @@ const Surgeryreport = ({ handleclosereport }) => {
       }
     `}
       </style>
+
       {showAlert && (
         <div className="fixed top-8 left-1/2 transform -translate-x-1/2 z-50">
           <div
@@ -3915,6 +4116,157 @@ const Surgeryreport = ({ handleclosereport }) => {
           </div>
         </div>
       )}
+
+      {isConfirmOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div
+            className="bg-white rounded-xl p-6 max-w-sm w-full flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()} // prevent close on modal content click
+          >
+            <h2
+              className={`text-xl font-bold mb-4 text-black ${poppins.className}`}
+            >
+              Confirm Submission
+            </h2>
+            <p
+              className={`mb-6 font-normal text-black text-center ${poppins.className}`}
+            >
+              Are you sure you want to save as a draft ?
+            </p>
+            <div
+              className={`flex justify-end gap-4 ${poppins.className} font-semibold`}
+            >
+              <button
+                className="px-4 py-2 rounded bg-gray-300 text-white hover:bg-gray-400 cursor-pointer"
+                onClick={() => setIsConfirmOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded bg-[#4EADA7] text-white hover:bg-[#3b8f8b] cursor-pointer"
+                onClick={async () => {
+                  // console.log("Surgery Report Data:", surgeryData);
+
+                  try {
+                    const result = await saveDraft(surgeryData);
+                    // return;
+                  } catch (error) {
+                    console.error("Error saving draft:", error);
+                    showWarning("Failed to save draft.");
+                  }
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {logoutconfirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto ${
+                width < 950 ? "gap-4 w-full" : "w-1/3"
+              }`}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } max-h-[92vh] rounded-2xl`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-8 ${
+                      width < 760 ? "py-0" : "py-4 px-4"
+                    }`}
+                  >
+                    <div className={`w-full flex flex-col gap-1`}>
+                      <div className="flex flex-row justify-center items-center w-full">
+                        <p
+                          className={`${inter.className} text-xl font-bold text-black`}
+                        >
+                          Confirmation
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-2 justify-center items-center ${
+                        width >= 1200 ? "flex-col" : "flex-col"
+                      }`}
+                    >
+                      <p
+                        className={`${raleway.className} text-lg font-semibold text-black`}
+                      >
+                        Are you sure need to sign out?
+                      </p>
+                    </div>
+
+                    <div className={`w-full flex flex-row`}>
+                      <div
+                        className={`w-full flex flex-row gap-6 items-center ${
+                          width < 700 ? "justify-between" : "justify-end"
+                        }`}
+                      >
+                        <button
+                          className={`text-black/80 font-normal ${
+                            raleway.className
+                          } cursor-pointer ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            setlogoutconfirm(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className={`bg-[#161C10] text-white py-2 font-normal cursor-pointer ${
+                            raleway.className
+                          } ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            handlelogout();
+                          }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>
+              {`
+                                           .inline-scroll::-webkit-scrollbar {
+                                             width: 12px;
+                                           }
+                                           .inline-scroll::-webkit-scrollbar-track {
+                                             background: transparent;
+                                           }
+                                           .inline-scroll::-webkit-scrollbar-thumb {
+                                             background-color: #076C40;
+                                             border-radius: 8px;
+                                           }
+                                     
+                                           .inline-scroll {
+                                             scrollbar-color: #076C40 transparent;
+                                           }
+                                         `}
+            </style>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

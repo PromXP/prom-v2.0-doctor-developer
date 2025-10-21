@@ -1,7 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import Image from "next/image";
+import ReactDOM from "react-dom";
+import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
+import { useDeepCompareMemo } from "use-deep-compare";
 
 import axios from "axios";
 import { API_URL } from "../libs/global";
@@ -40,6 +44,8 @@ import {
   ClipboardDocumentCheckIcon,
   XMarkIcon,
   ArrowDownCircleIcon,
+  ArrowRightStartOnRectangleIcon,
+  XCircleIcon,
 } from "@heroicons/react/16/solid";
 
 import Headset from "@/app/Assets/headset.png";
@@ -176,7 +182,16 @@ const useBoxPlot = (boxPlots) => {
   );
 };
 
-const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
+const periodOffsets = [
+  { key: "pre_op", label: "Pre Op" },
+  { key: "6w", label: "6W" },
+  { key: "3m", label: "3M" },
+  { key: "6m", label: "6M" },
+  { key: "1y", label: "1Y" },
+  { key: "2y", label: "2Y" },
+];
+
+const Patientreport = React.memo(({ handlenavigateviewsurgeryreport }) => {
   const useWindowSize = () => {
     const [size, setSize] = useState({
       width: 0,
@@ -267,34 +282,27 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     };
 
     function getCombinedAverage(left, right) {
-      const maxScores = {
-        OKS: 48,
-        SF12: 100,
-        FJS: 60,
-        KOOS_JR: 100,
-        KSS: 100,
-      };
+      function calcAverage(side) {
+        if (!side || Object.keys(side).length === 0) return null;
 
-      const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
-      let total = 0;
-      let count = 0;
+        const total = Object.values(side).reduce((sum, val) => {
+          const num = parseFloat(val);
+          return sum + (isNaN(num) ? 0 : num);
+        }, 0);
 
-      keys.forEach((key) => {
-        const max = maxScores[key] || 100; // default to 100 if missing
-        const l = parseFloat(left[key] ?? 0);
-        const r = parseFloat(right[key] ?? 0);
+        return parseFloat(((total / 408) * 100).toFixed(2));
+      }
 
-        if (l) {
-          total += (l / max) * 100; // normalize to 100
-          count++;
-        }
-        if (r) {
-          total += (r / max) * 100; // normalize to 100
-          count++;
-        }
-      });
+      const leftAvg = calcAverage(left);
+      const rightAvg = calcAverage(right);
 
-      return count > 0 ? (total / count).toFixed(2) : "NA";
+      if (leftAvg !== null && rightAvg !== null)
+        return parseFloat(((leftAvg + rightAvg) / 2).toFixed(2));
+
+      if (leftAvg !== null) return leftAvg;
+      if (rightAvg !== null) return rightAvg;
+
+      return "NA";
     }
 
     const fetchPatientReminder = async () => {
@@ -424,7 +432,7 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
 
         setloading(false);
 
-        // console.log("Fetched patient reminder data:", pickedData);
+        console.log("Fetched patient reminder data:", pickedData);
       } catch (err) {
         console.error("Error fetching patient reminder:", err);
       }
@@ -551,6 +559,16 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     );
   }
 
+  const questionnaireLeft = useMemo(
+    () => patientbasic?.questionnaire_left || {},
+    [JSON.stringify(patientbasic?.questionnaire_left)]
+  );
+
+  const questionnaireRight = useMemo(
+    () => patientbasic?.questionnaire_right || {},
+    [JSON.stringify(patientbasic?.questionnaire_right)]
+  );
+
   const TIMEPOINT_ORDER = ["Pre Op", "6W", "3M", "6M", "1Y", "2Y"];
 
   function buildBoxPlotData(
@@ -579,58 +597,55 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
   }
 
   // Left side OKS
-  const oksBoxPlotDataLeft = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_left,
-    "OKS",
-    "left"
+  const oksBoxPlotDataLeft = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireLeft, "OKS", "left"),
+    [patientsquest, questionnaireLeft]
   );
 
   // Right side OKS
-  const oksBoxPlotDataRight = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_right,
-    "OKS",
-    "right"
+  const oksBoxPlotDataRight = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireRight, "OKS", "right"),
+    [patientsquest, questionnaireRight]
   );
 
   const oksBoxPlotData =
     handlequestableswitch === "left" ? oksBoxPlotDataLeft : oksBoxPlotDataRight;
 
-  const oksDatabox = useBoxPlot(
-    oksBoxPlotData.map((item, index) => {
-      const stats = computeBoxStats(item.boxData, item.dotValue);
+  // 1️⃣ Memoize your data first
+  const oksDataInput = useMemo(
+    () =>
+      oksBoxPlotData.map((item, index) => {
+        const stats = computeBoxStats(item.boxData, item.dotValue);
 
-      if (
-        stats.Patient === undefined ||
-        isNaN(stats.Patient) ||
-        stats.Patient > 48
-      ) {
-        stats.Patient = undefined;
-      }
+        if (
+          stats.Patient === undefined ||
+          isNaN(stats.Patient) ||
+          stats.Patient > 48
+        ) {
+          stats.Patient = undefined;
+        }
 
-      return {
-        name: item.name,
-        x: index * 10,
-        ...stats,
-      };
-    })
+        return {
+          name: item.name,
+          x: index * 10,
+          ...stats,
+        };
+      }),
+    [oksBoxPlotData]
   );
+
+  // 2️⃣ Call your hook at top level with memoized data
+  const oksDatabox = useBoxPlot(oksDataInput);
 
   // Left side OKS
-  const sf12BoxPlotDataLeft = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_left,
-    "SF12",
-    "left"
+  const sf12BoxPlotDataLeft = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireLeft, "SF12", "left"),
+    [patientsquest, questionnaireLeft]
   );
 
-  // Right side OKS
-  const sf12BoxPlotDataRight = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_right,
-    "SF12",
-    "right"
+  const sf12BoxPlotDataRight = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireRight, "SF12", "right"),
+    [patientsquest, questionnaireRight]
   );
 
   const sf12BoxPlotData =
@@ -638,71 +653,76 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       ? sf12BoxPlotDataLeft
       : sf12BoxPlotDataRight;
 
-  const s12Databox = useBoxPlot(
-    sf12BoxPlotData.map((item, index) => {
-      const stats = computeBoxStats(item.boxData, item.dotValue);
+  // 1️⃣ Memoize the transformed data
+  const sf12DataInput = useMemo(
+    () =>
+      sf12BoxPlotData.map((item, index) => {
+        const stats = computeBoxStats(item.boxData, item.dotValue);
 
-      if (stats.Patient === undefined || isNaN(stats.Patient)) {
-        stats.Patient = undefined;
-      }
+        if (stats.Patient === undefined || isNaN(stats.Patient)) {
+          stats.Patient = undefined;
+        }
 
-      return {
-        name: item.name,
-        x: index * 10,
-        ...stats,
-      };
-    })
+        return {
+          name: item.name,
+          x: index * 10,
+          ...stats,
+        };
+      }),
+    [sf12BoxPlotData]
   );
 
-  // Left side OKS
-  const kssBoxPlotDataLeft = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_left,
-    "KSS",
-    "left"
+  // 2️⃣ Call the hook at top level with memoized data
+  const sf12Databox = useBoxPlot(sf12DataInput);
+
+  // Left side KSS
+  const kssBoxPlotDataLeft = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireLeft, "KSS", "left"),
+    [patientsquest, questionnaireLeft]
   );
 
-  // Right side OKS
-  const kssBoxPlotDataRight = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_right,
-    "KSS",
-    "right"
+  // Right side KSS
+  const kssBoxPlotDataRight = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireRight, "KSS", "right"),
+    [patientsquest, questionnaireRight]
   );
 
   const kssBoxPlotData =
     handlequestableswitch === "left" ? kssBoxPlotDataLeft : kssBoxPlotDataRight;
 
-  const kssDatabox = useBoxPlot(
-    kssBoxPlotData.map((item, index) => {
-      const stats = computeBoxStats(item.boxData, item.dotValue);
+  // 1️⃣ Memoize transformed data
+  const kssDataInput = useMemo(
+    () =>
+      kssBoxPlotData.map((item, index) => {
+        const stats = computeBoxStats(item.boxData, item.dotValue);
 
-      if (stats.Patient === undefined || isNaN(stats.Patient)) {
-        stats.Patient = undefined;
-      }
+        if (stats.Patient === undefined || isNaN(stats.Patient)) {
+          stats.Patient = undefined;
+        }
 
-      return {
-        name: item.name,
-        x: index * 10,
-        ...stats,
-      };
-    })
+        return {
+          name: item.name,
+          x: index * 10,
+          ...stats,
+        };
+      }),
+    [kssBoxPlotData]
   );
 
-  // Left side OKS
-  const koosjrBoxPlotDataLeft = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_left,
-    "KOOS_JR",
-    "left"
+  // 2️⃣ Call the hook at top level
+  const kssDatabox = useBoxPlot(kssDataInput);
+
+  // Left side KOOS_JR
+  const koosjrBoxPlotDataLeft = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireLeft, "KOOS_JR", "left"),
+    [patientsquest, questionnaireLeft]
   );
 
-  // Right side OKS
-  const koosjrBoxPlotDataRight = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_right,
-    "KOOS_JR",
-    "right"
+  // Right side KOOS_JR
+  const koosjrBoxPlotDataRight = useMemo(
+    () =>
+      buildBoxPlotData(patientsquest, questionnaireRight, "KOOS_JR", "right"),
+    [patientsquest, questionnaireRight]
   );
 
   const koosjrBoxPlotData =
@@ -710,55 +730,64 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       ? koosjrBoxPlotDataLeft
       : koosjrBoxPlotDataRight;
 
-  const koosjrDatabox = useBoxPlot(
-    koosjrBoxPlotData.map((item, index) => {
-      const stats = computeBoxStats(item.boxData, item.dotValue);
+  // 1️⃣ Memoize transformed data
+  const koosjrDataInput = useMemo(
+    () =>
+      koosjrBoxPlotData.map((item, index) => {
+        const stats = computeBoxStats(item.boxData, item.dotValue);
 
-      if (stats.Patient === undefined || isNaN(stats.Patient)) {
-        stats.Patient = undefined;
-      }
+        if (stats.Patient === undefined || isNaN(stats.Patient)) {
+          stats.Patient = undefined;
+        }
 
-      return {
-        name: item.name,
-        x: index * 10,
-        ...stats,
-      };
-    })
+        return {
+          name: item.name,
+          x: index * 10,
+          ...stats,
+        };
+      }),
+    [koosjrBoxPlotData]
   );
 
-  const fjsBoxPlotDataLeft = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_left,
-    "FJS",
-    "left"
+  // 2️⃣ Call the hook at top level
+  const koosjrDatabox = useBoxPlot(koosjrDataInput);
+
+  // Left side FJS
+  const fjsBoxPlotDataLeft = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireLeft, "FJS", "left"),
+    [patientsquest, questionnaireLeft]
   );
 
-  // Right side OKS
-  const fjsBoxPlotDataRight = buildBoxPlotData(
-    patientsquest,
-    patientbasic?.questionnaire_right,
-    "FJS",
-    "right"
+  // Right side FJS
+  const fjsBoxPlotDataRight = useMemo(
+    () => buildBoxPlotData(patientsquest, questionnaireRight, "FJS", "right"),
+    [patientsquest, questionnaireRight]
   );
 
   const fjsBoxPlotData =
     handlequestableswitch === "left" ? fjsBoxPlotDataLeft : fjsBoxPlotDataRight;
 
-  const fjsDatabox = useBoxPlot(
-    fjsBoxPlotData.map((item, index) => {
-      const stats = computeBoxStats(item.boxData, item.dotValue);
+  // 1️⃣ Memoize transformed data
+  const fjsDataInput = useMemo(
+    () =>
+      fjsBoxPlotData.map((item, index) => {
+        const stats = computeBoxStats(item.boxData, item.dotValue);
 
-      if (stats.Patient === undefined || isNaN(stats.Patient)) {
-        stats.Patient = undefined;
-      }
+        if (stats.Patient === undefined || isNaN(stats.Patient)) {
+          stats.Patient = undefined;
+        }
 
-      return {
-        name: item.name,
-        x: index * 10,
-        ...stats,
-      };
-    })
+        return {
+          name: item.name,
+          x: index * 10,
+          ...stats,
+        };
+      }),
+    [fjsBoxPlotData]
   );
+
+  // 2️⃣ Call the hook at the top level
+  const fjsDatabox = useBoxPlot(fjsDataInput);
 
   const [showAlert, setshowAlert] = useState(false);
   const [alermessage, setAlertMessage] = useState("");
@@ -778,12 +807,11 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     FJS: "Forgotten Joint Score (FJS)",
   };
 
-      const KOOSJR_MAP = [
-      100.0, 91.975, 84.6, 79.914, 76.332, 73.342, 70.704, 68.284, 65.994,
-      63.776, 61.583, 59.381, 57.14, 54.84, 52.465, 50.012, 47.487, 44.905,
-      42.281, 39.625, 36.931, 34.174, 31.307, 28.251, 24.875, 20.941, 15.939,
-      8.291, 0.0,
-    ];
+  const KOOSJR_MAP = [
+    100.0, 91.975, 84.6, 79.914, 76.332, 73.342, 70.704, 68.284, 65.994, 63.776,
+    61.583, 59.381, 57.14, 54.84, 52.465, 50.012, 47.487, 44.905, 42.281,
+    39.625, 36.931, 34.174, 31.307, 28.251, 24.875, 20.941, 15.939, 8.291, 0.0,
+  ];
 
   const transformApiDataToStaticWithDates = (apiData, surgeryDateLeft) => {
     if (!apiData) return { periods: [], questionnaires: [] };
@@ -832,9 +860,8 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           if (QUESTIONNAIRE_NAMES[qKey]) {
             if (QUESTIONNAIRE_NAMES[qKey].includes("KOOS")) {
               // ✅ Special handling for KOOS
-             
+
               scores[p.key] = match ? KOOSJR_MAP[match[1]] : "NA";
-             
             } else {
               scores[p.key] = match ? match[1] : "NA";
             }
@@ -884,11 +911,8 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
   const questionnaireData =
     handlequestableswitch === "left" ? staticLeft : staticRight;
 
-
-
   const extractQuestionnaireScores = (apiData, periodOffsets) => {
     if (!apiData) return [];
-        
 
     return Object.entries(apiData).map(([qKey, qPeriods]) => {
       const scores = {};
@@ -915,14 +939,11 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           // Period exists and score exists
           const match = periodData.score.match(/:\s*(\d+)/);
 
-          
-          
           if (QUESTIONNAIRE_NAMES[qKey]) {
             if (QUESTIONNAIRE_NAMES[qKey].includes("KOOS")) {
               // ✅ Special handling for KOOS
-             
+
               scores[p.key] = match ? KOOSJR_MAP[match[1]] : "NA";
-             
             } else {
               scores[p.key] = match ? match[1] : "NA";
             }
@@ -937,88 +958,70 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
       });
 
       const fullName = QUESTIONNAIRE_NAMES[qKey] || qKey;
-      
+
       return { name: fullName, scores, notesMap };
     });
   };
 
   // ✅ Usage for left and right
-  const periodOffsets = [
-    { key: "pre_op", label: "Pre Op" },
-    { key: "6w", label: "6W" },
-    { key: "3m", label: "3M" },
-    { key: "6m", label: "6M" },
-    { key: "1y", label: "1Y" },
-    { key: "2y", label: "2Y" },
-  ];
 
   // ✅ Safe extraction with optional chaining + fallback
-  const leftScores = extractQuestionnaireScores(
-    patientbasic?.questionnaire_left || {},
-    periodOffsets
+  const leftScores = useMemo(
+    () => extractQuestionnaireScores(questionnaireLeft, periodOffsets),
+    [questionnaireLeft, periodOffsets]
   );
 
-  const rightScores = extractQuestionnaireScores(
-    patientbasic?.questionnaire_right || {},
-    periodOffsets
+  const rightScores = useMemo(
+    () => extractQuestionnaireScores(questionnaireRight, periodOffsets),
+    [questionnaireRight, periodOffsets]
   );
-
-
-  // Map each period key to chart label and days
-  const periodLabelMap = {
-    pre_op: "-3",
-    surgery: "SURGERY",
-    "6w": "+42",
-    "3m": "+90",
-    "6m": "+180",
-    "1y": "+365",
-    "2y": "+730",
-  };
-
-  const toNumberOrNull = (val) => {
-    if (!val || val === "-" || val === "NA") return null;
-    const num = Number(val);
-    return isNaN(num) ? null : num;
-  };
 
   // Convert your array of questionnaire scores into chart-ready data
   const buildChartData = (scores) => {
-    return periodOffsets.map((p) => {
-      const oks =
-        scores.find((q) => q.name.includes("Oxford Knee Score"))?.scores?.[
-          p.key
-        ] || null;
-      const sf12 =
-        scores.find((q) => q.name.includes("SF-12"))?.scores?.[p.key] || null;
-      const koos =
-        scores.find((q) => q.name.includes("KOOS"))?.scores?.[p.key] || null;
-      const kss =
-        scores.find((q) => q.name.includes("Knee Society Score"))?.scores?.[
-          p.key
-        ] || null;
-      const fjs =
-        scores.find((q) => q.name.includes("Forgotten Joint Score"))?.scores?.[
-          p.key
-        ] || null;
+    return (
+      periodOffsets
+        .map((p) => {
+          const dataPoint = { name: p.label };
 
-      return {
-        name: p.label, // your "-3", "SURGERY", "+42", etc.
-        oks: oks ? Number(oks) : null,
-        sf12: sf12 ? Number(sf12) : null,
-        koos: koos ? Number(koos) : null,
-        kss: kss ? Number(kss) : null,
-        fjs: fjs ? Number(fjs) : null,
-      };
-    });
+          const oksVal = scores.find((q) =>
+            q.name.includes("Oxford Knee Score")
+          )?.scores?.[p.key];
+          if (oksVal != null) dataPoint.oks = Number(oksVal);
+
+          const sf12Val = scores.find((q) => q.name.includes("SF-12"))
+            ?.scores?.[p.key];
+          if (sf12Val != null) dataPoint.sf12 = Number(sf12Val);
+
+          const koosVal = scores.find((q) => q.name.includes("KOOS"))?.scores?.[
+            p.key
+          ];
+          if (koosVal != null) dataPoint.koos = Number(koosVal);
+
+          const kssVal = scores.find((q) =>
+            q.name.includes("Knee Society Score")
+          )?.scores?.[p.key];
+          if (kssVal != null) dataPoint.kss = Number(kssVal);
+
+          const fjsVal = scores.find((q) =>
+            q.name.includes("Forgotten Joint Score")
+          )?.scores?.[p.key];
+          if (fjsVal != null) dataPoint.fjs = Number(fjsVal);
+
+          return dataPoint;
+        })
+        // ✅ Remove entries where only "name" exists (i.e., all scores were null)
+        .filter((d) => Object.keys(d).length > 1)
+    );
   };
 
-  // then use like this
-  const chartData =
-    handlequestableswitch === "left"
+  // Usage
+  const chartData = useMemo(() => {
+    return handlequestableswitch === "left"
       ? buildChartData(leftScores)
       : buildChartData(rightScores);
+  }, [handlequestableswitch, leftScores, rightScores]);
 
-  // console.log("Chart data",chartData);
+  console.log("Chart Data:", chartData);
 
   const periodOffsetssf12 = [
     { key: "pre_op", label: "-3" },
@@ -1151,364 +1154,534 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
     return () => clearInterval(interval);
   }, []);
 
+  const [logoutconfirm, setlogoutconfirm] = useState(false);
+
+  const router = useRouter();
+
+  const handlelogout = () => {
+    console.clear();
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+    }
+    router.replace("/Login");
+  };
+
+  const fixedXAxisTicks = ["Pre Op", "6W", "3M", "6M", "1Y", "2Y"];
+  const fixedXAxisTicksdays = [
+    "-3",
+    "SURGERY",
+    "+42",
+    "+90",
+    "+180",
+    "+365",
+    "+730",
+  ];
+
+  
+
+  const [isFloatingNoteVisible, setIsFloatingNoteVisible] = useState(false);
+  const [floatingNote, setFloatingNote] = useState("");
+  const [floatingName, setFloatingName] = useState("");
+  const [floatingKey, setFloatingKey] = useState("");
+  const [position, setPosition] = useState({ x: 100, y: 100 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const tabRef = useRef(null);
+
+  const handleNoteOpen = (note, name, key) => {
+    setFloatingNote(note);
+    setFloatingName(name);
+    setFloatingKey(key);
+    setIsFloatingNoteVisible(true);
+  };
+
+  // 1) keep your existing selectstart effect as-is
+  useEffect(() => {
+    const handleSelectStart = (e) => {
+      if (isDragging) e.preventDefault();
+    };
+    document.addEventListener("selectstart", handleSelectStart);
+    return () => document.removeEventListener("selectstart", handleSelectStart);
+  }, [isDragging]);
+
+  // 2) Combined mouse + touch move effect (replace your existing mouse-only effect with this)
+  useEffect(() => {
+    const NOTE_WIDTH = 300; // keep same as your bounding
+    const NOTE_HEIGHT = 200; // keep same as your bounding
+
+    const handlePointerMove = (clientX, clientY) => {
+      setPosition((prev) => {
+        const newX = clientX - offset.x;
+        const newY = clientY - offset.y;
+
+        const boundedX = Math.min(
+          window.innerWidth - NOTE_WIDTH,
+          Math.max(20, newX)
+        );
+        const boundedY = Math.min(
+          window.innerHeight - NOTE_HEIGHT,
+          Math.max(20, newY)
+        );
+
+        return { x: boundedX, y: boundedY };
+      });
+    };
+
+    const handleMouseMove = (e) => {
+      if (!isDragging) return;
+      handlePointerMove(e.clientX, e.clientY);
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) setIsDragging(false);
+    };
+
+    const handleTouchMove = (e) => {
+      if (!isDragging) return;
+      // Prevent page scrolling while dragging
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (touch) handlePointerMove(touch.clientX, touch.clientY);
+    };
+
+    const handleTouchEnd = () => {
+      if (isDragging) setIsDragging(false);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("touchmove", handleTouchMove, { passive: false });
+    window.addEventListener("touchend", handleTouchEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
+      window.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [isDragging, offset]);
+
+  // 3) Add touchstart listener (to behave like your mousedown starter).
+  //     This does not require editing the mouse header onMouseDown (but you should add the class to the header for robust target detection).
+  useEffect(() => {
+    const handleTouchStart = (e) => {
+      // Only start dragging if touch started on the header element
+      const touch = e.touches?.[0];
+      if (!touch) return;
+
+      // If the touch target (or its ancestor) has the header class, begin drag
+      const target = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (target && target.closest && target.closest(".floating-note-header")) {
+        // Prevent page scroll jitter when starting drag
+        e.preventDefault();
+        setIsDragging(true);
+        setOffset((prev) => ({
+          // compute offset similar to your mouse logic
+          x: touch.clientX - position.x,
+          y: touch.clientY - position.y,
+        }));
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: false });
+
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart, {
+        passive: false,
+      });
+    };
+  }, [position]);
+
+  // 4) Keep your centering effect for initial open as-is
+  useEffect(() => {
+    if (isFloatingNoteVisible) {
+      setPosition({
+        x: window.innerWidth / 2 - 150, // half width of the note
+        y: window.innerHeight / 2 - 100,
+      });
+    }
+  }, [isFloatingNoteVisible]);
+
+  useEffect(() => {
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setlogoutconfirm(false);
+        setIsFloatingNoteVisible(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEsc);
+
+    // cleanup on unmount
+    return () => {
+      window.removeEventListener("keydown", handleEsc);
+    };
+  }, []);
+
   return (
     <div
       className={`w-full overflow-y-auto h-full flex flex-col pt-8 pb-12 inline-scroll ${
         width >= 1000 ? "px-12" : "px-8"
       } rounded-4xl inline-scroll`}
     >
-      {loading ?( <div className="flex space-x-2 py-2 w-full justify-center">
-        <svg
-          className="animate-spin h-5 w-5 text-black"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-          />
-        </svg>
-        <span className={`${poppins.className} text-black font-semibold`}>
-          {messages[index]}
-        </span>
-      </div>)
-      :(
-
-
-     
-
-      <>
-        <div className={`w-full ${width >= 1100 ? "flex flex-row" : ""} `}>
-          <p
-            className={`${raleway.className} font-bold text-2xl text-black ${
-              width >= 700 ? "w-2/5" : "w-full"
-            }`}
+      {loading ? (
+        <div className="flex space-x-2 py-2 w-full justify-center">
+          <svg
+            className="animate-spin h-5 w-5 text-black"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            Patient Report
-          </p>
-          {width >= 1100 && (
-            <div
-              className={`flex flex-row ${
-                width >= 700 ? "w-3/5" : "w-full"
-              } justify-end gap-12`}
-            >
-              <div
-                className={`w-1/3 flex flex-row justify-between items-center gap-8`}
-              >
-                <Image src={Headset} alt="support" className={`w-5 h-5`} />
-                <p
-                  className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
-                >
-                  Dr. {doctorName || "Doctor Name"}
-                </p>
-              </div>
-            </div>
-          )}
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+            />
+          </svg>
+          <span className={`${poppins.className} text-black font-semibold`}>
+            {messages[index]}
+          </span>
         </div>
-
-        <div
-          className={`w-full flex ${
-            width >= 800 ? "flex-row" : "flex-col gap-4"
-          }  pt-8`}
-        >
-          <div className={`${width >= 800 ? "w-1/2" : "w-full"}`}>
-            <div
-              className={`${
-                width >= 1000 ? "w-6/7" : "w-full"
-              } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
+      ) : (
+        <>
+          <div className={`w-full ${width >= 1100 ? "flex flex-row" : ""} `}>
+            <p
+              className={`${raleway.className} font-bold text-2xl text-black ${
+                width >= 700 ? "w-2/5" : "w-full"
+              }`}
             >
-              <Image
-                src={patientbasic?.avatar || ManAvatar}
-                alt="Patient"
-                className={`w-[60px] h-[60px]`}
-                width={60}
-                height={60}
-              />
+              Patient Report
+            </p>
+            {width >= 1100 && (
               <div
-                className={`w-full flex ${
-                  width < 400 ? "flex-col" : "flex-row"
-                } gap-2`}
+                className={`flex flex-row ${
+                  width >= 700 ? "w-3/5" : "w-full"
+                } justify-end gap-12`}
               >
                 <div
-                  className={`${
-                    width < 400 ? "w-full" : "w-1/2"
-                  } flex flex-col`}
+                  className={`w-1/3 flex flex-row justify-end items-center gap-8`}
                 >
+                  <ArrowRightStartOnRectangleIcon
+                    className="w-6 h-6 text-black cursor-pointer"
+                    onClick={() => setlogoutconfirm(true)}
+                  />
+
                   <p
-                    className={`${raleway.className} font-semibold text-lg text-black`}
+                    className={`${raleway.className} font-semibold text-sm bg-[#2B333E] rounded-[10px] h-fit px-4 py-1`}
                   >
-                    {patientbasic?.name ?? "Patient Name"}
-                  </p>
-                  <p
-                    className={`${poppins.className} font-normal text-sm text-black`}
-                  >
-                    {patientbasic?.age ?? "Age"},{" "}
-                    {patientbasic?.gender ?? "Gender"}
-                  </p>
-                </div>
-                <div
-                  className={`${
-                    width < 400 ? "w-full" : "w-1/2"
-                  } flex flex-col justify-between`}
-                >
-                  <p
-                    className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
-                  >
-                    L:{" "}
-                    {patientbasic?.left_doctor ===
-                    sessionStorage.getItem("doctor")
-                      ? patientbasic?.statusLeft
-                      : "NA"}
-                    <br />
-                    R:{" "}
-                    {patientbasic?.right_doctor ===
-                    sessionStorage.getItem("doctor")
-                      ? patientbasic?.statusRight
-                      : "NA"}
-                  </p>
-                  <p
-                    className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
-                  >
-                    {patientbasic.uhid ?? "Patient ID"}
+                    Dr. {doctorName || "Doctor Name"}
                   </p>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div
-            className={`${width >= 800 ? "w-1/2" : "w-full"} flex justify-end`}
+            className={`w-full flex ${
+              width >= 800 ? "flex-row" : "flex-col gap-4"
+            }  pt-8`}
           >
-            <div
-              className={`${
-                width >= 1000 ? "w-1/2" : "w-2/3"
-              } flex flex-col justify-between`}
-            >
-              <div className={`w-full flex flex-row justify-end gap-4`}>
-                <div className={`bg-black rounded-lg w-3/7 py-1 px-3 flex`}>
-                  <p
-                    className={`${inter.className} font-semibold text-sm text-white text-center w-full cursor-pointer`}
-                    onClick={() => {
-                      handlenavigateviewsurgeryreport();
-                      if (typeof window !== "undefined") {
-                        sessionStorage.setItem(
-                          "selectedUHID",
-                          patientbasic.uhid
-                        );
-                      }
-                    }}
+            <div className={`${width >= 800 ? "w-1/2" : "w-full"}`}>
+              <div
+                className={`${
+                  width >= 1000 ? "w-6/7" : "w-full"
+                } flex flex-row gap-4 border-b-2 border-b-[#EBEBEB] py-2 `}
+              >
+                <Image
+                  src={patientbasic?.avatar || ManAvatar}
+                  alt="Patient"
+                  className={`w-[60px] h-[60px]`}
+                  width={60}
+                  height={60}
+                />
+                <div
+                  className={`w-full flex ${
+                    width < 400 ? "flex-col" : "flex-row"
+                  } gap-2`}
+                >
+                  <div
+                    className={`${
+                      width < 400 ? "w-full" : "w-1/2"
+                    } flex flex-col`}
                   >
-                    View Surgery
-                  </p>
+                    <p
+                      className={`${raleway.className} font-semibold text-lg text-black`}
+                    >
+                      {patientbasic?.name ?? "Patient Name"}
+                    </p>
+                    <p
+                      className={`${poppins.className} font-normal text-sm text-black`}
+                    >
+                      {patientbasic?.age ?? "Age"},{" "}
+                      {patientbasic?.gender ?? "Gender"}
+                    </p>
+                  </div>
+                  <div
+                    className={`${
+                      width < 400 ? "w-full" : "w-1/2"
+                    } flex flex-col justify-between`}
+                  >
+                    <p
+                      className={`${inter.className} font-semibold text-[15px] text-[#484848]`}
+                    >
+                      L:{" "}
+                      {patientbasic?.left_doctor ===
+                      sessionStorage.getItem("doctor")
+                        ? patientbasic?.statusLeft
+                        : "NA"}
+                      <br />
+                      R:{" "}
+                      {patientbasic?.right_doctor ===
+                      sessionStorage.getItem("doctor")
+                        ? patientbasic?.statusRight
+                        : "NA"}
+                    </p>
+                    <p
+                      className={`${poppins.className} font-medium text-base text-[#222222] opacity-50 border-r-2 border-r-[#EBEBEB]`}
+                    >
+                      {patientbasic.uhid ?? "Patient ID"}
+                    </p>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className={`w-full flex flex-row justify-end gap-4`}>
-                <div
-                  className={`w-3/7 flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
-                >
-                  {/* <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
+            <div
+              className={`${
+                width >= 800 ? "w-1/2" : "w-full"
+              } flex justify-end`}
+            >
+              <div
+                className={`${
+                  width >= 1000 ? "w-1/2" : "w-2/3"
+                } flex flex-col justify-between`}
+              >
+                <div className={`w-full flex flex-row justify-end gap-4`}>
+                  <div className={`bg-black rounded-lg w-3/7 py-1 px-3 flex`}>
+                    <p
+                      className={`${inter.className} font-semibold text-sm text-white text-center w-full cursor-pointer`}
+                      onClick={() => {
+                        handlenavigateviewsurgeryreport();
+                        if (typeof window !== "undefined") {
+                          sessionStorage.setItem(
+                            "selectedUHID",
+                            patientbasic.uhid
+                          );
+                        }
+                      }}
+                      title="Click to view surgery report"
+                    >
+                      View Surgery
+                    </p>
+                  </div>
+                </div>
+
+                <div className={`w-full flex flex-row justify-end gap-4`}>
+                  <div
+                    className={`w-3/7 flex flex-row items-center justify-center gap-2 bg-[#FFF5F7] px-2 py-1 rounded-[10px]`}
+                  >
+                    {/* <ArrowDownCircleIcon className="w-4 h-4 text-[#DE8E8A]" />
                 <p
                   className={`${inter.className} font-medium text-[15px] text-[#DE8E8A]`}
                 >
                   23 %
                 </p> */}
 
-                  <p
-                    className={`${inter.className} text-start font-semibold text-[15px] text-[#484848] w-full`}
-                  >
-                    BMI: {patientbasic?.bmi || "NA"}
-                  </p>
-                </div>
-                <div className={`w-3/7 flex flex-col items-center`}>
-                  <div
-                    className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
-                  >
                     <p
-                      className={`${inter.className} font-semibold text-sm text-[#484848]`}
+                      className={`${inter.className} text-start font-semibold text-[15px] text-[#484848] w-full`}
                     >
-                      {patientbasic?.total_combined || "NA"}
+                      BMI: {patientbasic?.bmi || "NA"}
                     </p>
+                  </div>
+                  <div className={`w-3/7 flex flex-col items-center`}>
+                    <div
+                      className={`w-full flex flex-row items-center justify-center gap-2 bg-[#EBF4F1] px-2 py-1 rounded-[10px]`}
+                    >
+                      <p
+                        className={`${inter.className} font-semibold text-sm text-[#484848]`}
+                      >
+                        SCORE: {patientbasic?.total_combined || "NA"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className={`w-full ${width >= 800 ? "pt-4" : "pt-8"} `}>
-          <div
-            className={`w-full flex flex-col gap-2 ${
-              width < 1300 ? "h-fit" : ""
-            }`}
-          >
+          <div className={`w-full ${width >= 800 ? "pt-4" : "pt-8"} `}>
             <div
-              className={`w-full flex px-2  ${
-                width >= 700
-                  ? "flex-row justify-between"
-                  : "flex-col items-center gap-8"
+              className={`w-full flex flex-col gap-2 ${
+                width < 1300 ? "h-fit" : ""
               }`}
             >
               <div
-                className={`flex items-center justify-end ${
-                  width >= 1000
-                    ? "w-1/6 gap-4"
-                    : width < 1000 && width >= 700
-                    ? "w-1/2 gap-8"
-                    : " w-full gap-8"
-                }
-              `}
+                className={`w-full flex px-2  ${
+                  width >= 700
+                    ? "flex-row justify-between"
+                    : "flex-col items-center gap-8"
+                }`}
               >
-                <button
-                  className={`${
-                    raleway.className
-                  } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
-                    patientbasic?.left_doctor !==
-                    sessionStorage.getItem("doctor")
-                      ? "cursor-not-allowed opacity-50"
-                      : "cursor-pointer"
+                <div
+                  className={`flex items-center justify-end ${
+                    width >= 1000
+                      ? "w-1/6 gap-4"
+                      : width < 1000 && width >= 700
+                      ? "w-1/2 gap-8"
+                      : " w-full gap-8"
                   }
+              `}
+                >
+                  <button
+                    className={`${
+                      raleway.className
+                    } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
+                      patientbasic?.left_doctor !==
+                      sessionStorage.getItem("doctor")
+                        ? "cursor-not-allowed opacity-50"
+                        : "cursor-pointer"
+                    }
                   ${
                     handlequestableswitch === "left"
                       ? "bg-[#2B333E] text-white"
                       : "bg-[#CAD9D6] text-black"
                   }
                   `}
-                  onClick={
-                    patientbasic?.left_doctor !==
-                    sessionStorage.getItem("doctor")
-                      ? undefined
-                      : () => {
-                          sethandlequestableswitch("left");
-                        }
-                  }
-                >
-                  Left
-                </button>
-                <button
-                  className={`${
-                    raleway.className
-                  } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
-                    patientbasic?.right_doctor !==
-                    sessionStorage.getItem("doctor")
-                      ? "cursor-not-allowed opacity-50"
-                      : "cursor-pointer"
-                  }
+                    onClick={
+                      patientbasic?.left_doctor !==
+                      sessionStorage.getItem("doctor")
+                        ? undefined
+                        : () => {
+                            sethandlequestableswitch("left");
+                          }
+                    }
+                  >
+                    Left
+                  </button>
+                  <button
+                    className={`${
+                      raleway.className
+                    } text-sm px-4 py-[0.5px] w-1/2 rounded-lg font-semibold   ${
+                      patientbasic?.right_doctor !==
+                      sessionStorage.getItem("doctor")
+                        ? "cursor-not-allowed opacity-50"
+                        : "cursor-pointer"
+                    }
                   ${
                     handlequestableswitch === "right"
                       ? "bg-[#2B333E] text-white"
                       : "bg-[#CAD9D6] text-black"
                   }`}
-                  onClick={
-                    patientbasic?.right_doctor !==
-                    sessionStorage.getItem("doctor")
-                      ? undefined
-                      : () => {
-                          sethandlequestableswitch("right");
-                        }
-                  }
-                >
-                  Right
-                </button>
+                    onClick={
+                      patientbasic?.right_doctor !==
+                      sessionStorage.getItem("doctor")
+                        ? undefined
+                        : () => {
+                            sethandlequestableswitch("right");
+                          }
+                    }
+                  >
+                    Right
+                  </button>
+                </div>
+                <Image src={Heatmap} alt="heatmap" />
               </div>
-              <Image src={Heatmap} alt="heatmap" />
-            </div>
 
-            <div className="bg-white rounded-2xl px-2 py-1 flex flex-col gap-4  h-full w-full">
-              <div className="w-full overflow-x-auto h-full overflow-y-auto">
-                {!questionnaireData ||
-                !questionnaireData.questionnaires ||
-                !questionnaireData.questionnaires.length > 0 ? (
-                  <div className="flex space-x-2 py-2 w-full justify-center">
-                    <svg
-                      className="animate-spin h-5 w-5 text-black"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                      />
-                    </svg>
-                    <span
-                      className={`${poppins.className} text-black font-semibold`}
-                    >
-                      {messages[index]}
-                    </span>
-                  </div>
-                ) : (
-                  <table className="min-w-full table-fixed border-separate border-spacing-y-1">
-                    <thead className="text-[#475467] text-[16px] font-medium text-center">
-                      <tr className="rounded-2xl">
-                        <th
-                          className={`${inter.className} font-bold text-white text-sm px-2 py-1 bg-gray-900 rounded-tl-2xl text-center whitespace-nowrap w-3/7`}
-                        >
-                          <div className="flex flex-row justify-center items-center gap-4">
-                            <p>Questionnaire</p>
-                          </div>
-                        </th>
-                        {questionnaireData.periods.map((period, idx) => (
+              <div className="bg-white rounded-2xl px-2 py-1 flex flex-col gap-4  h-full w-full">
+                <div className="w-full overflow-x-auto h-full overflow-y-auto">
+                  {!questionnaireData ||
+                  !questionnaireData.questionnaires ||
+                  !questionnaireData.questionnaires.length > 0 ? (
+                    <div className="flex space-x-2 py-2 w-full justify-center">
+                      <svg
+                        className="animate-spin h-5 w-5 text-black"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
+                        />
+                      </svg>
+                      <span
+                        className={`${poppins.className} text-black font-semibold`}
+                      >
+                        {messages[index]}
+                      </span>
+                    </div>
+                  ) : (
+                    <table className="min-w-full table-fixed border-separate border-spacing-y-1">
+                      <thead className="text-[#475467] text-[16px] font-medium text-center">
+                        <tr className="rounded-2xl">
                           <th
-                            key={period.key}
-                            className={`px-4 py-3  bg-gray-900 text-center whitespace-nowrap ${
-                              idx === questionnaireData.periods.length - 1
-                                ? "rounded-tr-2xl"
-                                : ""
-                            }`}
+                            className={`${inter.className} font-bold text-white text-sm px-2 py-1 bg-gray-900 rounded-tl-2xl text-center whitespace-nowrap w-3/7`}
                           >
-                            <div className="flex flex-row items-center justify-center gap-1 w-full">
-                              <div className={`w-fit flex flex-col`}>
-                                <span
-                                  className={`${inter.className} text-[15px] text-center  text-white font-bold`}
-                                >
-                                  {period.label}
-                                </span>
-                              </div>
+                            <div className="flex flex-row justify-center items-center gap-4">
+                              <p>Questionnaire</p>
+                            </div>
+                          </th>
+                          {questionnaireData.periods.map((period, idx) => (
+                            <th
+                              key={period.key}
+                              className={`px-4 py-3  bg-gray-900 text-center whitespace-nowrap ${
+                                idx === questionnaireData.periods.length - 1
+                                  ? "rounded-tr-2xl"
+                                  : ""
+                              }`}
+                            >
+                              <div className="flex flex-row items-center justify-center gap-1 w-full">
+                                <div className={`w-fit flex flex-col`}>
+                                  <span
+                                    className={`${inter.className} text-[15px] text-center  text-white font-bold`}
+                                  >
+                                    {period.label}
+                                  </span>
+                                </div>
 
-                              {/* <div
+                                {/* <div
                                 className={`${inter.className} font-bold text-white text-sm flex items-center justify-between gap-2 w-full`}
                               >
                                 {" "}
                               </div> */}
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
 
-                    <tbody className="bg-white text-[13px]">
-                      {questionnaireData.questionnaires.map((q, index) => (
-                        <tr key={index} className="">
-                          <td
-                            className={`${raleway.className} font-semibold px-4 py-2 text-[#1F2937] truncate`}
-                          >
-                            {q.name}
-                          </td>
+                      <tbody className="bg-white text-[13px]">
+                        {questionnaireData.questionnaires.map((q, index) => (
+                          <tr key={index} className="">
+                            <td
+                              className={`${raleway.className} font-semibold px-4 py-2 text-[#1F2937] truncate`}
+                            >
+                              {q.name}
+                            </td>
 
-                          {Object.keys(q.scores || {}).length > 0 ? (
-                            questionnaireData.periods.map((period) => {
-                              const score=q.scores?.[period.key];
-                                let score1 = score; 
+                            {Object.keys(q.scores || {}).length > 0 ? (
+                              questionnaireData.periods.map((period) => {
+                                const score = q.scores?.[period.key];
+                                let score1 = score;
                                 const num = Number(score1);
 
                                 if (!isNaN(num)) {
@@ -1521,1751 +1694,2089 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
 
                                 const color = getTextColor(Number(score1));
 
-                              return (
-                                <td
-                                  key={period.key}
-                                  className={`relative px-4 py-2 font-bold text-center align-middle ${
-                                    q.notesMap[period.key] &&
-                                    q.notesMap[period.key] !== "NA"
-                                      ? "group cursor-pointer"
-                                      : ""
-                                  }`}
-                                  style={{ color }}
-                                >
-                                  {score || "—"}
-                                  {q.notesMap[period.key] &&
-                                    q.notesMap[period.key] !== "NA" && (
-                                      <div
-                                        className={` ${poppins.className} uppercase  absolute bottom-0 left-1/2 -translate-x-1/2 mb-2 hidden w-full whitespace-normal rounded-lg bg-gray-500 px-3 py-2 text-sm text-white shadow-lg group-hover:block z-50`}
-                                      >
-                                        {q.notesMap[period.key]}
-                                      </div>
-                                    )}
-                                </td>
-                              );
-                            })
-                          ) : (
-                            <td
-                              colSpan={6}
-                              className={`${inter.className} font-bold text-[13px] px-4 py-4 text-center text-[#3b3b3b]`}
-                            >
-                              No questionnaires assigned
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                                return (
+                                  <td
+                                    key={period.key}
+                                    className={`relative px-4 py-2 font-bold text-center align-middle ${
+                                      q.notesMap[period.key] &&
+                                      q.notesMap[period.key] !== "NA"
+                                        ? "group cursor-pointer"
+                                        : ""
+                                    }`}
+                                    style={{ color }}
+                                  >
+                                    {score || "—"}
+                                    {q.notesMap[period.key] &&
+                                      q.notesMap[period.key] !== "NA" &&
+                                      q.notesMap[period.key] !== "EXPIRED" &&
+                                      score !== "-" && (
+                                        <button
+                                          onClick={() =>
+                                            handleNoteOpen(
+                                              q.notesMap[period.key],
+                                              q.name,
+                                              period.label
+                                            )
+                                          }
+                                          className="ml-2 text-gray-500 hover:text-black cursor-pointer"
+                                          title="View Note"
+                                        >
+                                          <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="w-4 h-4 inline-block"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            strokeWidth={2}
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                            />
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                            />
+                                          </svg>
+                                        </button>
+                                      )}
+                                  </td>
+                                );
+                              })
+                            ) : (
+                              <td
+                                colSpan={6}
+                                className={`${inter.className} font-bold text-[13px] px-4 py-4 text-center text-[#3b3b3b]`}
+                              >
+                                No questionnaires assigned
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div
-          className={`w-full h-fit flex ${
-            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-          }  gap-6`}
-        >
           <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+            className={`w-full h-fit flex ${
+              width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+            }  gap-6`}
           >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
             >
-              PROM ANALYSIS
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={chartData}
-                margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
               >
-                <CartesianGrid strokeDasharray="8 10" vertical={false} />
+                PROM ANALYSIS
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={chartData}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 30 }} // extra bottom space for custom axis
+                    >
+                      <CartesianGrid strokeDasharray="8 10" vertical={false} />
 
-                <XAxis
-                  dataKey="name"
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  label={{
-                    value: "DAYS",
-                    position: "insideBottom",
-                    offset: -5,
-                    style: {
-                      fill: "#615E83", // label color
-                      fontSize: 14, // label font size
-                      fontWeight: 700,
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: "Poppins",
-                  }} // tick values
-                />
+                      {/* Hide the original XAxis */}
+                      {/* <XAxis ... /> */}
 
-                <YAxis
-                  axisLine={false}
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    style: {
-                      fill: "#615E83", // label color
-                      fontSize: 14, // label font size
-                      fontWeight: 700,
-                      fontFamily: "Poppins",
-                    },
-                    dx: 15,
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: "Poppins",
-                  }} // tick values
-                  domain={[0, 100]}
-                />
+                      <YAxis
+                        axisLine={false}
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          style: {
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: 700,
+                            fontFamily: "Poppins",
+                          },
+                          dx: 15,
+                        }}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          fontFamily: "Poppins",
+                        }}
+                        domain={[0, 100]}
+                      />
 
-                <Tooltip
-                  isAnimationActive={false}
-                  content={({ active, payload, label }) => {
-                    if (label === "SURGERY" || !active || !payload?.length)
-                      return null;
+                      <Tooltip
+                        isAnimationActive={false}
+                        content={({ active, payload, label }) => {
+                          if (
+                            label === "SURGERY" ||
+                            !active ||
+                            !payload?.length
+                          )
+                            return null;
+                          return (
+                            <div className="bg-white w-full p-2 border rounded shadow text-black">
+                              <p className="font-semibold text-center">
+                                {fixedXAxisTicks[label]}
+                              </p>
+                              {payload.map((entry, index) => (
+                                <div
+                                  key={index}
+                                  className="flex justify-between w-full text-sm"
+                                  style={{ color: entry.stroke }}
+                                >
+                                  <span>{entry.name}</span>
+                                  <span className="text-right font-medium pl-4">
+                                    {entry.value == null || isNaN(entry.value)
+                                      ? "NA"
+                                      : entry.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }}
+                      />
 
-                    return (
-                      <div className="bg-white p-2 border rounded shadow text-black">
-                        <p className="font-semibold">{label} Days</p>
-                        {payload.map((entry, index) => (
-                          <p key={index} style={{ color: entry.stroke }}>
-                            {entry.name}: {entry.value}
-                          </p>
-                        ))}
-                      </div>
-                    );
-                  }}
-                />
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            oks: "OKS",
+                            sf12: "SF-12",
+                            koos: "KOOS",
+                            kss: "KSS",
+                            fjs: "FJS",
+                          };
+                          const colors = {
+                            oks: "#4F46E5",
+                            sf12: "#A855F7",
+                            koos: "#10B981",
+                            kss: "#F97316",
+                            fjs: "#3B82F6",
+                          };
 
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      oks: "OKS",
-                      sf12: "SF-12",
-                      koos: "KOOS",
-                      kss: "KSS",
-                      fjs: "FJS",
-                    };
+                          return (
+                            <ul className="flex gap-6 list-none m-0 p-0">
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`${poppins.className} font-medium text-[10px] flex items-center gap-2 cursor-pointer select-none`}
+                                  onClick={() => toggleQuestionnaire(key)}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedQuestionnaires.includes(
+                                      key
+                                    )}
+                                    readOnly
+                                    className="accent-blue-600 w-3 h-3"
+                                  />
+                                  <span
+                                    style={{
+                                      fontWeight: 700,
+                                      fontSize: 12,
+                                      color: selectedQuestionnaires.includes(
+                                        key
+                                      )
+                                        ? colors[key]
+                                        : "#A0AEC0",
+                                    }}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }}
+                      />
 
-                    const colors = {
-                      oks: "#4F46E5",
-                      sf12: "#A855F7",
-                      koos: "#10B981",
-                      kss: "#F97316",
-                      fjs: "#3B82F6",
-                    };
+                      <ReferenceLine
+                        x="SURGERY"
+                        stroke="#AAA7FF"
+                        strokeWidth={1.5}
+                        ifOverflow="visible"
+                        isFront
+                      />
 
-                    return (
-                      <ul className="flex gap-6 list-none m-0 p-0">
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`${poppins.className} font-medium text-[10px] flex items-center gap-2 cursor-pointer select-none`}
-                            onClick={() => toggleQuestionnaire(key)}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedQuestionnaires.includes(key)}
-                              readOnly
-                              className="accent-blue-600 w-3 h-3"
-                            />
-                            <span
-                              style={{
-                                fontWeight: 700,
-                                fontSize: 12,
-                                color: selectedQuestionnaires.includes(key)
-                                  ? colors[key] // Active → real color
-                                  : "#A0AEC0", // Inactive → gray color
-                              }}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  }}
-                />
+                      {["oks", "sf12", "koos", "kss", "fjs"].map((key, i) => {
+                        const colors = [
+                          "#4F46E5",
+                          "#A855F7",
+                          "#10B981",
+                          "#F97316",
+                          "#3B82F6",
+                        ];
+                        const labels = {
+                          oks: "Oxford Knee Score",
+                          sf12: "Short Form - 12",
+                          koos: "KOOS",
+                          kss: "Knee Society Score",
+                          fjs: "Forgotten Joint Score",
+                        };
 
-                <ReferenceLine
-                  x="SURGERY"
-                  stroke="#AAA7FF"
-                  strokeWidth={1.5}
-                  ifOverflow="visible"
-                  isFront
-                />
-
-                {["oks", "sf12", "koos", "kss", "fjs"].map((key, i) => {
-                  const colors = [
-                    "#4F46E5", // Indigo
-                    "#A855F7", // Purple
-                    "#10B981", // Emerald
-                    "#F97316", // Orange
-                    "#3B82F6", // Blue
-                  ];
-
-                  const labels = {
-                    oks: "Oxford Knee Score",
-                    sf12: "Short Form - 12",
-                    koos: "KOOS",
-                    kss: "Knee Society Score",
-                    fjs: "Forgotten Joint Score",
-                  };
-
-                  if (!selectedQuestionnaires.includes(key)) {
-                    return null; // Don't render if not selected
-                  }
-
-                  return (
-                    <Line
-                      key={key}
-                      type="monotone"
-                      dataKey={key}
-                      connectNulls={true} // Continue connecting lines even when there's no data
-                      name={labels[key]}
-                      stroke={colors[i]}
-                      strokeWidth={2}
-                      
-                      dot={({ cx, cy, payload, index }) => {
-                        // Check if the value exists before rendering the dot
-                        if (payload[key] == null ) {
-                          return null; // Don't render the dot if there's no data
-                        }
+                        if (!selectedQuestionnaires.includes(key)) return null;
 
                         return (
-                          <circle
-                            key={`dot-${index}`} // Ensure unique key
-                            cx={cx}
-                            cy={cy}
-                            r={3}
+                          <Line
+                            key={key}
+                            type="monotone"
+                            dataKey={key}
+                            connectNulls={false} // 🔹 Do NOT connect missing data
+                            isAnimationActive={false} // 🔹 Prevent flicker on update
+                            name={labels[key]}
                             stroke={colors[i]}
-                            strokeWidth={1}
-                            fill={colors[i]}
-                          />
-                        );
-                      }}
-                      activeDot={({ payload }) => {
-                        // Only show active dot if there's data
-                        if (payload[key] == null) {
-                          return null; // Don't render active dot if there's no data
-                        }
-
-                        return (
-                          <circle
-                            r={6}
-                            stroke="black"
                             strokeWidth={2}
-                            fill="white"
+                            dot={({ cx, cy, payload }) => {
+                              // Only render a dot if the current value is a valid number
+                              const val = payload?.[key];
+                              if (val == null || isNaN(val)) return null;
+                              return (
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={3.5}
+                                  stroke={colors[i]}
+                                  strokeWidth={1}
+                                  fill={colors[i]}
+                                />
+                              );
+                            }}
+                            activeDot={({ payload }) => {
+                              const val = payload?.[key];
+                              if (val == null || isNaN(val)) return null;
+                              return (
+                                <circle
+                                  r={6}
+                                  stroke="#000"
+                                  strokeWidth={2}
+                                  fill="white"
+                                />
+                              );
+                            }}
                           />
                         );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Custom Static X Axis */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "0 25px",
+                    marginTop: -10,
+                  }}
+                >
+                  {fixedXAxisTicks.map((period) => (
+                    <span
+                      key={period}
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "#615E83",
+                        fontFamily: "Poppins",
                       }}
-                    />
-                  );
-                })}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+                    >
+                      {period}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-          <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-          >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
             >
-              SHORT FORM 12 (PCS vs MCS)
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <ScatterChart
-                margin={{ top: -20, right: 20, left: 0, bottom: 10 }}
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
               >
-                <CartesianGrid strokeDasharray="8 10" vertical={false} />
+                SHORT FORM 12 (PCS vs MCS)
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart
+                      margin={{ top: -20, right: 20, left: 0, bottom: 30 }}
+                    >
+                      <CartesianGrid strokeDasharray="8 10" vertical={false} />
 
-                <XAxis
-                  type="number"
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  dataKey="x"
-                  domain={[-0.5, transformedData.length - 0.5]}
-                  tickFormatter={(tick) => {
-                    const i = Math.round(tick);
-                    return transformedData[i]?.name || "";
-                  }}
-                  ticks={transformedData.map((_, index) => index)}
-                  allowDecimals={false}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: 600,
+                      {/* Keep XAxis but hide ticks and axis line */}
+                      <XAxis
+                        type="number"
+                        dataKey="x"
+                        domain={[-0.5, transformedData.length - 0.5]}
+                        hide={true} // hide default labels and line
+                      />
+
+                      <YAxis
+                        type="number"
+                        axisLine={false}
+                        dataKey="y"
+                        domain={["dataMin - 10", "dataMax + 10"]}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          fontFamily: "Poppins",
+                        }}
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          offset: 10,
+                          fontWeight: "bold",
+                          fill: "#615E83",
+                          style: {
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: 700,
+                            fontFamily: "Poppins",
+                          },
+                        }}
+                      />
+
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload && payload.length) {
+                            return (
+                              <div
+                                className={`${inter.className} flex flex-col font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1`}
+                              >
+                                PCS: {payload[1].value}
+                                <br />
+                                MCS: {payload[3].value}
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            pcs: "Physical Component Summary (PCS)",
+                            mcs: "Mental Component Summary (MCS)",
+                          };
+                          const colors = { pcs: "#6888A1", mcs: "#2A333A" };
+                          return (
+                            <ul className={`flex flex-col items-end`}>
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`flex flex-row items-center gap-2 w-2/5`}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      backgroundColor: colors[key],
+                                    }}
+                                  />
+                                  <span
+                                    className={`${inter.className} font-medium text-[10px] text-black`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }}
+                      />
+
+                      <ReferenceLine
+                        x={surgeryIndex}
+                        stroke="#AAA7FF"
+                        strokeWidth={1.5}
+                        label={{
+                          value: "Surgery",
+                          position: "top",
+                          fill: "limegreen",
+                          fontWeight: "bold",
+                          fontSize: 12,
+                        }}
+                      />
+
+                      {/* PCS Scatter */}
+                      <Scatter
+                        name="Physical (PCS)"
+                        data={dataPCS.filter(
+                          (point) => point.y != null && point.x != null
+                        )}
+                        fill="#4071CA"
+                      >
+                        <ErrorBar
+                          dataKey="error"
+                          direction="y"
+                          width={4}
+                          stroke="#6888A1"
+                        />
+                      </Scatter>
+
+                      {/* MCS Scatter */}
+                      <Scatter
+                        name="Mental (MCS)"
+                        data={dataMCS.filter(
+                          (point) => point.y != null && point.x != null
+                        )}
+                        fill="#4071CA"
+                      >
+                        <ErrorBar
+                          dataKey="error"
+                          direction="y"
+                          width={4}
+                          stroke="#2A333A"
+                        />
+                      </Scatter>
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Custom static X Axis */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingLeft: "50px", // only left padding
+                    paddingRight: "0", // right goes to the end
+                    marginTop: -10,
                     fontFamily: "Poppins",
-                  }}
-                  label={{
-                    value: "DAYS",
-                    position: "insideBottom",
-                    offset: -5,
-                    fontWeight: "bold",
-                    fill: "#615E83",
-                    style: {
-                      fill: "#615E83", // label color
-                      fontSize: 14, // label font size
-                      fontWeight: 700,
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                />
-
-                <YAxis
-                  type="number"
-                  axisLine={false}
-                  dataKey="y"
-                  domain={["dataMin - 10", "dataMax + 10"]}
-                  tick={{
-                    fill: "#615E83",
+                    fontWeight: 700,
                     fontSize: 12,
-                    fontWeight: 600,
-                    fontFamily: "Poppins",
+                    color: "#615E83",
                   }}
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 10,
-                    fontWeight: "bold",
-                    fill: "#615E83",
-                    style: {
-                      fill: "#615E83", // label color
-                      fontSize: 14, // label font size
-                      fontWeight: 700,
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                />
-
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      return (
-                        <div
-                          className={`${inter.className} flex flex-col font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1`}
-                        >
-                          {/* {payload.map((entry, index) =>
-                          index % 2 !== 0 ? (
-                            <div key={index}>{entry.name}: {entry.value}</div>
-                          ) : null
-                        )} */}
-                          PCS: {payload[1].value}
-                          <br></br>
-                          MCS: {payload[3].value}
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      pcs: "Physical Component Summary (PCS)",
-                      mcs: "Mental Component Summary (MCS)",
-                    };
-
-                    const colors = {
-                      pcs: "#6888A1",
-                      mcs: "#2A333A",
-                    };
-
-                    return (
-                      <ul className={`flex flex-col items-end`}>
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`flex flex-row items-center gap-2 w-2/5`}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                backgroundColor: colors[key],
-                              }}
-                            />
-                            <span
-                              className={`${inter.className} font-medium text-[10px] text-black`}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  }}
-                />
-
-                <ReferenceLine
-                  x={surgeryIndex}
-                  stroke="#AAA7FF"
-                  strokeWidth={1.5}
-                  label={{
-                    value: "Surgery",
-                    position: "top",
-                    fill: "limegreen",
-                    fontWeight: "bold",
-                    fontSize: 12,
-                  }}
-                />
-
-                {/* Physical Component Summary (PCS) Scatter */}
-                <Scatter
-                  name="Physical (PCS)"
-                  data={dataPCS.filter(
-                    (point) => point.y != null && point.x != null
-                  )} // Filter out invalid data
-                  fill="#4071CA"
                 >
-                  <ErrorBar
-                    dataKey="error"
-                    direction="y"
-                    width={4}
-                    stroke="#6888A1"
-                  />
-                </Scatter>
+                  {fixedXAxisTicksdays.map((label) => (
+                    <span key={label} style={{ flex: 1, textAlign: "center" }}>
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
 
-                {/* Mental Component Summary (MCS) Scatter */}
-                <Scatter
-                  name="Mental (MCS)"
-                  data={dataMCS.filter(
-                    (point) => point.y != null && point.x != null
-                  )} // Filter out invalid data
-                  fill="#4071CA"
+          <div
+            className={`w-full h-fit flex ${
+              width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+            } gap-6`}
+          >
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+            >
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+              >
+                OXFORD KNEE SCORE
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={oksDatabox.filter(
+                        (item) =>
+                          item.min !== undefined &&
+                          item._median !== undefined &&
+                          item._min !== undefined &&
+                          item._max !== undefined
+                      )} // Filter out undefined data
+                      barCategoryGap="70%"
+                      margin={{ top: 10, right: 20, left: 0, bottom: 30 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <Tooltip
+                        content={({ active, label }) => {
+                          if (!active) return null;
+
+                          const item = oksDatabox.find((d) => d.name === label);
+                          if (!item) return null;
+
+                          const renameMap = {
+                            bottomWhisker: "poorestFunctionObserved",
+                            bottomBox: "belowAverageFunctionRange",
+                            topBox: "aboveAverageFunctionRange",
+                            topWhisker: "bestFunctionObserved",
+                            _median: "groupMedianFunctionScore",
+                            _min: "lowestFunctionScore",
+                            _max: "highestFunctionScore",
+                            Patient: "patientScore",
+                          };
+
+                          // Chart colors for each key
+                          const colorMap = {
+                            patientScore: "#04CE00", // green
+                            highestFunctionScore: "#1F77B4", // blue
+                            lowestFunctionScore: "#1F77B4", // blue (paired)
+                            bestFunctionObserved: "#9467BD", // purple
+                            poorestFunctionObserved: "#9467BD", // purple (paired)
+                            aboveAverageFunctionRange: "#FF7F0E", // orange
+                            belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                            groupMedianFunctionScore: "#000000", // white
+                          };
+                          const displayOrder = [
+                            "patientScore",
+                            "highestFunctionScore",
+                            "bestFunctionObserved",
+                            "aboveAverageFunctionRange",
+                            "groupMedianFunctionScore",
+                            "belowAverageFunctionRange",
+                            "poorestFunctionObserved",
+                            "lowestFunctionScore",
+                          ];
+
+                          return (
+                            <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                              <p
+                                className={`${poppins.className} text-center font-bold text-black text-sm`}
+                              >
+                                {`Timepoint: ${label}`}
+                              </p>
+                              {displayOrder.map((key) => {
+                                const originalKey = Object.keys(renameMap).find(
+                                  (k) => renameMap[k] === key
+                                );
+                                if (!originalKey || item[originalKey] == null)
+                                  return null;
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`${poppins.className} flex justify-between text-sm font-medium`}
+                                    style={{ color: colorMap[key] }}
+                                  >
+                                    <span>{key}:</span>
+                                    <span
+                                      className="font-semibold text-right"
+                                      style={{
+                                        color: colorMap[key],
+                                        minWidth: "50px",
+                                      }}
+                                    >
+                                      {typeof item[originalKey] === "number"
+                                        ? item[originalKey].toFixed(2)
+                                        : item[originalKey]}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }}
+                      />
+
+                      <Bar stackId="a" dataKey="min" fill="none" />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomWhisker"
+                        shape={<DotBar stroke="#2A333A" />}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomBox"
+                        fill="#2A333A"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topBox"
+                        fill="#2A333A"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topWhisker"
+                        shape={<DotBar stroke="#2A333A" />}
+                      />
+                      {/* Median Line */}
+                      <Scatter
+                        data={oksDatabox.filter(
+                          (item) => item._median !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_median"
+                            stroke="#ffffff"
+                          />
+                        )}
+                        dataKey="_median"
+                      />
+                      {/* Min Line */}
+                      <Scatter
+                        data={oksDatabox.filter(
+                          (item) => item._min !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_min"
+                            stroke="#2A333A"
+                          />
+                        )}
+                        dataKey="_min"
+                      />
+                      {/* Max Line */}
+                      <Scatter
+                        data={oksDatabox.filter(
+                          (item) => item._max !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_max"
+                            fill="#2A333A"
+                            stroke="#2A333A"
+                          />
+                        )}
+                        dataKey="_max"
+                      />
+                      <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                      <Scatter
+                        data={oksDatabox.filter(
+                          (item) =>
+                            item.Patient !== undefined &&
+                            item.Patient !== null &&
+                            !isNaN(item.Patient) &&
+                            item.Patient < 100 // optional: clamp to realistic max
+                        )}
+                        dataKey="Patient"
+                        fill="#2A333A"
+                        stroke="#2A333A"
+                        shape={(props) => (
+                          <circle
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill="#04CE00"
+                          />
+                        )}
+                      />
+                      <XAxis
+                        dataKey="name"
+                        type="category"
+                        allowDuplicatedCategory={false}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={{ stroke: "#99a1af " }} // gray-500
+                        tickLine={{ stroke: "#615E83" }}
+                        hide={true}
+                      />
+                      <YAxis
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          offset: 20,
+                          style: {
+                            textAnchor: "middle",
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: "700",
+                            fontFamily: "Poppins",
+                          },
+                        }}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={false}
+                        tickLine={{ stroke: "#615E83" }}
+                        domain={[0, 48]}
+                      />
+
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            pcs: "Oxford Knee Score (OKS)",
+                            mcs: "Other Patients",
+                          };
+
+                          const colors = {
+                            pcs: "#04CE00",
+                            mcs: "#2A333A",
+                          };
+
+                          return (
+                            <ul className={`flex flex-col items-end`}>
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`flex flex-row items-center gap-2 w-2/5`}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      backgroundColor: colors[key],
+                                    }}
+                                  />
+                                  <span
+                                    className={`${inter.className} font-medium text-[10px] text-black`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                {/* Custom Static X Axis */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingLeft: "70px",
+                    paddingRight: "50px",
+                    marginTop: -10,
+                  }}
                 >
-                  <ErrorBar
-                    dataKey="error"
-                    direction="y"
-                    width={4}
-                    stroke="#2A333A"
-                  />
-                </Scatter>
-              </ScatterChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+                  {fixedXAxisTicks.map((period) => (
+                    <span
+                      key={period}
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "#615E83",
+                        fontFamily: "Poppins",
+                      }}
+                    >
+                      {period}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
 
-        <div
-          className={`w-full h-fit flex ${
-            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-          } gap-6`}
-        >
-          <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-          >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
             >
-              OXFORD KNEE SCORE
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={oksDatabox.filter(
-                  (item) =>
-                    item.min !== undefined &&
-                    item._median !== undefined &&
-                    item._min !== undefined &&
-                    item._max !== undefined
-                )} // Filter out undefined data
-                barCategoryGap="70%"
-                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <Tooltip
-                  content={({ active, label }) => {
-                    if (!active) return null;
+                SHORT FORM 12
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={sf12Databox.filter(
+                        (item) =>
+                          item.min !== undefined &&
+                          item._median !== undefined &&
+                          item._min !== undefined &&
+                          item._max !== undefined
+                      )} // Filter out undefined data
+                      barCategoryGap="70%"
+                      margin={{ top: 10, right: 20, left: 0, bottom: 30 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <Tooltip
+                        content={({ active, label }) => {
+                          if (!active) return null;
 
-                    const item = oksDatabox.find((d) => d.name === label);
-                    if (!item) return null;
-
-                    const renameMap = {
-                      bottomWhisker: "poorestFunctionObserved",
-                      bottomBox: "belowAverageFunctionRange",
-                      topBox: "aboveAverageFunctionRange",
-                      topWhisker: "bestFunctionObserved",
-                      _median: "groupMedianFunctionScore",
-                      _min: "lowestFunctionScore",
-                      _max: "highestFunctionScore",
-                      Patient: "patientScore",
-                    };
-
-                    // Chart colors for each key
-                    const colorMap = {
-                      patientScore: "#04CE00", // green
-                      highestFunctionScore: "#1F77B4", // blue
-                      lowestFunctionScore: "#1F77B4", // blue (paired)
-                      bestFunctionObserved: "#9467BD", // purple
-                      poorestFunctionObserved: "#9467BD", // purple (paired)
-                      aboveAverageFunctionRange: "#FF7F0E", // orange
-                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                      groupMedianFunctionScore: "#000000", // white
-                    };
-                    const displayOrder = [
-                      "patientScore",
-                      "highestFunctionScore",
-                      "bestFunctionObserved",
-                      "aboveAverageFunctionRange",
-                      "groupMedianFunctionScore",
-                      "belowAverageFunctionRange",
-                      "poorestFunctionObserved",
-                      "lowestFunctionScore",
-                    ];
-
-                    return (
-                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                        <p
-                          className={`${poppins.className} font-bold text-black text-sm`}
-                        >
-                          {`Timepoint: ${label}`}
-                        </p>
-                        {displayOrder.map((key) => {
-                          const originalKey = Object.keys(renameMap).find(
-                            (k) => renameMap[k] === key
+                          const item = sf12Databox.find(
+                            (d) => d.name === label
                           );
-                          if (!originalKey || item[originalKey] == null)
-                            return null;
+                          if (!item) return null;
+
+                          const renameMap = {
+                            bottomWhisker: "poorestFunctionObserved",
+                            bottomBox: "belowAverageFunctionRange",
+                            topBox: "aboveAverageFunctionRange",
+                            topWhisker: "bestFunctionObserved",
+                            _median: "groupMedianFunctionScore",
+                            _min: "lowestFunctionScore",
+                            _max: "highestFunctionScore",
+                            Patient: "patientScore",
+                          };
+
+                          // Chart colors for each key
+                          const colorMap = {
+                            patientScore: "#04CE00", // green
+                            highestFunctionScore: "#1F77B4", // blue
+                            lowestFunctionScore: "#1F77B4", // blue (paired)
+                            bestFunctionObserved: "#9467BD", // purple
+                            poorestFunctionObserved: "#9467BD", // purple (paired)
+                            aboveAverageFunctionRange: "#FF7F0E", // orange
+                            belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                            groupMedianFunctionScore: "#000000", // white
+                          };
+                          const displayOrder = [
+                            "patientScore",
+                            "highestFunctionScore",
+                            "bestFunctionObserved",
+                            "aboveAverageFunctionRange",
+                            "groupMedianFunctionScore",
+                            "belowAverageFunctionRange",
+                            "poorestFunctionObserved",
+                            "lowestFunctionScore",
+                          ];
 
                           return (
-                            <p
-                              key={key}
-                              className={`${poppins.className} font-medium text-sm`}
-                              style={{ color: colorMap[key] }}
-                            >
-                              {key}:{" "}
-                              <span
-                                className="font-semibold"
-                                style={{ color: colorMap[key] }}
+                            <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                              <p
+                                className={`${poppins.className} text-center font-bold text-black text-sm`}
                               >
-                                {typeof item[originalKey] === "number"
-                                  ? item[originalKey].toFixed(2)
-                                  : item[originalKey]}
-                              </span>
-                            </p>
+                                {`Timepoint: ${label}`}
+                              </p>
+                              {displayOrder.map((key) => {
+                                const originalKey = Object.keys(renameMap).find(
+                                  (k) => renameMap[k] === key
+                                );
+                                if (!originalKey || item[originalKey] == null)
+                                  return null;
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`${poppins.className} flex justify-between text-sm font-medium`}
+                                    style={{ color: colorMap[key] }}
+                                  >
+                                    <span>{key}:</span>
+                                    <span
+                                      className="font-semibold text-right"
+                                      style={{
+                                        color: colorMap[key],
+                                        minWidth: "50px",
+                                      }}
+                                    >
+                                      {typeof item[originalKey] === "number"
+                                        ? item[originalKey].toFixed(2)
+                                        : item[originalKey]}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           );
-                        })}
-                      </div>
-                    );
-                  }}
-                />
+                        }}
+                      />
 
-                <Bar stackId="a" dataKey="min" fill="none" />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomWhisker"
-                  shape={<DotBar stroke="#2A333A" />}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomBox"
-                  fill="#2A333A"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topBox"
-                  fill="#2A333A"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topWhisker"
-                  shape={<DotBar stroke="#2A333A" />}
-                />
-                {/* Median Line */}
-                <Scatter
-                  data={oksDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                  )}
-                  dataKey="_median"
-                />
-                {/* Min Line */}
-                <Scatter
-                  data={oksDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_min" stroke="#2A333A" />
-                  )}
-                  dataKey="_min"
-                />
-                {/* Max Line */}
-                <Scatter
-                  data={oksDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar
-                      {...props}
-                      dataKey="_max"
-                      fill="#2A333A"
-                      stroke="#2A333A"
-                    />
-                  )}
-                  dataKey="_max"
-                />
-                <ZAxis type="number" dataKey="size" range={[0, 250]} />
-                <Scatter
-                  data={oksDatabox.filter(
-                    (item) =>
-                      item.Patient !== undefined &&
-                      item.Patient !== null &&
-                      !isNaN(item.Patient) &&
-                      item.Patient < 100 // optional: clamp to realistic max
-                  )}
-                  dataKey="Patient"
-                  fill="#2A333A"
-                  stroke="#2A333A"
-                  shape={(props) => (
-                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                  )}
-                />
-                <XAxis
-                  dataKey="name"
-                  type="category"
-                  allowDuplicatedCategory={false}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  tickLine={{ stroke: "#615E83" }}
-                />
-                <YAxis
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 20,
-                    style: {
-                      textAnchor: "middle",
-                      fill: "#615E83",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={false}
-                  tickLine={{ stroke: "#615E83" }}
-                  domain={[0, 48]}
-                />
+                      <Bar stackId="a" dataKey="min" fill="none" />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomWhisker"
+                        shape={<DotBar stroke="#6888A1" />}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomBox"
+                        fill="#6888A1"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topBox"
+                        fill="#6888A1"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topWhisker"
+                        shape={<DotBar stroke="#6888A1" />}
+                      />
+                      {/* Median Line */}
+                      <Scatter
+                        data={sf12Databox.filter(
+                          (item) => item._median !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_median"
+                            stroke="#ffffff"
+                          />
+                        )}
+                        dataKey="_median"
+                      />
+                      {/* Min Line */}
+                      <Scatter
+                        data={sf12Databox.filter(
+                          (item) => item._min !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_min"
+                            stroke="#6888A1"
+                          />
+                        )}
+                        dataKey="_min"
+                      />
+                      {/* Max Line */}
+                      <Scatter
+                        data={sf12Databox.filter(
+                          (item) => item._max !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_max"
+                            fill="#6888A1"
+                            stroke="#6888A1"
+                          />
+                        )}
+                        dataKey="_max"
+                      />
+                      <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                      <Scatter
+                        data={sf12Databox.filter(
+                          (item) =>
+                            item.Patient !== undefined &&
+                            item.Patient !== null &&
+                            !isNaN(item.Patient) &&
+                            item.Patient < 100 // optional: clamp to realistic max
+                        )}
+                        dataKey="Patient"
+                        fill="#2A333A"
+                        stroke="#2A333A"
+                        shape={(props) => (
+                          <circle
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill="#04CE00"
+                          />
+                        )}
+                      />
+                      <XAxis
+                        dataKey="name"
+                        type="category"
+                        allowDuplicatedCategory={false}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={{ stroke: "#99a1af " }} // gray-500
+                        tickLine={{ stroke: "#615E83" }}
+                        hide={true}
+                      />
+                      <YAxis
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          offset: 20,
+                          style: {
+                            textAnchor: "middle",
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: "700",
+                            fontFamily: "Poppins",
+                          },
+                        }}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={false}
+                        tickLine={{ stroke: "#615E83" }}
+                        domain={[0, 48]}
+                      />
 
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      pcs: "Oxford Knee Score (OKS)",
-                      mcs: "Other Patients",
-                    };
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            pcs: "Short Form - 12 (SF-12)",
+                            mcs: "Other Patients",
+                          };
 
-                    const colors = {
-                      pcs: "#04CE00",
-                      mcs: "#2A333A",
-                    };
-
-                    return (
-                      <ul className={`flex flex-col items-end`}>
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`flex flex-row items-center gap-2 w-2/5`}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                backgroundColor: colors[key],
-                              }}
-                            />
-                            <span
-                              className={`${inter.className} font-medium text-[10px] text-black`}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-          >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-            >
-              SHORT FORM 12
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={s12Databox.filter(
-                  (item) =>
-                    item.min !== undefined &&
-                    item._median !== undefined &&
-                    item._min !== undefined &&
-                    item._max !== undefined
-                )} // Filter out undefined data
-                barCategoryGap="70%"
-                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <Tooltip
-                  content={({ active, label }) => {
-                    if (!active) return null;
-
-                    const item = s12Databox.find((d) => d.name === label);
-                    if (!item) return null;
-
-                    const renameMap = {
-                      bottomWhisker: "poorestFunctionObserved",
-                      bottomBox: "belowAverageFunctionRange",
-                      topBox: "aboveAverageFunctionRange",
-                      topWhisker: "bestFunctionObserved",
-                      _median: "groupMedianFunctionScore",
-                      _min: "lowestFunctionScore",
-                      _max: "highestFunctionScore",
-                      Patient: "patientScore",
-                    };
-
-                    // Chart colors for each key
-                    const colorMap = {
-                      patientScore: "#04CE00", // green
-                      highestFunctionScore: "#1F77B4", // blue
-                      lowestFunctionScore: "#1F77B4", // blue (paired)
-                      bestFunctionObserved: "#9467BD", // purple
-                      poorestFunctionObserved: "#9467BD", // purple (paired)
-                      aboveAverageFunctionRange: "#FF7F0E", // orange
-                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                      groupMedianFunctionScore: "#000000", // white
-                    };
-                    const displayOrder = [
-                      "patientScore",
-                      "highestFunctionScore",
-                      "bestFunctionObserved",
-                      "aboveAverageFunctionRange",
-                      "groupMedianFunctionScore",
-                      "belowAverageFunctionRange",
-                      "poorestFunctionObserved",
-                      "lowestFunctionScore",
-                    ];
-
-                    return (
-                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                        <p
-                          className={`${poppins.className} font-bold text-black text-sm`}
-                        >
-                          {`Timepoint: ${label}`}
-                        </p>
-                        {displayOrder.map((key) => {
-                          const originalKey = Object.keys(renameMap).find(
-                            (k) => renameMap[k] === key
-                          );
-                          if (!originalKey || item[originalKey] == null)
-                            return null;
+                          const colors = {
+                            pcs: "#04CE00",
+                            mcs: "#6888A1",
+                          };
 
                           return (
-                            <p
-                              key={key}
-                              className={`${poppins.className} font-medium text-sm`}
-                              style={{ color: colorMap[key] }}
-                            >
-                              {key}:{" "}
-                              <span
-                                className="font-semibold"
-                                style={{ color: colorMap[key] }}
-                              >
-                                {typeof item[originalKey] === "number"
-                                  ? item[originalKey].toFixed(2)
-                                  : item[originalKey]}
-                              </span>
-                            </p>
+                            <ul className={`flex flex-col items-end`}>
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`flex flex-row items-center gap-2 w-2/5`}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      backgroundColor: colors[key],
+                                    }}
+                                  />
+                                  <span
+                                    className={`${inter.className} font-medium text-[10px] text-black`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
                           );
-                        })}
-                      </div>
-                    );
+                        }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingLeft: "70px",
+                    paddingRight: "50px",
+                    marginTop: -10,
                   }}
-                />
-
-                <Bar stackId="a" dataKey="min" fill="none" />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomWhisker"
-                  shape={<DotBar stroke="#6888A1" />}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomBox"
-                  fill="#6888A1"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topBox"
-                  fill="#6888A1"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topWhisker"
-                  shape={<DotBar stroke="#6888A1" />}
-                />
-                {/* Median Line */}
-                <Scatter
-                  data={s12Databox.filter((item) => item._median !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                  )}
-                  dataKey="_median"
-                />
-                {/* Min Line */}
-                <Scatter
-                  data={s12Databox.filter((item) => item._min !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_min" stroke="#6888A1" />
-                  )}
-                  dataKey="_min"
-                />
-                {/* Max Line */}
-                <Scatter
-                  data={s12Databox.filter((item) => item._max !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar
-                      {...props}
-                      dataKey="_max"
-                      fill="#6888A1"
-                      stroke="#6888A1"
-                    />
-                  )}
-                  dataKey="_max"
-                />
-                <ZAxis type="number" dataKey="size" range={[0, 250]} />
-                <Scatter
-                  data={s12Databox.filter(
-                    (item) =>
-                      item.Patient !== undefined &&
-                      item.Patient !== null &&
-                      !isNaN(item.Patient) &&
-                      item.Patient < 100 // optional: clamp to realistic max
-                  )}
-                  dataKey="Patient"
-                  fill="#2A333A"
-                  stroke="#2A333A"
-                  shape={(props) => (
-                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                  )}
-                />
-                <XAxis
-                  dataKey="name"
-                  type="category"
-                  allowDuplicatedCategory={false}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  tickLine={{ stroke: "#615E83" }}
-                />
-                <YAxis
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 20,
-                    style: {
-                      textAnchor: "middle",
-                      fill: "#615E83",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={false}
-                  tickLine={{ stroke: "#615E83" }}
-                  domain={[0, 48]}
-                />
-
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      pcs: "Short Form - 12 (SF-12)",
-                      mcs: "Other Patients",
-                    };
-
-                    const colors = {
-                      pcs: "#04CE00",
-                      mcs: "#6888A1",
-                    };
-
-                    return (
-                      <ul className={`flex flex-col items-end`}>
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`flex flex-row items-center gap-2 w-2/5`}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                backgroundColor: colors[key],
-                              }}
-                            />
-                            <span
-                              className={`${inter.className} font-medium text-[10px] text-black`}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        <div
-          className={`w-full h-fit flex ${
-            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-          } gap-6`}
-        >
-          <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
-          >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
-            >
-              KNEE SOCIETY SCORE
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={kssDatabox.filter(
-                  (item) =>
-                    item.min !== undefined &&
-                    item._median !== undefined &&
-                    item._min !== undefined &&
-                    item._max !== undefined
-                )} // Filter out undefined data
-                barCategoryGap="70%"
-                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <Tooltip
-                  content={({ active, label }) => {
-                    if (!active) return null;
-
-                    const item = kssDatabox.find((d) => d.name === label);
-                    if (!item) return null;
-
-                    const renameMap = {
-                      bottomWhisker: "poorestFunctionObserved",
-                      bottomBox: "belowAverageFunctionRange",
-                      topBox: "aboveAverageFunctionRange",
-                      topWhisker: "bestFunctionObserved",
-                      _median: "groupMedianFunctionScore",
-                      _min: "lowestFunctionScore",
-                      _max: "highestFunctionScore",
-                      Patient: "patientScore",
-                    };
-
-                    // Chart colors for each key
-                    const colorMap = {
-                      patientScore: "#04CE00", // green
-                      highestFunctionScore: "#1F77B4", // blue
-                      lowestFunctionScore: "#1F77B4", // blue (paired)
-                      bestFunctionObserved: "#9467BD", // purple
-                      poorestFunctionObserved: "#9467BD", // purple (paired)
-                      aboveAverageFunctionRange: "#FF7F0E", // orange
-                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                      groupMedianFunctionScore: "#000000", // white
-                    };
-                    const displayOrder = [
-                      "patientScore",
-                      "highestFunctionScore",
-                      "bestFunctionObserved",
-                      "aboveAverageFunctionRange",
-                      "groupMedianFunctionScore",
-                      "belowAverageFunctionRange",
-                      "poorestFunctionObserved",
-                      "lowestFunctionScore",
-                    ];
-
-                    return (
-                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                        <p
-                          className={`${poppins.className} font-bold text-black text-sm`}
-                        >
-                          {`Timepoint: ${label}`}
-                        </p>
-                        {displayOrder.map((key) => {
-                          const originalKey = Object.keys(renameMap).find(
-                            (k) => renameMap[k] === key
-                          );
-                          if (!originalKey || item[originalKey] == null)
-                            return null;
-
-                          return (
-                            <p
-                              key={key}
-                              className={`${poppins.className} font-medium text-sm`}
-                              style={{ color: colorMap[key] }}
-                            >
-                              {key}:{" "}
-                              <span
-                                className="font-semibold"
-                                style={{ color: colorMap[key] }}
-                              >
-                                {typeof item[originalKey] === "number"
-                                  ? item[originalKey].toFixed(2)
-                                  : item[originalKey]}
-                              </span>
-                            </p>
-                          );
-                        })}
-                      </div>
-                    );
-                  }}
-                />
-
-                <Bar stackId="a" dataKey="min" fill="none" />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomWhisker"
-                  shape={<DotBar stroke="#9EB5B5" />}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomBox"
-                  fill="#9EB5B5"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topBox"
-                  fill="#9EB5B5"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topWhisker"
-                  shape={<DotBar stroke="#9EB5B5" />}
-                />
-                {/* Median Line */}
-                <Scatter
-                  data={kssDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                  )}
-                  dataKey="_median"
-                />
-                {/* Min Line */}
-                <Scatter
-                  data={kssDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_min" stroke="#9EB5B5" />
-                  )}
-                  dataKey="_min"
-                />
-                {/* Max Line */}
-                <Scatter
-                  data={kssDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar
-                      {...props}
-                      dataKey="_max"
-                      fill="#9EB5B5"
-                      stroke="#9EB5B5"
-                    />
-                  )}
-                  dataKey="_max"
-                />
-                <ZAxis type="number" dataKey="size" range={[0, 250]} />
-                <Scatter
-                  data={kssDatabox.filter(
-                    (item) =>
-                      item.Patient !== undefined &&
-                      item.Patient !== null &&
-                      !isNaN(item.Patient) &&
-                      item.Patient < 100 // optional: clamp to realistic max
-                  )}
-                  dataKey="Patient"
-                  fill="#2A333A"
-                  stroke="#2A333A"
-                  shape={(props) => (
-                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                  )}
-                />
-                <XAxis
-                  dataKey="name"
-                  type="category"
-                  allowDuplicatedCategory={false}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  tickLine={{ stroke: "#615E83" }}
-                />
-                <YAxis
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 20,
-                    style: {
-                      textAnchor: "middle",
-                      fill: "#615E83",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={false}
-                  tickLine={{ stroke: "#615E83" }}
-                  domain={[0, 48]}
-                />
-
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      pcs: "Knee Society Score (KSS)",
-                      mcs: "Other Patients",
-                    };
-
-                    const colors = {
-                      pcs: "#04CE00",
-                      mcs: "#9EB5B5",
-                    };
-
-                    return (
-                      <ul className={`flex flex-col items-end`}>
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`flex flex-row items-center gap-2 w-2/5`}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                backgroundColor: colors[key],
-                              }}
-                            />
-                            <span
-                              className={`${inter.className} font-medium text-[10px] text-black`}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
-                  }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+                >
+                  {fixedXAxisTicks.map((period) => (
+                    <span
+                      key={period}
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "#615E83",
+                        fontFamily: "Poppins",
+                      }}
+                    >
+                      {period}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+            className={`w-full h-fit flex ${
+              width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+            } gap-6`}
           >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
             >
-              KNEE INJURY AND OSTHEOARTHRITIS OUTCOME SCORE, JOINT REPLACEMENT
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={koosjrDatabox.filter(
-                  (item) =>
-                    item.min !== undefined &&
-                    item._median !== undefined &&
-                    item._min !== undefined &&
-                    item._max !== undefined
-                )} // Filter out undefined data
-                barCategoryGap="70%"
-                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <Tooltip
-                  content={({ active, label }) => {
-                    if (!active) return null;
+                KNEE SOCIETY SCORE
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={kssDatabox.filter(
+                        (item) =>
+                          item.min !== undefined &&
+                          item._median !== undefined &&
+                          item._min !== undefined &&
+                          item._max !== undefined
+                      )} // Filter out undefined data
+                      barCategoryGap="70%"
+                      margin={{ top: 10, right: 20, left: 0, bottom: 30 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <Tooltip
+                        content={({ active, label }) => {
+                          if (!active) return null;
 
-                    const item = koosjrDatabox.find((d) => d.name === label);
-                    if (!item) return null;
+                          const item = kssDatabox.find((d) => d.name === label);
+                          if (!item) return null;
 
-                    const renameMap = {
-                      bottomWhisker: "poorestFunctionObserved",
-                      bottomBox: "belowAverageFunctionRange",
-                      topBox: "aboveAverageFunctionRange",
-                      topWhisker: "bestFunctionObserved",
-                      _median: "groupMedianFunctionScore",
-                      _min: "lowestFunctionScore",
-                      _max: "highestFunctionScore",
-                      Patient: "patientScore",
-                    };
+                          const renameMap = {
+                            bottomWhisker: "poorestFunctionObserved",
+                            bottomBox: "belowAverageFunctionRange",
+                            topBox: "aboveAverageFunctionRange",
+                            topWhisker: "bestFunctionObserved",
+                            _median: "groupMedianFunctionScore",
+                            _min: "lowestFunctionScore",
+                            _max: "highestFunctionScore",
+                            Patient: "patientScore",
+                          };
 
-                    // Chart colors for each key
-                    const colorMap = {
-                      patientScore: "#04CE00", // green
-                      highestFunctionScore: "#1F77B4", // blue
-                      lowestFunctionScore: "#1F77B4", // blue (paired)
-                      bestFunctionObserved: "#9467BD", // purple
-                      poorestFunctionObserved: "#9467BD", // purple (paired)
-                      aboveAverageFunctionRange: "#FF7F0E", // orange
-                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                      groupMedianFunctionScore: "#000000", // white
-                    };
-                    const displayOrder = [
-                      "patientScore",
-                      "highestFunctionScore",
-                      "bestFunctionObserved",
-                      "aboveAverageFunctionRange",
-                      "groupMedianFunctionScore",
-                      "belowAverageFunctionRange",
-                      "poorestFunctionObserved",
-                      "lowestFunctionScore",
-                    ];
-
-                    return (
-                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                        <p
-                          className={`${poppins.className} font-bold text-black text-sm`}
-                        >
-                          {`Timepoint: ${label}`}
-                        </p>
-                        {displayOrder.map((key) => {
-                          const originalKey = Object.keys(renameMap).find(
-                            (k) => renameMap[k] === key
-                          );
-                          if (!originalKey || item[originalKey] == null)
-                            return null;
+                          // Chart colors for each key
+                          const colorMap = {
+                            patientScore: "#04CE00", // green
+                            highestFunctionScore: "#1F77B4", // blue
+                            lowestFunctionScore: "#1F77B4", // blue (paired)
+                            bestFunctionObserved: "#9467BD", // purple
+                            poorestFunctionObserved: "#9467BD", // purple (paired)
+                            aboveAverageFunctionRange: "#FF7F0E", // orange
+                            belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                            groupMedianFunctionScore: "#000000", // white
+                          };
+                          const displayOrder = [
+                            "patientScore",
+                            "highestFunctionScore",
+                            "bestFunctionObserved",
+                            "aboveAverageFunctionRange",
+                            "groupMedianFunctionScore",
+                            "belowAverageFunctionRange",
+                            "poorestFunctionObserved",
+                            "lowestFunctionScore",
+                          ];
 
                           return (
-                            <p
-                              key={key}
-                              className={`${poppins.className} font-medium text-sm`}
-                              style={{ color: colorMap[key] }}
-                            >
-                              {key}:{" "}
-                              <span
-                                className="font-semibold"
-                                style={{ color: colorMap[key] }}
+                            <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                              <p
+                                className={`${poppins.className} text-center font-bold text-black text-sm`}
                               >
-                                {typeof item[originalKey] === "number"
-                                  ? item[originalKey].toFixed(2)
-                                  : item[originalKey]}
-                              </span>
-                            </p>
+                                {`Timepoint: ${label}`}
+                              </p>
+                              {displayOrder.map((key) => {
+                                const originalKey = Object.keys(renameMap).find(
+                                  (k) => renameMap[k] === key
+                                );
+                                if (!originalKey || item[originalKey] == null)
+                                  return null;
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`${poppins.className} flex justify-between text-sm font-medium`}
+                                    style={{ color: colorMap[key] }}
+                                  >
+                                    <span>{key}:</span>
+                                    <span
+                                      className="font-semibold text-right"
+                                      style={{
+                                        color: colorMap[key],
+                                        minWidth: "50px",
+                                      }}
+                                    >
+                                      {typeof item[originalKey] === "number"
+                                        ? item[originalKey].toFixed(2)
+                                        : item[originalKey]}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           );
-                        })}
-                      </div>
-                    );
-                  }}
-                />
+                        }}
+                      />
 
-                <Bar stackId="a" dataKey="min" fill="none" />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomWhisker"
-                  shape={<DotBar stroke="#D88C8A" />}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomBox"
-                  fill="#D88C8A"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topBox"
-                  fill="#D88C8A"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topWhisker"
-                  shape={<DotBar stroke="#D88C8A" />}
-                />
-                {/* Median Line */}
-                <Scatter
-                  data={koosjrDatabox.filter(
-                    (item) => item._median !== undefined
-                  )} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                  )}
-                  dataKey="_median"
-                />
-                {/* Min Line */}
-                <Scatter
-                  data={koosjrDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_min" stroke="#D88C8A" />
-                  )}
-                  dataKey="_min"
-                />
-                {/* Max Line */}
-                <Scatter
-                  data={koosjrDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar
-                      {...props}
-                      dataKey="_max"
-                      fill="#D88C8A"
-                      stroke="#D88C8A"
-                    />
-                  )}
-                  dataKey="_max"
-                />
-                <ZAxis type="number" dataKey="size" range={[0, 250]} />
-                <Scatter
-                  data={koosjrDatabox.filter(
-                    (item) =>
-                      item.Patient !== undefined &&
-                      item.Patient !== null &&
-                      !isNaN(item.Patient) &&
-                      item.Patient < 100 // optional: clamp to realistic max
-                  )}
-                  dataKey="Patient"
-                  fill="#2A333A"
-                  stroke="#2A333A"
-                  shape={(props) => (
-                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                  )}
-                />
-                <XAxis
-                  dataKey="name"
-                  type="category"
-                  allowDuplicatedCategory={false}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  tickLine={{ stroke: "#615E83" }}
-                />
-                <YAxis
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 20,
-                    style: {
-                      textAnchor: "middle",
-                      fill: "#615E83",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={false}
-                  tickLine={{ stroke: "#615E83" }}
-                  domain={[0, 28]}
-                />
+                      <Bar stackId="a" dataKey="min" fill="none" />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomWhisker"
+                        shape={<DotBar stroke="#9EB5B5" />}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomBox"
+                        fill="#9EB5B5"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topBox"
+                        fill="#9EB5B5"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topWhisker"
+                        shape={<DotBar stroke="#9EB5B5" />}
+                      />
+                      {/* Median Line */}
+                      <Scatter
+                        data={kssDatabox.filter(
+                          (item) => item._median !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_median"
+                            stroke="#ffffff"
+                          />
+                        )}
+                        dataKey="_median"
+                      />
+                      {/* Min Line */}
+                      <Scatter
+                        data={kssDatabox.filter(
+                          (item) => item._min !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_min"
+                            stroke="#9EB5B5"
+                          />
+                        )}
+                        dataKey="_min"
+                      />
+                      {/* Max Line */}
+                      <Scatter
+                        data={kssDatabox.filter(
+                          (item) => item._max !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_max"
+                            fill="#9EB5B5"
+                            stroke="#9EB5B5"
+                          />
+                        )}
+                        dataKey="_max"
+                      />
+                      <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                      <Scatter
+                        data={kssDatabox.filter(
+                          (item) =>
+                            item.Patient !== undefined &&
+                            item.Patient !== null &&
+                            !isNaN(item.Patient) &&
+                            item.Patient < 100 // optional: clamp to realistic max
+                        )}
+                        dataKey="Patient"
+                        fill="#2A333A"
+                        stroke="#2A333A"
+                        shape={(props) => (
+                          <circle
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill="#04CE00"
+                          />
+                        )}
+                      />
+                      <XAxis
+                        dataKey="name"
+                        type="category"
+                        allowDuplicatedCategory={false}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={{ stroke: "#99a1af " }} // gray-500
+                        tickLine={{ stroke: "#615E83" }}
+                        hide={true}
+                      />
+                      <YAxis
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          offset: 20,
+                          style: {
+                            textAnchor: "middle",
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: "700",
+                            fontFamily: "Poppins",
+                          },
+                        }}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={false}
+                        tickLine={{ stroke: "#615E83" }}
+                        domain={[0, 48]}
+                      />
 
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      pcs: "KOOS, JR",
-                      mcs: "Other Patients",
-                    };
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            pcs: "Knee Society Score (KSS)",
+                            mcs: "Other Patients",
+                          };
 
-                    const colors = {
-                      pcs: "#04CE00",
-                      mcs: "#D88C8A",
-                    };
+                          const colors = {
+                            pcs: "#04CE00",
+                            mcs: "#9EB5B5",
+                          };
 
-                    return (
-                      <ul className={`flex flex-col items-end`}>
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`flex flex-row items-center gap-2 w-2/5`}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                backgroundColor: colors[key],
-                              }}
-                            />
-                            <span
-                              className={`${inter.className} font-medium text-[10px] text-black`}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
+                          return (
+                            <ul className={`flex flex-col items-end`}>
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`flex flex-row items-center gap-2 w-2/5`}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      backgroundColor: colors[key],
+                                    }}
+                                  />
+                                  <span
+                                    className={`${inter.className} font-medium text-[10px] text-black`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingLeft: "70px",
+                    paddingRight: "50px",
+                    marginTop: -10,
                   }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+                >
+                  {fixedXAxisTicks.map((period) => (
+                    <span
+                      key={period}
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "#615E83",
+                        fontFamily: "Poppins",
+                      }}
+                    >
+                      {period}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+            >
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+              >
+                KNEE INJURY AND OSTHEOARTHRITIS OUTCOME SCORE, JOINT REPLACEMENT
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={koosjrDatabox.filter(
+                        (item) =>
+                          item.min !== undefined &&
+                          item._median !== undefined &&
+                          item._min !== undefined &&
+                          item._max !== undefined
+                      )} // Filter out undefined data
+                      barCategoryGap="70%"
+                      margin={{ top: 10, right: 20, left: 0, bottom: 30 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <Tooltip
+                        content={({ active, label }) => {
+                          if (!active) return null;
+
+                          const item = koosjrDatabox.find(
+                            (d) => d.name === label
+                          );
+                          if (!item) return null;
+
+                          const renameMap = {
+                            bottomWhisker: "poorestFunctionObserved",
+                            bottomBox: "belowAverageFunctionRange",
+                            topBox: "aboveAverageFunctionRange",
+                            topWhisker: "bestFunctionObserved",
+                            _median: "groupMedianFunctionScore",
+                            _min: "lowestFunctionScore",
+                            _max: "highestFunctionScore",
+                            Patient: "patientScore",
+                          };
+
+                          // Chart colors for each key
+                          const colorMap = {
+                            patientScore: "#04CE00", // green
+                            highestFunctionScore: "#1F77B4", // blue
+                            lowestFunctionScore: "#1F77B4", // blue (paired)
+                            bestFunctionObserved: "#9467BD", // purple
+                            poorestFunctionObserved: "#9467BD", // purple (paired)
+                            aboveAverageFunctionRange: "#FF7F0E", // orange
+                            belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                            groupMedianFunctionScore: "#000000", // white
+                          };
+                          const displayOrder = [
+                            "patientScore",
+                            "highestFunctionScore",
+                            "bestFunctionObserved",
+                            "aboveAverageFunctionRange",
+                            "groupMedianFunctionScore",
+                            "belowAverageFunctionRange",
+                            "poorestFunctionObserved",
+                            "lowestFunctionScore",
+                          ];
+
+                          return (
+                            <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                              <p
+                                className={`${poppins.className} text-center font-bold text-black text-sm`}
+                              >
+                                {`Timepoint: ${label}`}
+                              </p>
+                              {displayOrder.map((key) => {
+                                const originalKey = Object.keys(renameMap).find(
+                                  (k) => renameMap[k] === key
+                                );
+                                if (!originalKey || item[originalKey] == null)
+                                  return null;
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`${poppins.className} flex justify-between text-sm font-medium`}
+                                    style={{ color: colorMap[key] }}
+                                  >
+                                    <span>{key}:</span>
+                                    <span
+                                      className="font-semibold text-right"
+                                      style={{
+                                        color: colorMap[key],
+                                        minWidth: "50px",
+                                      }}
+                                    >
+                                      {typeof item[originalKey] === "number"
+                                        ? item[originalKey].toFixed(2)
+                                        : item[originalKey]}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        }}
+                      />
+
+                      <Bar stackId="a" dataKey="min" fill="none" />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomWhisker"
+                        shape={<DotBar stroke="#D88C8A" />}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomBox"
+                        fill="#D88C8A"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topBox"
+                        fill="#D88C8A"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topWhisker"
+                        shape={<DotBar stroke="#D88C8A" />}
+                      />
+                      {/* Median Line */}
+                      <Scatter
+                        data={koosjrDatabox.filter(
+                          (item) => item._median !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_median"
+                            stroke="#ffffff"
+                          />
+                        )}
+                        dataKey="_median"
+                      />
+                      {/* Min Line */}
+                      <Scatter
+                        data={koosjrDatabox.filter(
+                          (item) => item._min !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_min"
+                            stroke="#D88C8A"
+                          />
+                        )}
+                        dataKey="_min"
+                      />
+                      {/* Max Line */}
+                      <Scatter
+                        data={koosjrDatabox.filter(
+                          (item) => item._max !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_max"
+                            fill="#D88C8A"
+                            stroke="#D88C8A"
+                          />
+                        )}
+                        dataKey="_max"
+                      />
+                      <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                      <Scatter
+                        data={koosjrDatabox.filter(
+                          (item) =>
+                            item.Patient !== undefined &&
+                            item.Patient !== null &&
+                            !isNaN(item.Patient) &&
+                            item.Patient < 100 // optional: clamp to realistic max
+                        )}
+                        dataKey="Patient"
+                        fill="#2A333A"
+                        stroke="#2A333A"
+                        shape={(props) => (
+                          <circle
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill="#04CE00"
+                          />
+                        )}
+                      />
+                      <XAxis
+                        dataKey="name"
+                        type="category"
+                        allowDuplicatedCategory={false}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={{ stroke: "#99a1af " }} // gray-500
+                        tickLine={{ stroke: "#615E83" }}
+                        hide={true}
+                      />
+                      <YAxis
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          offset: 20,
+                          style: {
+                            textAnchor: "middle",
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: "700",
+                            fontFamily: "Poppins",
+                          },
+                        }}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={false}
+                        tickLine={{ stroke: "#615E83" }}
+                        domain={[0, 28]}
+                      />
+
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            pcs: "KOOS, JR",
+                            mcs: "Other Patients",
+                          };
+
+                          const colors = {
+                            pcs: "#04CE00",
+                            mcs: "#D88C8A",
+                          };
+
+                          return (
+                            <ul className={`flex flex-col items-end`}>
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`flex flex-row items-center gap-2 w-2/5`}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      backgroundColor: colors[key],
+                                    }}
+                                  />
+                                  <span
+                                    className={`${inter.className} font-medium text-[10px] text-black`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingLeft: "70px",
+                    paddingRight: "50px",
+                    marginTop: -10,
+                  }}
+                >
+                  {fixedXAxisTicks.map((period) => (
+                    <span
+                      key={period}
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "#615E83",
+                        fontFamily: "Poppins",
+                      }}
+                    >
+                      {period}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div
-          className={`w-full h-fit flex ${
-            width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
-          } gap-6`}
-        >
           <div
-            className={`${
-              width >= 1000 ? "w-1/2" : "w-full"
-            } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
+            className={`w-full h-fit flex ${
+              width >= 1000 ? "flex-row pt-4" : "flex-col pt-6"
+            } gap-6`}
           >
-            <p
-              className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
+            <div
+              className={`${
+                width >= 1000 ? "w-1/2" : "w-full"
+              } h-96 flex flex-col gap-2 rounded-[12px] border-1 border-[#E8E7E7] py-4 px-6`}
             >
-              FORGOTTEN JOINT SCORE
-            </p>
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart
-                data={fjsDatabox.filter(
-                  (item) =>
-                    item.min !== undefined &&
-                    item._median !== undefined &&
-                    item._min !== undefined &&
-                    item._max !== undefined
-                )} // Filter out undefined data
-                barCategoryGap="70%"
-                margin={{ top: 10, bottom: 0, left: 0, right: 20 }}
+              <p
+                className={`w-full ${inter.className}  font-bold text-[#2B333E] text-xs`}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <Tooltip
-                  content={({ active, label }) => {
-                    if (!active) return null;
+                FORGOTTEN JOINT SCORE
+              </p>
+              <div
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart
+                      data={fjsDatabox.filter(
+                        (item) =>
+                          item.min !== undefined &&
+                          item._median !== undefined &&
+                          item._min !== undefined &&
+                          item._max !== undefined
+                      )} // Filter out undefined data
+                      barCategoryGap="70%"
+                      margin={{ top: 10, right: 20, left: 0, bottom: 30 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <Tooltip
+                        content={({ active, label }) => {
+                          if (!active) return null;
 
-                    const item = fjsDatabox.find((d) => d.name === label);
-                    if (!item) return null;
+                          const item = fjsDatabox.find((d) => d.name === label);
+                          if (!item) return null;
 
-                    const renameMap = {
-                      bottomWhisker: "poorestFunctionObserved",
-                      bottomBox: "belowAverageFunctionRange",
-                      topBox: "aboveAverageFunctionRange",
-                      topWhisker: "bestFunctionObserved",
-                      _median: "groupMedianFunctionScore",
-                      _min: "lowestFunctionScore",
-                      _max: "highestFunctionScore",
-                      Patient: "patientScore",
-                    };
+                          const renameMap = {
+                            bottomWhisker: "poorestFunctionObserved",
+                            bottomBox: "belowAverageFunctionRange",
+                            topBox: "aboveAverageFunctionRange",
+                            topWhisker: "bestFunctionObserved",
+                            _median: "groupMedianFunctionScore",
+                            _min: "lowestFunctionScore",
+                            _max: "highestFunctionScore",
+                            Patient: "patientScore",
+                          };
 
-                    // Chart colors for each key
-                    const colorMap = {
-                      patientScore: "#04CE00", // green
-                      highestFunctionScore: "#1F77B4", // blue
-                      lowestFunctionScore: "#1F77B4", // blue (paired)
-                      bestFunctionObserved: "#9467BD", // purple
-                      poorestFunctionObserved: "#9467BD", // purple (paired)
-                      aboveAverageFunctionRange: "#FF7F0E", // orange
-                      belowAverageFunctionRange: "#FF7F0E", // orange (paired)
-                      groupMedianFunctionScore: "#000000", // white
-                    };
-                    const displayOrder = [
-                      "patientScore",
-                      "highestFunctionScore",
-                      "bestFunctionObserved",
-                      "aboveAverageFunctionRange",
-                      "groupMedianFunctionScore",
-                      "belowAverageFunctionRange",
-                      "poorestFunctionObserved",
-                      "lowestFunctionScore",
-                    ];
-
-                    return (
-                      <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
-                        <p
-                          className={`${poppins.className} font-bold text-black text-sm`}
-                        >
-                          {`Timepoint: ${label}`}
-                        </p>
-                        {displayOrder.map((key) => {
-                          const originalKey = Object.keys(renameMap).find(
-                            (k) => renameMap[k] === key
-                          );
-                          if (!originalKey || item[originalKey] == null)
-                            return null;
+                          // Chart colors for each key
+                          const colorMap = {
+                            patientScore: "#04CE00", // green
+                            highestFunctionScore: "#1F77B4", // blue
+                            lowestFunctionScore: "#1F77B4", // blue (paired)
+                            bestFunctionObserved: "#9467BD", // purple
+                            poorestFunctionObserved: "#9467BD", // purple (paired)
+                            aboveAverageFunctionRange: "#FF7F0E", // orange
+                            belowAverageFunctionRange: "#FF7F0E", // orange (paired)
+                            groupMedianFunctionScore: "#000000", // white
+                          };
+                          const displayOrder = [
+                            "patientScore",
+                            "highestFunctionScore",
+                            "bestFunctionObserved",
+                            "aboveAverageFunctionRange",
+                            "groupMedianFunctionScore",
+                            "belowAverageFunctionRange",
+                            "poorestFunctionObserved",
+                            "lowestFunctionScore",
+                          ];
 
                           return (
-                            <p
-                              key={key}
-                              className={`${poppins.className} font-medium text-sm`}
-                              style={{ color: colorMap[key] }}
-                            >
-                              {key}:{" "}
-                              <span
-                                className="font-semibold"
-                                style={{ color: colorMap[key] }}
+                            <div className="font-semibold text-black text-xs bg-white px-2 py-1 rounded-sm border-black border-1">
+                              <p
+                                className={`${poppins.className} text-center font-bold text-black text-sm`}
                               >
-                                {typeof item[originalKey] === "number"
-                                  ? item[originalKey].toFixed(2)
-                                  : item[originalKey]}
-                              </span>
-                            </p>
+                                {`Timepoint: ${label}`}
+                              </p>
+                              {displayOrder.map((key) => {
+                                const originalKey = Object.keys(renameMap).find(
+                                  (k) => renameMap[k] === key
+                                );
+                                if (!originalKey || item[originalKey] == null)
+                                  return null;
+
+                                return (
+                                  <div
+                                    key={key}
+                                    className={`${poppins.className} flex justify-between text-sm font-medium`}
+                                    style={{ color: colorMap[key] }}
+                                  >
+                                    <span>{key}:</span>
+                                    <span
+                                      className="font-semibold text-right"
+                                      style={{
+                                        color: colorMap[key],
+                                        minWidth: "50px",
+                                      }}
+                                    >
+                                      {typeof item[originalKey] === "number"
+                                        ? item[originalKey].toFixed(2)
+                                        : item[originalKey]}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           );
-                        })}
-                      </div>
-                    );
-                  }}
-                />
+                        }}
+                      />
 
-                <Bar stackId="a" dataKey="min" fill="none" />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomWhisker"
-                  shape={<DotBar stroke="#9EA6B5" />}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="bottomBox"
-                  fill="#9EA6B5"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topBox"
-                  fill="#9EA6B5"
-                  radius={[4, 0, 0, 4]}
-                />
-                <Bar
-                  stackId="a"
-                  dataKey="topWhisker"
-                  shape={<DotBar stroke="#9EA6B5" />}
-                />
-                {/* Median Line */}
-                <Scatter
-                  data={fjsDatabox.filter((item) => item._median !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_median" stroke="#ffffff" />
-                  )}
-                  dataKey="_median"
-                />
-                {/* Min Line */}
-                <Scatter
-                  data={fjsDatabox.filter((item) => item._min !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar {...props} dataKey="_min" stroke="#9EA6B5" />
-                  )}
-                  dataKey="_min"
-                />
-                {/* Max Line */}
-                <Scatter
-                  data={fjsDatabox.filter((item) => item._max !== undefined)} // Ensure valid data
-                  shape={(props) => (
-                    <HorizonBar
-                      {...props}
-                      dataKey="_max"
-                      fill="#9EA6B5"
-                      stroke="#9EA6B5"
-                    />
-                  )}
-                  dataKey="_max"
-                />
-                <ZAxis type="number" dataKey="size" range={[0, 250]} />
-                <Scatter
-                  data={fjsDatabox.filter(
-                    (item) =>
-                      item.Patient !== undefined &&
-                      item.Patient !== null &&
-                      !isNaN(item.Patient) &&
-                      item.Patient < 100 // optional: clamp to realistic max
-                  )}
-                  dataKey="Patient"
-                  fill="#2A333A"
-                  stroke="#2A333A"
-                  shape={(props) => (
-                    <circle cx={props.cx} cy={props.cy} r={5} fill="#04CE00" />
-                  )}
-                />
-                <XAxis
-                  dataKey="name"
-                  type="category"
-                  allowDuplicatedCategory={false}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={{ stroke: "#99a1af " }} // gray-500
-                  tickLine={{ stroke: "#615E83" }}
-                />
-                <YAxis
-                  label={{
-                    value: "SCORE",
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: 20,
-                    style: {
-                      textAnchor: "middle",
-                      fill: "#615E83",
-                      fontSize: 14,
-                      fontWeight: "700",
-                      fontFamily: "Poppins",
-                    },
-                  }}
-                  tick={{
-                    fill: "#615E83",
-                    fontSize: 12,
-                    fontWeight: "600",
-                    fontFamily: "Poppins",
-                  }}
-                  axisLine={false}
-                  tickLine={{ stroke: "#615E83" }}
-                  domain={[0, 48]}
-                />
+                      <Bar stackId="a" dataKey="min" fill="none" />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomWhisker"
+                        shape={<DotBar stroke="#9EA6B5" />}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="bottomBox"
+                        fill="#9EA6B5"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topBox"
+                        fill="#9EA6B5"
+                        radius={[4, 0, 0, 4]}
+                      />
+                      <Bar
+                        stackId="a"
+                        dataKey="topWhisker"
+                        shape={<DotBar stroke="#9EA6B5" />}
+                      />
+                      {/* Median Line */}
+                      <Scatter
+                        data={fjsDatabox.filter(
+                          (item) => item._median !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_median"
+                            stroke="#ffffff"
+                          />
+                        )}
+                        dataKey="_median"
+                      />
+                      {/* Min Line */}
+                      <Scatter
+                        data={fjsDatabox.filter(
+                          (item) => item._min !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_min"
+                            stroke="#9EA6B5"
+                          />
+                        )}
+                        dataKey="_min"
+                      />
+                      {/* Max Line */}
+                      <Scatter
+                        data={fjsDatabox.filter(
+                          (item) => item._max !== undefined
+                        )} // Ensure valid data
+                        shape={(props) => (
+                          <HorizonBar
+                            {...props}
+                            dataKey="_max"
+                            fill="#9EA6B5"
+                            stroke="#9EA6B5"
+                          />
+                        )}
+                        dataKey="_max"
+                      />
+                      <ZAxis type="number" dataKey="size" range={[0, 250]} />
+                      <Scatter
+                        data={fjsDatabox.filter(
+                          (item) =>
+                            item.Patient !== undefined &&
+                            item.Patient !== null &&
+                            !isNaN(item.Patient) &&
+                            item.Patient < 100 // optional: clamp to realistic max
+                        )}
+                        dataKey="Patient"
+                        fill="#2A333A"
+                        stroke="#2A333A"
+                        shape={(props) => (
+                          <circle
+                            cx={props.cx}
+                            cy={props.cy}
+                            r={5}
+                            fill="#04CE00"
+                          />
+                        )}
+                      />
+                      <XAxis
+                        dataKey="name"
+                        type="category"
+                        allowDuplicatedCategory={false}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={{ stroke: "#99a1af " }} // gray-500
+                        tickLine={{ stroke: "#615E83" }}
+                        hide={true}
+                      />
+                      <YAxis
+                        label={{
+                          value: "SCORE",
+                          angle: -90,
+                          position: "insideLeft",
+                          offset: 20,
+                          style: {
+                            textAnchor: "middle",
+                            fill: "#615E83",
+                            fontSize: 14,
+                            fontWeight: "700",
+                            fontFamily: "Poppins",
+                          },
+                        }}
+                        tick={{
+                          fill: "#615E83",
+                          fontSize: 12,
+                          fontWeight: "600",
+                          fontFamily: "Poppins",
+                        }}
+                        axisLine={false}
+                        tickLine={{ stroke: "#615E83" }}
+                        domain={[0, 48]}
+                      />
 
-                <Legend
-                  verticalAlign="top"
-                  align="right"
-                  iconType="circle"
-                  iconSize={10}
-                  wrapperStyle={{ paddingBottom: 20 }}
-                  content={() => {
-                    const labels = {
-                      pcs: "Forgotten Joint Score (FJS)",
-                      mcs: "Other Patients",
-                    };
+                      <Legend
+                        verticalAlign="top"
+                        align="right"
+                        iconType="circle"
+                        iconSize={10}
+                        wrapperStyle={{ paddingBottom: 20 }}
+                        content={() => {
+                          const labels = {
+                            pcs: "Forgotten Joint Score (FJS)",
+                            mcs: "Other Patients",
+                          };
 
-                    const colors = {
-                      pcs: "#04CE00",
-                      mcs: "#9EA6B5",
-                    };
+                          const colors = {
+                            pcs: "#04CE00",
+                            mcs: "#9EA6B5",
+                          };
 
-                    return (
-                      <ul className={`flex flex-col items-end`}>
-                        {Object.entries(labels).map(([key, label]) => (
-                          <li
-                            key={key}
-                            className={`flex flex-row items-center gap-2 w-2/5`}
-                          >
-                            <span
-                              style={{
-                                display: "inline-block",
-                                width: 7,
-                                height: 7,
-                                borderRadius: "50%",
-                                backgroundColor: colors[key],
-                              }}
-                            />
-                            <span
-                              className={`${inter.className} font-medium text-[10px] text-black`}
-                            >
-                              {label}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    );
+                          return (
+                            <ul className={`flex flex-col items-end`}>
+                              {Object.entries(labels).map(([key, label]) => (
+                                <li
+                                  key={key}
+                                  className={`flex flex-row items-center gap-2 w-2/5`}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      width: 7,
+                                      height: 7,
+                                      borderRadius: "50%",
+                                      backgroundColor: colors[key],
+                                    }}
+                                  />
+                                  <span
+                                    className={`${inter.className} font-medium text-[10px] text-black`}
+                                  >
+                                    {label}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          );
+                        }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    paddingLeft: "70px",
+                    paddingRight: "50px",
+                    marginTop: -10,
                   }}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+                >
+                  {fixedXAxisTicks.map((period) => (
+                    <span
+                      key={period}
+                      style={{
+                        fontWeight: 700,
+                        fontSize: 12,
+                        color: "#615E83",
+                        fontFamily: "Poppins",
+                      }}
+                    >
+                      {period}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={`${width >= 1000 ? "w-1/2" : "w-full"}`}> </div>
           </div>
-
-          <div className={`${width >= 1000 ? "w-1/2" : "w-full"}`}> </div>
-        </div>
-      </>
-            )}
+        </>
+      )}
       <style>
         {`
       .inline-scroll::-webkit-scrollbar {
@@ -3294,8 +3805,195 @@ const Patientreport = ({ handlenavigateviewsurgeryreport }) => {
           </div>
         </div>
       )}
+
+      {logoutconfirm &&
+        ReactDOM.createPortal(
+          <div
+            className="fixed inset-0 z-40 "
+            style={{
+              backgroundColor: "rgba(0, 0, 0, 0.5)", // white with 50% opacity
+            }}
+          >
+            <div
+              className={`min-h-[100vh]  flex flex-col items-center justify-center mx-auto my-auto ${
+                width < 950 ? "gap-4 w-full" : "w-1/3"
+              }`}
+            >
+              <div
+                className={`w-full bg-[#FCFCFC]  p-4  overflow-y-auto overflow-x-hidden inline-scroll ${
+                  width < 1095 ? "flex flex-col gap-4" : ""
+                } max-h-[92vh] rounded-2xl`}
+              >
+                <div
+                  className={`w-full bg-[#FCFCFC]  ${
+                    width < 760 ? "h-fit" : "h-[80%]"
+                  } `}
+                >
+                  <div
+                    className={`w-full h-full rounded-lg flex flex-col gap-8 ${
+                      width < 760 ? "py-0" : "py-4 px-4"
+                    }`}
+                  >
+                    <div className={`w-full flex flex-col gap-1`}>
+                      <div className="flex flex-row justify-center items-center w-full">
+                        <p
+                          className={`${inter.className} text-xl font-bold text-black`}
+                        >
+                          Confirmation
+                        </p>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`w-full flex gap-2 justify-center items-center ${
+                        width >= 1200 ? "flex-col" : "flex-col"
+                      }`}
+                    >
+                      <p
+                        className={`${raleway.className} text-lg font-semibold text-black`}
+                      >
+                        Are you sure need to sign out?
+                      </p>
+                    </div>
+
+                    <div className={`w-full flex flex-row`}>
+                      <div
+                        className={`w-full flex flex-row gap-6 items-center ${
+                          width < 700 ? "justify-between" : "justify-end"
+                        }`}
+                      >
+                        <button
+                          className={`text-black/80 font-normal ${
+                            raleway.className
+                          } cursor-pointer ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            setlogoutconfirm(false);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          className={`bg-[#161C10] text-white py-2 font-normal cursor-pointer ${
+                            raleway.className
+                          } ${width < 700 ? "w-1/2" : "w-1/2"}`}
+                          onClick={() => {
+                            handlelogout();
+                          }}
+                        >
+                          Yes
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>
+              {`
+                             .inline-scroll::-webkit-scrollbar {
+                               width: 12px;
+                             }
+                             .inline-scroll::-webkit-scrollbar-track {
+                               background: transparent;
+                             }
+                             .inline-scroll::-webkit-scrollbar-thumb {
+                               background-color: #076C40;
+                               border-radius: 8px;
+                             }
+                       
+                             .inline-scroll {
+                               scrollbar-color: #076C40 transparent;
+                             }
+                           `}
+            </style>
+          </div>,
+          document.body
+        )}
+
+      {isFloatingNoteVisible &&
+        createPortal(
+          <div
+            className={` ${poppins.className} fixed z-50 rounded-xl shadow-2xl border border-gray-300 bg-gradient-to-br from-white to-gray-50 w-80 select-none inline-scroll floating-note-header`}
+            style={{
+              top: position.y,
+              left: position.x,
+              cursor: isDragging ? "grabbing" : "grab",
+              transition: isDragging
+                ? "none"
+                : "top 0.15s ease, left 0.15s ease",
+            }}
+            onMouseDown={(e) => {
+              setIsDragging(true);
+              setOffset({
+                x: e.clientX - position.x,
+                y: e.clientY - position.y,
+              });
+            }}
+          >
+            {/* Header */}
+            <div
+              className="flex justify-between items-center bg-black text-white px-3 py-2 rounded-t-xl cursor-move"
+              onMouseDown={(e) => {
+                setIsDragging(true);
+                setOffset({
+                  x: e.clientX - position.x,
+                  y: e.clientY - position.y,
+                });
+              }}
+            >
+              <span className="font-semibold text-sm">🗒️ Patient Note</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsFloatingNoteVisible(false);
+                }}
+                onTouchStart={(e) => {
+                  e.stopPropagation();
+                  setIsFloatingNoteVisible(false);
+                }} // ✅ prevent touch drag start
+                className="hover:text-red-300 font-bold cursor-pointer"
+                title="Close"
+              >
+                <XCircleIcon className="h-5 w-5 text-white" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-3 text-gray-800 text-sm max-h-60 overflow-y-auto">
+              {floatingNote ? (
+                <div className="space-y-2">
+                  <h4 className="font-bold text-gray-800 text-center">
+                    {floatingName}
+                  </h4>
+                  <h5 className="font-semibold text-gray-700 text-center">
+                    Period: {floatingKey}
+                  </h5>
+                  {floatingNote.split(",").map((item, index) => {
+                    const [key, value] = item.split(":").map((s) => s.trim());
+                    return (
+                      <div key={index} className="flex flex-col">
+                        <span className="font-semibold text-gray-600 capitalize">
+                          {key}
+                        </span>
+                        <span className="text-black break-words whitespace-pre-wrap">
+                          {value || "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-gray-500 italic">
+                  No note details available
+                </p>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
-};
+});
 
 export default Patientreport;
